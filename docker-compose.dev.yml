@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  shell:
+    build: 
+      context: app
+      args:
+        - PYTHON_VER=${PYTHON_VER}
+    restart: always
+    depends_on:
+      - db
+    secrets:
+      - db-password
+      - tm-csv-connector-password
+    networks:
+      - backend-network
+      - frontend-network
+    volumes:
+      - ./app/src:/app
+      - ./config:/config:ro
+    environment:
+      - FLASK_DEBUG=True
+      - APP_DATABASE=tm-csv-connector
+      - APP_USER=tm-csv-connector
+      - APP_PASSWORD_FILE=/run/secrets/tm-csv-connector-password
+    tty: true # https://stackoverflow.com/a/55953120/799921
+
+  app:
+    volumes:
+      - ./app/src:/app
