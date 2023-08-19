@@ -81,6 +81,9 @@ services:
     networks:
       - backend-network
       - frontend-network
+    # https://stackoverflow.com/a/24326540/799921
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
     volumes:
       - ./config:/config:ro
     environment:

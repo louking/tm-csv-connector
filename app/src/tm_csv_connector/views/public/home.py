@@ -6,7 +6,7 @@ home - public views
 from datetime import timedelta
 
 # pypi
-from flask import g, render_template
+from flask import g, render_template, jsonify
 from flask.views import MethodView
 from loutilities.tables import DbCrudApi
 from loutilities.timeu import asctime, timesecs
@@ -241,3 +241,19 @@ settings_view = settingsView(
 )
 settings_view.register()
 
+class Control(MethodView):
+
+    def get(self):
+        return render_template('control.jinja2',
+                               pagename='Control',
+                               url_rule='/control',
+                               )
+
+    def post(self):
+        return jsonify({'status': 'success'})
+    
+control_view = Control.as_view('control')
+bp.add_url_rule('/control', view_func=control_view, methods=['GET',])
+bp.add_url_rule('/control/rest', view_func=control_view, methods=['POST',])
+
+        
