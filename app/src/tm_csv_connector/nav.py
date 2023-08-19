@@ -68,7 +68,6 @@ def nav_menu():
     connector_view = add_view('https://tmtility.readthedocs.io/en/{docversion}/tm-csv-connector-reference.html#')
 
     navbar.items.append(View('Home', 'public.home', interest=g.interest))
-    navbar.items.append(View('Control', 'public.control', interest=g.interest))
     navbar.items.append(View('Races', 'public.races', interest=g.interest))
     navbar.items.append(View('Results', 'public.results', interest=g.interest))
     navbar.items.append(View('Settings', 'public.settings', interest=g.interest))

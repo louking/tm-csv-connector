@@ -10,6 +10,8 @@ from flask import g, render_template, jsonify
 from flask.views import MethodView
 from loutilities.tables import DbCrudApi
 from loutilities.timeu import asctime, timesecs
+from dominate.tags import div, button, span, select, option, input_
+from loutilities.filters import filtercontainerdiv
 
 # homegrown
 from . import bp
@@ -58,6 +60,24 @@ results_formmapping = dict(zip(results_formfields, results_dbattrs))
 results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
 results_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
 
+results_filters = filtercontainerdiv()
+results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item'), _class='filter')
+results_filter_port = div(_class='filter-item')
+with results_filter_port:
+    span('Port *', _class='label')
+    with span(_class='filter'):
+         with select(id='port', name="port", _class="validate", required='true', aria_required="true", onchange="setParams()"):
+             option('COM3')
+             option('COM4')
+             option('COM8')
+results_filters += results_filter_port
+results_filter_outputdir = div(_class='filter-item')
+with results_filter_outputdir:
+    span('Output Dir *', _class='label')
+    with span(_class='filter'):
+        input_(id="outputdir", type="text", name="outputdir", _class="validate", required='true', aria_required="true", onchange="setParams()")
+results_filters += results_filter_outputdir
+
 def results_validate(action, formdata):
     results = []
     from re import compile
@@ -101,11 +121,12 @@ results_view = ResultsView(
     app=bp,  # use blueprint instead of app
     db=db,
     model=Result,
-    template='datatables.jinja2',
+    template='results.jinja2',
     pagename='results',
     endpoint='public.results',
     rule='/<interest>/results',
     endpointvalues={'interest': '<interest>'},
+    pretablehtml=results_filters.render(),
     dbmapping=results_dbmapping,
     formmapping=results_formmapping,
     validate=results_validate,
@@ -240,20 +261,3 @@ settings_view = settingsView(
     },
 )
 settings_view.register()
-
-class Control(MethodView):
-
-    def get(self):
-        return render_template('control.jinja2',
-                               pagename='Control',
-                               url_rule='/control',
-                               )
-
-    def post(self):
-        return jsonify({'status': 'success'})
-    
-control_view = Control.as_view('control')
-bp.add_url_rule('/control', view_func=control_view, methods=['GET',])
-bp.add_url_rule('/control/rest', view_func=control_view, methods=['POST',])
-
-        

@@ -125,7 +125,6 @@ async def send_to_backend(websocket, data):
     """
     sending = dumps(data)
     log.debug(f'sending: {sending}')
-    log.debug(f'websocket.send = {websocket.send}')
     await websocket.send(sending)
         
 async def reader(port, logging_path):

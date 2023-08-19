@@ -1,0 +1,10 @@
+{% extends "datatables.jinja2" %}
+{% block pagename %}
+    {{ pagename }}
+{% endblock %}
+{% block css %}
+{% endblock %}
+{% block scripts %}
+    <script type="text/javascript" src="/static/results.js"></script>
+    {{ super() }}
+{% endblock %}
