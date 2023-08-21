@@ -7,16 +7,20 @@ from json import loads, dumps
 # pypi
 from flask import current_app
 from flask_sock import Sock
-from websockets.sync.client import connect
+from loutilities.timeu import timesecs
+# from websockets import connect
+
+# homegrown
+from .model import db, Result
 
 _websockets = Sock()
 # https://stackoverflow.com/a/24326540/799921
 clienturi = 'ws://host.docker.internal:8081'
 
-async def send_to_client(msg):
-    current_app.logger.debug(f'sending to {clienturi}: {msg}')
-    async with connect(clienturi) as ws:
-        await ws.send(dumps(msg))
+# async def send_to_client(msg):
+#     current_app.logger.debug(f'sending to {clienturi}: {msg}')
+#     async with connect(clienturi) as ws:
+#         await ws.send(dumps(msg))
     
 def init_app(app):
     _websockets.init_app(app)
@@ -25,6 +29,17 @@ def init_app(app):
 def tm_reader(ws):
     while True:
         data = ws.receive()
+        current_app.logger.debug(f'received data {data}')
         msg = loads(data)
-        current_app.logger.debug(f'received {msg}')
+        # current_app.logger.debug(f'received msg {msg}')
+        
+        # write to database
+        result = Result()
+        result.bibno = msg['bibno'] if 'bibno' in msg else None
+        result.tmpos = msg['pos']
+        result.time = timesecs(msg['time'])
+        # TODO: fix this to get from msg
+        result.race_id = 3
+        db.session.add(result)
+        db.session.commit()
         

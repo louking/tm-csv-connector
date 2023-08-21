@@ -91,6 +91,7 @@ services:
       - APP_DATABASE=tm-csv-connector
       - APP_USER=tm-csv-connector
       - APP_PASSWORD_FILE=/run/secrets/tm-csv-connector-password
+    # command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--workers", "5", "--threads", "25", "app:app"]
     command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "app:app"]
 
 volumes:

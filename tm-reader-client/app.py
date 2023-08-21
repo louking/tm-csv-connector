@@ -77,6 +77,9 @@ class InputChunkProtocol(Protocol):
         # last part is saved for later, may be empty, don't send to back end
         # note the residual may be the only item in msgs
         self.residual = msgs.pop()
+        if self.residual:
+            log.debug(f'residual: {self.residual}')
+        
         
         # don't connect if nothing to send
         if msgs:
@@ -85,6 +88,7 @@ class InputChunkProtocol(Protocol):
             # assumes cross-country mode is used
             for msg in msgs:
                 try:
+                    log.debug(f'msg processed: {msg}')
                     # split message into parts
                     control = msg[0:1]
                     if control in [PRIMARY, SELECT]:
@@ -146,8 +150,8 @@ async def reader(port, logging_path):
         # send any queued messages
         global queued_msgs
         if queued_msgs:
-            async with connect(backenduri) as websocket:
-                while len(queued_msgs) > 0:
+            while len(queued_msgs) > 0:
+                async with connect(backenduri) as websocket:
                     msg = queued_msgs.pop(0)
                     await send_to_backend(websocket, msg)
 

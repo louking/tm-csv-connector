@@ -64,12 +64,35 @@ function cdbuttonclick() {
     }
 }
 
+/**
+ * ref https://www.w3schools.com/js/js_cookies.asp
+ * 
+ * @param {string} cname - name of cookie
+ * @returns cookie value or ""
+ */
+function getCookie(cname) {
+    let name = cname + "=";
+    let decodedCookie = decodeURIComponent(document.cookie);
+    let ca = decodedCookie.split(';');
+    for(let i = 0; i <ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) == ' ') {
+        c = c.substring(1);
+      }
+      if (c.indexOf(name) == 0) {
+        return c.substring(name.length, c.length);
+      }
+    }
+    return "";
+  }
+
 // setParams
 function setParams() {
     // query and set age grade
     port     = $('#port').val();
     var outputdir = $('#outputdir').val();
   
-    document.cookie = `port={$port};outputdir={$outputdir}`
+    document.cookie = `port=${port};path=/`
+    document.cookie = `outputdir=${outputdir};path=/`
   }
   

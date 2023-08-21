@@ -16,11 +16,11 @@ def setlogging():
 
     # this is needed for any INFO or DEBUG logging
     current_app.logger.setLevel(DEBUG)
-    handler = StreamHandler(stdout)
-    handler.setLevel(DEBUG)
-    formatter = Formatter('%(asctime)s %(name)s %(levelname)s: %(message)s')
-    handler.setFormatter(formatter)
-    current_app.logger.addHandler(handler)
+    # handler = StreamHandler(stdout)
+    # handler.setLevel(DEBUG)
+    # formatter = Formatter('%(asctime)s %(name)s %(levelname)s: %(message)s')
+    # handler.setFormatter(formatter)
+    # current_app.logger.addHandler(handler)
 
 
 
