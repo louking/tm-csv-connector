@@ -7,7 +7,7 @@ from logging import getLogger, DEBUG, StreamHandler, Formatter
 from logging.handlers import TimedRotatingFileHandler
 
 # pypi
-from websockets import connect
+from websockets import connect, ConnectionClosed
 from websockets.server import serve
 from serial_asyncio import create_serial_connection
 
@@ -137,25 +137,30 @@ async def reader(port, logging_path):
     transport, protocol = await create_serial_connection(readloop, InputChunkProtocol, port)
     protocol.set_logging_path(logging_path)
 
-    while True:
-        global stop_reader
-        if stop_reader:
-            log.debug('reader stopped')
-            stop_reader = False
-            transport.close()
-            break
-        
-        await sleep(0.3)
-        
-        # send any queued messages
-        global queued_msgs
-        if queued_msgs:
-            while len(queued_msgs) > 0:
-                async with connect(backenduri) as websocket:
-                    msg = queued_msgs.pop(0)
-                    await send_to_backend(websocket, msg)
+    # ref https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html
+    async for websocket in connect(backenduri):
+        try:
+            while True:
+                global stop_reader
+                if stop_reader:
+                    log.debug('reader stopped')
+                    stop_reader = False
+                    transport.close()
+                    break
+                
+                await sleep(0.3)
+                
+                # send any queued messages
+                global queued_msgs
+                if queued_msgs:
+                    while len(queued_msgs) > 0:
+                        msg = queued_msgs.pop(0)
+                        await send_to_backend(websocket, msg)
 
-        protocol.resume_reading()
+                protocol.resume_reading()
+        
+        except ConnectionClosed:
+            continue
 
 def reader_thread(port, logging_path):
     log.debug(f'in reader_thread')
