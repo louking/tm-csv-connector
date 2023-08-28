@@ -5,7 +5,7 @@ from sys import stdout
 from json import loads, dumps
 
 # pypi
-from flask import current_app
+from flask import current_app, session
 from flask_sock import Sock
 from loutilities.timeu import timesecs
 # from websockets import connect
@@ -33,13 +33,31 @@ def tm_reader(ws):
         msg = loads(data)
         # current_app.logger.debug(f'received msg {msg}')
         
-        # write to database
-        result = Result()
-        result.bibno = msg['bibno'] if 'bibno' in msg else None
-        result.tmpos = msg['pos']
-        result.time = timesecs(msg['time'])
-        # TODO: fix this to get from msg
-        result.race_id = 3
-        db.session.add(result)
-        db.session.commit()
+        # handle messages from tm-reader-client
+        opcode = msg.pop('opcode', None)
+        if opcode in ['primary', 'select']:
+            # write to database
+            result = Result()
+            result.bibno = msg['bibno'] if 'bibno' in msg else None
+            result.tmpos = msg['pos']
+            result.time = timesecs(msg['time'])
+            # TODO: fix this to get from msg
+            result.race_id = 3
+            db.session.add(result)
+            db.session.commit()
+            
+        # handle messages from browser
+        elif opcode in ['params', 'ping']:
+            # add params to session cookie, prefixed by '_results_'
+            if opcode == 'params':
+                for key in msg:
+                    session[f'_results_{key}'] = msg[key]
+            elif opcode == 'ping':
+                # send pong
+                ws.send(dumps({'opcode': 'pong'}))
+                    
+        # how did this happen?
+        else:
+            current_app.logger.error(f'unknown opcode received: {opcode}')
+            
         

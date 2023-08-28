@@ -60,23 +60,35 @@ results_formmapping = dict(zip(results_formfields, results_dbattrs))
 results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
 results_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
 
-results_filters = filtercontainerdiv()
-results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item'), _class='filter')
-results_filter_port = div(_class='filter-item')
-with results_filter_port:
-    span('Port *', _class='label')
-    with span(_class='filter'):
-         with select(id='port', name="port", _class="validate", required='true', aria_required="true", onchange="setParams()"):
-             option('COM3')
-             option('COM4')
-             option('COM8')
-results_filters += results_filter_port
-results_filter_outputdir = div(_class='filter-item')
-with results_filter_outputdir:
-    span('Output Dir *', _class='label')
-    with span(_class='filter'):
-        input_(id="outputdir", type="text", name="outputdir", _class="validate", required='true', aria_required="true", onchange="setParams()")
-results_filters += results_filter_outputdir
+def get_results_filters():
+    results_filters = filtercontainerdiv()
+    results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item'), _class='filter')
+    results_filter_race = div(_class='filter-item')
+    results_filters += results_filter_race
+    with results_filter_race:
+        span('Race', _class='label')
+        with span(_class='filter'):
+            results_filter_race_select = select(id='race', name="race", _class="validate", required='true', aria_required="true", onchange="setParams()")
+            races = Race.query.order_by(Race.date.desc()).all()
+            with results_filter_race_select:
+                for r in races:
+                    option(r.raceyear, value=r.id)
+    results_filter_port = div(_class='filter-item')
+    results_filters += results_filter_port
+    with results_filter_port:
+        span('Port', _class='label')
+        with span(_class='filter'):
+            with select(id='port', name="port", _class="validate", required='true', aria_required="true", onchange="setParams()"):
+                option('COM3')
+                option('COM4')
+                option('COM8')
+    results_filter_outputdir = div(_class='filter-item')
+    results_filters += results_filter_outputdir
+    with results_filter_outputdir:
+        span('Output Dir', _class='label')
+        with span(_class='filter'):
+            input_(id="outputdir", type="text", name="outputdir", _class="validate", required='true', aria_required="true", onchange="setParams()")
+    return results_filters.render()
 
 def results_validate(action, formdata):
     results = []
@@ -126,7 +138,7 @@ results_view = ResultsView(
     endpoint='public.results',
     rule='/<interest>/results',
     endpointvalues={'interest': '<interest>'},
-    pretablehtml=results_filters.render(),
+    pretablehtml=get_results_filters,
     dbmapping=results_dbmapping,
     formmapping=results_formmapping,
     validate=results_validate,
