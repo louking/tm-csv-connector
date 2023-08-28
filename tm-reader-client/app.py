@@ -101,7 +101,7 @@ class InputChunkProtocol(Protocol):
                             queued_msgs.append({'opcode': 'primary', 'pos': pos, 'time': time})
                         elif control == SELECT:
                             bib = int(msg[29:33].decode())
-                            queued_msgs.append({'opcode': 'select', 'pos': pos, 'time': time, 'bib': bib})
+                            queued_msgs.append({'opcode': 'select', 'pos': pos, 'time': time, 'bibno': bib})
                 except ValueError:
                     log.error(f'could not decode message: {msg}')
         
