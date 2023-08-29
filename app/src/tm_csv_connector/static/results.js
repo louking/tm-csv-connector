@@ -5,6 +5,7 @@ var cd;
 var tm_reader, // process which interacts directly with time machine
     tm_server; // web server
 const serveruri = 'ws://tm.localhost:8080/tm_reader';
+const readeruri = 'ws://tm.localhost:8081/';
 // track checkConnected interval
 var ccinterval;
 
@@ -25,187 +26,176 @@ $( function() {
     cd.on('click', cdbuttonclick);
 
     // determine text for button by querying tm-reader-client over websocket
-    tm_reader = new WebSocket('ws://localhost:8081');
-    ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT);
-
-    // set button text based on connection status
-    tm_reader.onmessage = (event) => {
-        rsp = JSON.parse(event.data);
-        // console.log(`received ${event.data}`);
-        connected = rsp.connected;
-        if (rsp.connected) {
-            cd.text('Disconnect');
-        } else {
-            cd.text('Connect');
+    tm_reader = new StableWebSocket({
+        name: 'reader',
+        uri: readeruri,
+        recv_msg_callback: function(msg) {
+            rsp = JSON.parse(msg);
+            // console.log(`reader: received ${msg}`);
+            connected = rsp.connected;
+            if (rsp.connected) {
+                cd.text('Disconnect');
+            } else {
+                cd.text('Connect');
+            }    
         }
-    } 
+    });
+    ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT);
 
     open_server();
 });
 
-// check whether connected periodically
+// check whether connected to time machine periodically
 function checkConnected() {
-    // only send message if websockets state is OPEN
-    if (tm_reader.readyState === 1) {
+    // message is sent if websocket state is OPEN, else throws exception
+    try {
         var msg = JSON.stringify({opcode: 'is_connected'});
         // console.log(`sending ${msg}`);
-        tm_reader.send(msg);    
+        tm_reader.send(msg);      
+    }
+    catch(e) {
+        // do nothing, will try again later
     }
 }
 
 function open_server() {
-    tm_server = open_socket('server', serveruri, open_server, check_server, CHECK_CONNECTED_WAIT, PING_INTERVAL, REOPEN_SOCKET_WAIT);
-    // console.log('attempting to create new WebSocket instance for server');
-    // setTimeout(check_server, CHECK_CONNECTED_WAIT);
-    // tm_server = new WebSocket(serveruri);
 
-    // tm_server.onopen = (event) => {
-    //     console.log('tm server websocket open');
-    //     // start ping process
-    //     setTimeout(ping_socket, PING_INTERVAL, tm_server);
-    // }
-
-    // tm_server.onclose = (event) => {
-    //     console.log(`tm server websocket closed, reopening: ${event.code}, ${event.reason}, clean=${event.wasClean}`)
-    //     tm_server = null;
-    //     // assume the server is restarting. Wait a little while before trying to reopen
-    //     setTimeout(open_server, REOPEN_SOCKET_WAIT);
-    // }
-    
-    // tm_server.onmessage = (event) => {
-    //     console.log(`received ${event.data}`)
-    // }
-
-    // tm_server.onerror = (event) => {
-    //     console.log(`tm server error detected: ${event}`)
-    // }
-}
-
-function check_server() {
-    check_timeout = null;
-    if (tm_server != null && (tm_server.readyState === WebSocket.CONNECTING || tm_server.readyState === WebSocket.OPEN)) {
-        // looking good
-    } else {
-        // failed -- try again in a little bit
-        console.log('failed to create WebSocket instance for server');
-        if (open_timeout != null) {
-            clearTimeout(open_timeout);
-        }
-        open_timeout = setTimeout(open_server, REOPEN_SOCKET_WAIT);
-    }    
-}
-
-/**
- * storage for WebSockets, by name
- */
-var _websockets = {};
-
-/**
- * get websocket by name
- * 
- * @param {string} name 
- * @returns WebSocket
- */
-function ws(name) {
-    if (name in _websockets) {
-        return _websockets[name];
-    } else {
-        return null
-    }
+    tm_server = new StableWebSocket({
+        name: 'server',
+        uri: serveruri,
+    });
 }
 
 /**
  * open a persistent websocket
  * 
- * @param {string} name - name of socket, must be unique on page
- * @param {string} uri - uri to open
- * @param {*} open_function 
- * @param {*} check_function 
- * @param {int} check_connected_wait - time in msec before checking if connected
- * @param {int} ping_interval - time in msec between pings
- * @param {int} reopen_socket_wait - time in msec to wait after failure to try reopening
- * @returns WebSocket()
+ * @param {object} options_config - configuration for websocket
+ * @param {string} options_config.name - name of socket, must be unique on page
+ * @param {string} options_config.uri - uri to open
+ * @param {function} options_config.recv_msg_callback(msg) - function to call when message is received
+ * @param {int} options_config.check_connected_wait - time in msec before checking if connected
+ * @param {int} options_config.ping_interval - time in msec between pings
+ * @param {int} options_config.reopen_socket_wait - time in msec to wait after failure to try reopening
+ * @returns StableWebSocket()
  */
-var check_timeout = null;
-var open_timeout = null;
-function open_socket(name, uri, open_function, check_function, check_connected_wait, ping_interval, reopen_socket_wait) {
-    console.log(`${name}: attempting to create new WebSocket instance`);
+class StableWebSocket {
+    websocket = null;
+    check_timeout = null;
     open_timeout = null;
-    if (check_timeout != null) {
-        clearTimeout(check_timeout);
-    }
-    check_timeout = setTimeout(check_function, check_connected_wait);
-    websocket = new WebSocket(uri);
+    ping_timeout = null;
 
-    websocket.onopen = (event) => {
-        console.log(`${name} websocket open`);
-        // start ping process
-        setTimeout(ping_socket, ping_interval, websocket);
-    }
-
-    websocket.onclose = (event) => {
-        console.log(`${name}: websocket closed, reopening: ${event.code}, ${event.reason}, clean=${event.wasClean}`)
-        // assume the server is restarting. Wait a little while before trying to reopen
-        if (open_timeout != null) {
-            clearTimeout(open_timeout);
+    constructor(options_config) {
+        let defaultoptions = {
+            name: 'socket',
+            uri: '',
+            recv_msg_callback: function(msg) {},
+            check_connected_wait: 3000,
+            ping_interval: 30000,
+            reopen_socket_wait: 5000,
+            log_data: false,
         }
-        open_timeout = setTimeout(open_function, reopen_socket_wait);
+        let options = {
+            ...defaultoptions, 
+            ...options_config
+        };
+
+        this.name = options.name;
+        this.uri = options.uri;
+        this.check_connected_wait = options.check_connected_wait;
+        this.recv_msg_callback = options.recv_msg_callback;
+        this.ping_interval = options.ping_interval;
+        this.reopen_socket_wait = options.reopen_socket_wait;
+        this.log_data = options.log_data;
+
+        this.#open_socket(this);
     }
+
+    #open_socket(that) {
+        console.log(`${that.name}: attempting to create new WebSocket instance`);
+        that.open_timeout = null;
+        if (that.check_timeout != null) {
+            clearTimeout(that.check_timeout);
+        }
+        if (that.ping_timeout != null) {
+            clearTimeout(that.ping_timeout);
+        }
+        that.check_timeout = setTimeout(that.#check_socket, that.check_connected_wait, that);
+        that.websocket = new WebSocket(that.uri);
     
-    websocket.onmessage = (event) => {
-        console.log(`${name}: received ${event.data}`)
-    }
-
-    websocket.onerror = (event) => {
-        console.log(`${name}: error detected: ${event}`)
-    }
-
-    return websocket;
-}
-
-// this needs to be part of a class with class variable websocket because websocket can't be an argument
-// as this function is referenced before the websocket is created
-function check_socket(name, websocket, open_function, reopen_socket_wait) {
-    if (websocket != null && (websocket.readyState === WebSocket.CONNECTING || websocket.readyState === WebSocket.OPEN)) {
-        // looking good
-    } else {
-        // failed -- try again in a little bit`
-        console.log(`${name} failed to create WebSocket instance`);
-        if (open_timeout != null) {
-            clearTimeout(open_timeout);
+        that.websocket.onopen = (event) => {
+            console.log(`${that.name}: websocket open`);
+            // start ping process
+            that.ping_timeout = setTimeout(that.#ping_socket, that.ping_interval, that);
         }
-        open_timeout = setTimeout(open_function, reopen_socket_wait);
-    }    
-}
+    
+        that.websocket.onclose = (event) => {
+            that.websocket = null;
+            console.log(`${that.name}: websocket closed, reopening: ${event.code}, ${event.reason}, clean=${event.wasClean}`)
+            // assume the server is restarting. Wait a little while before trying to reopen
+            if (that.open_timeout != null) {
+                clearTimeout(that.open_timeout);
+            }
+            that.open_timeout = setTimeout(that.#open_socket, that.reopen_socket_wait, that);
+        }
+        
+        that.websocket.onmessage = (event) => {
+            if (that.log_data) console.log(`${that.name}: received ${event.data}`);
+            let msg = JSON.parse(event.data);
+            if (msg.opcode != 'pong') {
+                that.recv_msg_callback(event.data);
+            }
+        }
+    
+        that.websocket.onerror = (event) => {
+            console.log(`${that.name}: error detected: ${event.message}`)
+        }    
+    }
 
-/**
- * ping a websocket, else browser closes with 1006 error due to inactivity
- * @param {WebSocket} websocket 
- */
-function ping_socket(websocket) {
-    msg = JSON.stringify({opcode: 'ping'});
-    if (websocket.readyState === WebSocket.OPEN) {
-        websocket.send(msg);
-        setTimeout(ping_socket, PING_INTERVAL, websocket);
+    #check_socket(that) {
+        if (that.websocket != null && (that.websocket.readyState === WebSocket.CONNECTING || that.websocket.readyState === WebSocket.OPEN)) {
+            // looking good
+        } else {
+            // failed -- try again in a little bit`
+            console.log(`${that.name}: failed to create WebSocket instance`);
+            if (that.open_timeout != null) {
+                clearTimeout(that.open_timeout);
+            }
+            that.open_timeout = setTimeout(that.#open_socket, that.reopen_socket_wait, that);
+        }    
+    }
+
+    send(msg) {
+        var that = this;
+        if (that.websocket && that.websocket.readyState === WebSocket.OPEN) {
+            that.websocket.send(msg);
+        } else {
+            throw new Error(`${that.name}: websocket not open, can't send ${msg}`)
+        }
+    }
+
+    /**
+     * ping a websocket, else browser closes with 1006 error due to inactivity
+     * @param {WebSocket} websocket 
+     */
+    #ping_socket(that) {
+        let msg = JSON.stringify({opcode: 'ping'});
+        that.send(msg);
+        that.ping_timeout = setTimeout(that.#ping_socket, that.ping_interval, that);
     }
 }
 
 function cdbuttonclick() {
     var msg;
-    if (tm_reader.readyState === WebSocket.OPEN) {
-        if (port != null) {
-            if (!connected) {
-                msg = JSON.stringify({opcode: 'open', port: port, raceid: raceid, loggingpath: ''});
-                tm_reader.send(msg);
-            } else {
-                msg = JSON.stringify({opcode: 'close'});
-                tm_reader.send(msg);
-            }
+    if (port != null) {
+        if (!connected) {
+            msg = JSON.stringify({opcode: 'open', port: port, raceid: raceid, loggingpath: ''});
+            tm_reader.send(msg);
         } else {
-            alert('set port first');
+            msg = JSON.stringify({opcode: 'close'});
+            tm_reader.send(msg);
         }
     } else {
-        alert('reader service not ready');
+        alert('set port first');
     }
 }
 
@@ -218,10 +208,11 @@ function setParams() {
     logdir = $('#logdir').val();
 
     msg = JSON.stringify({opcode: 'params', port: port, raceid: raceid, outputdir: outputdir, logdir: logdir});
-    if (tm_reader.readyState === WebSocket.OPEN) {
+    try {
         tm_server.send(msg);
-    } else {
-        console.log(`tm server websocket not connected, can't send ${msg}`);
+    }
+    catch(e) {
+        console.log(`error sending ${msg}: ${e}`)
     }
   }
   
