@@ -67,6 +67,8 @@ function open_server() {
 }
 
 /**
+ * TODO: move to loutilities
+ * 
  * open a persistent websocket
  * 
  * @param {object} options_config - configuration for websocket
