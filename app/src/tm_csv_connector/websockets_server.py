@@ -46,16 +46,6 @@ def tm_reader(ws):
             db.session.add(result)
             db.session.commit()
             
-        # handle messages from browser
-        elif opcode in ['params', 'ping']:
-            # add params to session cookie, prefixed by '_results_'
-            if opcode == 'params':
-                for key in msg:
-                    session[f'_results_{key}'] = msg[key]
-            elif opcode == 'ping':
-                # send pong
-                ws.send(dumps({'opcode': 'pong'}))
-                    
         # how did this happen?
         else:
             current_app.logger.error(f'unknown opcode received: {opcode}')

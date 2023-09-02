@@ -4,9 +4,10 @@ home - public views
 '''
 # standard
 from datetime import timedelta
+from traceback import format_exception_only, format_exc
 
 # pypi
-from flask import g, render_template, jsonify
+from flask import g, render_template, session, request, current_app, jsonify
 from flask.views import MethodView
 from loutilities.tables import DbCrudApi
 from loutilities.timeu import asctime, timesecs
@@ -16,6 +17,8 @@ from loutilities.filters import filtercontainerdiv
 # homegrown
 from . import bp
 from ...model import db, Race, Result, Setting
+
+class ParameterError(Exception): pass
 
 dtrender = asctime('%Y-%m-%d')
 
@@ -70,24 +73,35 @@ def get_results_filters():
         with span(_class='filter'):
             results_filter_race_select = select(id='race', name="race", _class="validate", required='true', aria_required="true", onchange="setParams()")
             races = Race.query.order_by(Race.date.desc()).all()
+            # select first (lastest) race
+            selected = False
             with results_filter_race_select:
                 for r in races:
-                    option(r.raceyear, value=r.id)
+                    if not selected:
+                        option(r.raceyear, value=r.id, selected='true')
+                        selected = True
+                    else:
+                        option(r.raceyear, value=r.id)
     results_filter_port = div(_class='filter-item')
     results_filters += results_filter_port
     with results_filter_port:
         span('Port', _class='label')
         with span(_class='filter'):
             with select(id='port', name="port", _class="validate", required='true', aria_required="true", onchange="setParams()"):
-                option('COM3')
-                option('COM4')
-                option('COM8')
+                for port in ['COM3', 'COM4', 'COM8']:
+                    print(session)
+                    if '_results_port' in session and port == session['_results_port']:
+                        option(port, selected='true')
+                    else:
+                        option(port)
     results_filter_outputdir = div(_class='filter-item')
     results_filters += results_filter_outputdir
     with results_filter_outputdir:
         span('Output Dir', _class='label')
         with span(_class='filter'):
-            input_(id="outputdir", type="text", name="outputdir", _class="validate", required='true', aria_required="true", onchange="setParams()")
+            if '_results_outputdir' not in session:
+                session['_results_outputdir'] = ''
+            input_(id="outputdir", value=session['_results_outputdir'], type="text", name="outputdir", _class="validate", required='true', aria_required="true", onchange="setParams()")
     return results_filters.render()
 
 def results_validate(action, formdata):
@@ -273,3 +287,25 @@ settings_view = settingsView(
     },
 )
 settings_view.register()
+
+class SetParamsApi(MethodView):
+    def post(self):
+        try:
+            form = request.form
+            for key in form:
+                session[f'_results_{key}'] = form[key]
+            
+            output_result = {'status' : 'success'}
+
+            return jsonify(output_result)
+
+        except Exception as e:
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+
+params_api = SetParamsApi.as_view('_setparams')
+bp.add_url_rule('/_setparams', view_func=params_api, methods=['POST',])

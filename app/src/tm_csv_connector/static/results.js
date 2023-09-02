@@ -2,8 +2,7 @@
 var cd;
 
 // global websockets
-var tm_reader, // process which interacts directly with time machine
-    tm_server; // web server
+var tm_reader; // process which interacts directly with time machine
 const serveruri = 'ws://tm.localhost:8080/tm_reader';
 const readeruri = 'ws://tm.localhost:8081/';
 // track checkConnected interval
@@ -25,6 +24,15 @@ $( function() {
     cd.button();
     cd.on('click', cdbuttonclick);
 
+    $('#race').select2({
+        placeholder: 'select a race',
+        width: "style",
+    });
+    $('#port').select2({
+        placeholder: 'select a port',
+        width: "style",
+    });
+
     // determine text for button by querying tm-reader-client over websocket
     tm_reader = new StableWebSocket({
         name: 'reader',
@@ -41,8 +49,6 @@ $( function() {
         }
     });
     ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT);
-
-    open_server();
 });
 
 // check whether connected to time machine periodically
@@ -56,14 +62,6 @@ function checkConnected() {
     catch(e) {
         // do nothing, will try again later
     }
-}
-
-function open_server() {
-
-    tm_server = new StableWebSocket({
-        name: 'server',
-        uri: serveruri,
-    });
 }
 
 /**
@@ -208,13 +206,24 @@ function setParams() {
     port = $('#port').val();
     outputdir = $('#outputdir').val();
     logdir = $('#logdir').val();
+    
+    $.ajax( {
+        // application specific: my application has different urls for different methods
+        url: '/_setparams',
+        type: 'post',
+        dataType: 'json',
+        data: {
+            port: port, 
+            raceid: raceid, 
+            outputdir: outputdir, 
+            logdir: logdir
+        },
+        success: function ( json ) {
+            if (json.status != 'success') {
+                alert(json.error);
+            }
+        }
+    } );
 
-    msg = JSON.stringify({opcode: 'params', port: port, raceid: raceid, outputdir: outputdir, logdir: logdir});
-    try {
-        tm_server.send(msg);
-    }
-    catch(e) {
-        console.log(`error sending ${msg}: ${e}`)
-    }
   }
   
