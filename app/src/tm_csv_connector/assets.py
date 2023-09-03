@@ -66,7 +66,7 @@ frontend_common_js = Bundle(
 
     f'js/Select-{dt_select_ver}/js/dataTables.select.js',
 
-    # select2 is required for use by Editor forms and interest navigation
+    # select2 is required for use by Editor forms 
     f'js/select2-{s2_ver}/js/select2.full.js',
     # # the order here is important
     'js/FieldType-Select2/editor.select2.js',
@@ -187,7 +187,7 @@ asset_bundles = {
 
         # Bundle('js/yadcf-{ver}/jquery.dataTables.yadcf.js'.format(ver=yadcf_ver), filters='jsmin'),
 
-        # # select2 is required for use by Editor forms and interest navigation
+        # # select2 is required for use by Editor forms
         Bundle(f'js/select2-{s2_ver}/js/select2.full.js', filters='jsmin'),
         # # the order here is important
         Bundle('js/FieldType-Select2/editor.select2.js', filters='jsmin'),

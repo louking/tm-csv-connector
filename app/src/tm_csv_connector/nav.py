@@ -67,14 +67,12 @@ def nav_menu():
 
     connector_view = add_view('https://tmtility.readthedocs.io/en/{docversion}/tm-csv-connector-reference.html#')
 
-    navbar.items.append(View('Home', 'public.home', interest=g.interest))
-    navbar.items.append(View('Races', 'public.races', interest=g.interest))
-    navbar.items.append(View('Results', 'public.results', interest=g.interest))
-    navbar.items.append(View('Settings', 'public.settings', interest=g.interest))
+    navbar.items.append(View('Home', 'public.home'))
+    navbar.items.append(View('Races', 'public.races'))
+    navbar.items.append(View('Results', 'public.results'))
+    navbar.items.append(View('Settings', 'public.settings'))
 
     # common items
-    if g.interest:
-        pass
     # navbar.items.append(View('About', 'admin.sysinfo'))
     if request.path in contexthelp:
         navbar.items.append(Link('Help', contexthelp[request.path]))

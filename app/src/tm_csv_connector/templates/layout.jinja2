@@ -13,14 +13,6 @@
 {% endblock %}
 
 {% block metanav %}
-    <div class=metanav>
-      <label for="metanav-select-interest" class="interest-label">Race:</label>
-      <select id="metanav-select-interest">
-          {# set in <appname>.__init__ #}
-          {% for race in races %}
-              <option value="{{ race.id }}">{{ race.raceyear }}</option>
-          {% endfor %}
-      </select>
       {# used by layout.js, needs to be urlencoded else may look like tag #}
       <span id="metanav-url-rule" hidden>{{ request.url_rule | urlencode }}</span>
       {% if url_rule %}

@@ -201,12 +201,15 @@ function cdbuttonclick() {
 
 // setParams
 function setParams() {
+    // set up for table redraw
+    resturl = window.location.pathname + '/rest';
+
     // query and set age grade
     raceid = $('#race').val();
     port = $('#port').val();
     outputdir = $('#outputdir').val();
     logdir = $('#logdir').val();
-    
+
     $.ajax( {
         // application specific: my application has different urls for different methods
         url: '/_setparams',
@@ -219,7 +222,10 @@ function setParams() {
             logdir: logdir
         },
         success: function ( json ) {
-            if (json.status != 'success') {
+            if (json.status == 'success') {
+                refresh_table_data(_dt_table, resturl);
+            }
+            else {
                 alert(json.error);
             }
         }

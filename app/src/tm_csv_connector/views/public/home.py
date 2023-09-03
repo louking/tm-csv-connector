@@ -24,7 +24,7 @@ dtrender = asctime('%Y-%m-%d')
 
 class TmConnectorView (DbCrudApi):
     def permission(self):
-        self.race = Race.query.filter_by(id=g.interest).one_or_none()
+        self.race = Race.query.filter_by(id=session['_results_raceid']).one_or_none()
         return True
 
 class Home(MethodView):
@@ -32,13 +32,10 @@ class Home(MethodView):
     def get(self):
         return render_template('home.jinja2',
                                pagename='Home',
-                               # causes redirect to current interest if bare url used
-                               url_rule='/<interest>',
                                )
 
 home_view = Home.as_view('home')
 bp.add_url_rule('/', view_func=home_view, methods=['GET',])
-bp.add_url_rule('/<interest>', view_func=home_view, methods=['GET',])
 
     
 # adapted from https://github.com/aiordache/demos/blob/c7aa37cc3e2f8800296f668138b4cf208b27380a/dockercon2020-demo/app/src/server.py
@@ -125,7 +122,7 @@ class ResultsView(TmConnectorView):
         :return:
         '''
         # self.race set in self.permission()
-        self.race = Race.query.filter_by(id=g.interest).one_or_none()
+        self.race = Race.query.filter_by(id=session['_results_raceid']).one_or_none()
         self.queryparams['race_id'] = self.race.id
 
     def createrow(self, formdata):
@@ -150,13 +147,11 @@ results_view = ResultsView(
     template='results.jinja2',
     pagename='results',
     endpoint='public.results',
-    rule='/<interest>/results',
-    endpointvalues={'interest': '<interest>'},
+    rule='/results',
     pretablehtml=get_results_filters,
     dbmapping=results_dbmapping,
     formmapping=results_formmapping,
     validate=results_validate,
-    servercolumns=None,  # not server side
     idSrc='rowid',
     buttons=[
         'edit',

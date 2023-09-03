@@ -60,17 +60,6 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
     # if init_for_operation:
     #     init_uploads(app)
 
-    # handle <interest> in URL - https://flask.palletsprojects.com/en/1.1.x/patterns/urlprocessors/
-    @app.url_value_preprocessor
-    def pull_interest(endpoint, values):
-        try:
-            g.interest = values.pop('interest', None)
-        except AttributeError:
-            g.interest = None
-        finally:
-            if not g.interest:
-                g.interest = request.args.get('interest', None)
-
     # add loutilities tables-assets for js/css/template loading
     # see https://adambard.com/blog/fresh-flask-setup/
     #    and https://webassets.readthedocs.io/en/latest/environment.html#webassets.env.Environment.load_path
@@ -148,35 +137,6 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
         # # handle favicon request for old browsers
         # app.add_url_rule('/favicon.ico', endpoint='favicon',
         #                 redirect_to=url_for('static', filename='favicon.ico'))
-
-    # # ----------------------------------------------------------------------
-    @app.before_request
-    def before_request():
-        # g.loutility = Application.query.filter_by(application=app.config['APP_LOUTILITY']).one_or_none()
-
-        # used in layout.jinja2
-        # races = db.session.scalars(select(Race).order_by(Race.date.desc())).all()
-        races = Race.query.all()
-        app.jinja_env.globals['races'] = [{'id': r.id, 'raceyear': r.raceyear} for r in races]
-
-
-    # # ----------------------------------------------------------------------
-    # @app.after_request
-    # def after_request(response):
-    #     # # check if there are any changes needed to LocalUser table
-    #     # userupdated = User.query.order_by(desc('updated_at')).first().updated_at
-    #     # localuserupdated = LocalUser.query.order_by(desc('updated_at')).first().updated_at
-    #     # interestupdated = Interest.query.order_by(desc('updated_at')).first().updated_at
-    #     # localinterestupdated = LocalInterest.query.order_by(desc('updated_at')).first().updated_at
-    #     # if userupdated > localuserupdated or interestupdated > localinterestupdated:
-    #     #     update_local_tables()
-
-    #     if not app.config['DEBUG']:
-    #         app.logger.info(f'{request.remote_addr}: {request.method} {request.url} {response.status_code}')
-    #         # debug
-    #         # app.logger.info(f'request.headers:\n{request.headers}')
-        
-    #     return response
 
     # app back to caller
     return app
