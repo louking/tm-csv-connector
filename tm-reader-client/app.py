@@ -205,8 +205,6 @@ async def controller(websocket):
             # readloop = None
             global stop_reader
             stop_reader = True
-            global connected
-            connected = False
         
         # raceid updated from backend
         elif opcode == 'raceid':
