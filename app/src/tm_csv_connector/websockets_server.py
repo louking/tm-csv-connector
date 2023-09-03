@@ -41,8 +41,7 @@ def tm_reader(ws):
             result.bibno = msg['bibno'] if 'bibno' in msg else None
             result.tmpos = msg['pos']
             result.time = timesecs(msg['time'])
-            # TODO: fix this to get from msg
-            result.race_id = 3
+            result.race_id = msg['raceid']
             db.session.add(result)
             db.session.commit()
             

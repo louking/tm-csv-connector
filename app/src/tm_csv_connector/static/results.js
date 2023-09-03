@@ -37,6 +37,7 @@ $( function() {
     tm_reader = new StableWebSocket({
         name: 'reader',
         uri: readeruri,
+        open_callback: setParams,
         recv_msg_callback: function(msg) {
             rsp = JSON.parse(msg);
             // console.log(`reader: received ${msg}`);
@@ -72,6 +73,8 @@ function checkConnected() {
  * @param {object} options_config - configuration for websocket
  * @param {string} options_config.name - name of socket, must be unique on page
  * @param {string} options_config.uri - uri to open
+ * @param {function} options_config.open_callback() - function to call when websocket is opened
+ * @param {function} options_config.close_callback() - function to call when websocket is closed
  * @param {function} options_config.recv_msg_callback(msg) - function to call when message is received
  * @param {int} options_config.check_connected_wait - time in msec before checking if connected
  * @param {int} options_config.ping_interval - time in msec between pings
@@ -88,6 +91,8 @@ class StableWebSocket {
         let defaultoptions = {
             name: 'socket',
             uri: '',
+            open_callback: function() {},
+            close_callback: function() {},
             recv_msg_callback: function(msg) {},
             check_connected_wait: 3000,
             ping_interval: 30000,
@@ -102,6 +107,8 @@ class StableWebSocket {
         this.name = options.name;
         this.uri = options.uri;
         this.check_connected_wait = options.check_connected_wait;
+        this.open_callback = options.open_callback;
+        this.close_callback = options.close_callback;
         this.recv_msg_callback = options.recv_msg_callback;
         this.ping_interval = options.ping_interval;
         this.reopen_socket_wait = options.reopen_socket_wait;
@@ -124,12 +131,14 @@ class StableWebSocket {
     
         that.websocket.onopen = (event) => {
             console.log(`${that.name}: websocket open`);
+            that.open_callback();
             // start ping process
             that.ping_timeout = setTimeout(that.#ping_socket, that.ping_interval, that);
         }
     
         that.websocket.onclose = (event) => {
             that.websocket = null;
+            that.close_callback();
             console.log(`${that.name}: websocket closed, reopening: ${event.code}, ${event.reason}, clean=${event.wasClean}`)
             // assume the server is restarting. Wait a little while before trying to reopen
             if (that.open_timeout != null) {
@@ -209,6 +218,10 @@ function setParams() {
     port = $('#port').val();
     outputdir = $('#outputdir').val();
     logdir = $('#logdir').val();
+
+    // send latest raceid to reader process
+    msg = JSON.stringify({opcode: 'raceid', raceid: raceid});
+    tm_reader.send(msg);
 
     $.ajax( {
         // application specific: my application has different urls for different methods

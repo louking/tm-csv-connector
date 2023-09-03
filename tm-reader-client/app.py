@@ -32,6 +32,9 @@ stop_reader = False
 # queue messages from input protocol for sending to backend
 queued_msgs = []
 
+# save latest raceid
+raceid = 0
+
 class InputChunkProtocol(Protocol):
     """adapted from https://pyserial-asyncio.readthedocs.io/en/latest/shortintro.html#serial-transports-protocols-and-streams
 
@@ -92,16 +95,16 @@ class InputChunkProtocol(Protocol):
                     # split message into parts
                     control = msg[0:1]
                     if control in [PRIMARY, SELECT]:
-                        pos = int(msg[9:13])
-                        time = msg[14:26].decode().strip()
+                        pos = int(msg[8:13])
+                        time = msg[13:24].decode()
                     
                         # check control character; queue message for handling in the background
                         global queued_msgs
                         if control == PRIMARY:
-                            queued_msgs.append({'opcode': 'primary', 'pos': pos, 'time': time})
+                            queued_msgs.append({'opcode': 'primary', 'raceid': raceid, 'pos': pos, 'time': time})
                         elif control == SELECT:
-                            bib = int(msg[29:33].decode())
-                            queued_msgs.append({'opcode': 'select', 'pos': pos, 'time': time, 'bibno': bib})
+                            bib = int(msg[27:32].decode())
+                            queued_msgs.append({'opcode': 'select', 'raceid': raceid, 'pos': pos, 'time': time, 'bibno': bib})
                 except ValueError:
                     log.error(f'could not decode message: {msg}')
         
@@ -180,8 +183,12 @@ async def controller(websocket):
     async for message in websocket:
         event = loads(message)
         opcode = event['opcode']
-        if opcode in ['open', 'close']:
+        
+        # just wanna know what's going on
+        if opcode in ['open', 'close', 'raceid']:
             log.debug(f'received {event}')
+        
+        # backend opened the connection
         if opcode == 'open':
             port = event['port']
             logging_path = event['loggingpath']
@@ -189,6 +196,8 @@ async def controller(websocket):
             # readloop = get_event_loop()
             # readloop.run_until_complete(reader(port, logging_path))
             log.debug('returned from Thread')
+        
+        # backend closed the connection
         elif opcode == 'close':
             # readloop = get_event_loop()
             # readloop.stop()
@@ -198,6 +207,13 @@ async def controller(websocket):
             stop_reader = True
             global connected
             connected = False
+        
+        # raceid updated from backend
+        elif opcode == 'raceid':
+            global raceid
+            raceid = event['raceid']
+        
+        # backend wants to know if we're connected to time machine
         elif opcode == 'is_connected':
             await websocket.send(dumps({'connected': connected}))
 
