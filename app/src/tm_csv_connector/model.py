@@ -11,6 +11,8 @@ from flask_sqlalchemy import SQLAlchemy
 # home grown
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import mapped_column
+from sqlalchemy import text
+from sqlalchemy.schema import FetchedValue
 
 # set up database - SQLAlchemy() must be done after app.config SQLALCHEMY_* assignments
 db = SQLAlchemy()
@@ -56,10 +58,15 @@ class Result(Base):
     bibno   = Column(Text)
     time    = Column(Float)
     
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
 class Setting(Base):
     __tablename__ = 'setting'
     id      = Column(Integer(), primary_key=True)
     name    = Column(Text)
     value   = Column(Text)
     
-

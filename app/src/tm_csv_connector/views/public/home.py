@@ -5,6 +5,7 @@ home - public views
 # standard
 from datetime import timedelta
 from traceback import format_exception_only, format_exc
+from pytz import utc
 
 # pypi
 from flask import g, render_template, session, request, current_app, jsonify
@@ -21,6 +22,7 @@ from ...model import db, Race, Result, Setting
 class ParameterError(Exception): pass
 
 dtrender = asctime('%Y-%m-%d')
+sincerender = asctime('%Y-%m-%dT%H:%M:%S%z')
 
 class TmConnectorView (DbCrudApi):
     def permission(self):
@@ -53,8 +55,8 @@ def time2asc(dbtime):
     frac = f'{round(int(frac)/10000):02}'
     return '.'.join([whole, frac])
 
-results_dbattrs = 'id,tmpos,place,bibno,time,race_id'.split(',')
-results_formfields = 'rowid,tmpos,place,bibno,time,race_id'.split(',')
+results_dbattrs = 'id,tmpos,place,bibno,time,race_id,update_time'.split(',')
+results_formfields = 'rowid,tmpos,place,bibno,time,race_id,update_time'.split(',')
 results_dbmapping = dict(zip(results_dbattrs, results_formfields))
 results_formmapping = dict(zip(results_formfields, results_dbattrs))
 results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
@@ -116,6 +118,28 @@ def results_validate(action, formdata):
     return results
 
 class ResultsView(TmConnectorView):
+    ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
+    ## not present in the data. Need to revisit this later.
+    # def filterrowssince(self, since):
+    #     if since:
+    #         sincedt = sincerender.asc2dt(since).astimezone(utc)
+    #         # self.queryfilters.append(Result.update_time >= sincedt)
+    #         # print(f'getting updated since {sincedt}')
+
+    # def getrowssince(self):
+    #     rows = Result.query.filter_by(**self.queryparams).filter(*self.queryfilters).all()
+    #     self._responsedata = []
+    #     for row in rows:
+    #         self._responsedata += self.dte.get_response_data(row)
+    
+    # def editor_method_postcommit(self, form):
+    #     if 'since' in form:
+    #         since = form['since']
+    
+    #         # bring in all rows since the requested time
+    #         self.filterrowssince(since)
+    #         self.getrowssince()
+
     def beforequery(self):
         '''
         filter on current race
@@ -124,6 +148,12 @@ class ResultsView(TmConnectorView):
         # self.race set in self.permission()
         self.race = Race.query.filter_by(id=session['_results_raceid']).one_or_none()
         self.queryparams['race_id'] = self.race.id
+        
+        ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
+        ## not present in the data. Need to revisit this later.
+        # self.queryfilters = []
+        # since = request.args.get('since', None)
+        # self.filterrowssince(since)
 
     def createrow(self, formdata):
         '''
@@ -164,6 +194,8 @@ results_view = ResultsView(
         {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos'},
         {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No'},
         {'data': 'time', 'name': 'time', 'label': 'Time'},
+        # for testing only
+        # {'data': 'update_time', 'name': 'update_time', 'label': 'Update Time', 'type': 'readonly'},
     ],
     dtoptions={
         'scrollCollapse': True,

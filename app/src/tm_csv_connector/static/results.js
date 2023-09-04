@@ -18,6 +18,11 @@ var raceid, port, outputdir, logdir;
 const PING_INTERVAL = 30000;
 const CHECK_CONNECTED_WAIT = 3000;
 const REOPEN_SOCKET_WAIT = 5000;
+// TODO: change to 1000
+const CHECK_TABLE_UPDATE = 10000;
+
+// save last draw time
+var last_draw;
 
 $( function() {
     cd = $('#connect-disconnect');
@@ -211,7 +216,7 @@ function cdbuttonclick() {
 // setParams
 function setParams() {
     // set up for table redraw
-    resturl = window.location.pathname + '/rest';
+    let resturl = window.location.pathname + '/rest';
 
     // query and set age grade
     raceid = $('#race').val();
