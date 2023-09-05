@@ -9,6 +9,13 @@ function afterdatatables() {
         editor.on('preSubmit', function(e, data, action) {
             data['last_draw'] = last_draw;
             last_draw = moment().format();
+            return true;
+        });
+
+        editor.on('postCreate', function(e, json, data, id) {
+            let resturl = window.location.pathname + `/rest?since=${last_draw}`;
+            last_draw = moment().format();
+            refresh_table_data(_dt_table, resturl, 'full-hold');
         });
 
         let draw_interval = setInterval(function() {

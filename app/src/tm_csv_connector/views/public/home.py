@@ -56,7 +56,7 @@ def time2asc(dbtime):
     return '.'.join([whole, frac])
 
 results_dbattrs = 'id,tmpos,place,bibno,time,race_id,update_time'.split(',')
-results_formfields = 'rowid,tmpos,place,bibno,time,race_id,update_time'.split(',')
+results_formfields = 'rowid,tmpos,placepos,bibno,time,race_id,update_time'.split(',')
 results_dbmapping = dict(zip(results_dbattrs, results_formfields))
 results_formmapping = dict(zip(results_formfields, results_dbattrs))
 results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
@@ -88,7 +88,6 @@ def get_results_filters():
         with span(_class='filter'):
             with select(id='port', name="port", _class="validate", required='true', aria_required="true", onchange="setParams()"):
                 for port in ['COM3', 'COM4', 'COM8']:
-                    print(session)
                     if '_results_port' in session and port == session['_results_port']:
                         option(port, selected='true')
                     else:
@@ -132,13 +131,24 @@ class ResultsView(TmConnectorView):
     #     for row in rows:
     #         self._responsedata += self.dte.get_response_data(row)
     
-    # def editor_method_postcommit(self, form):
-    #     if 'since' in form:
-    #         since = form['since']
+    def editor_method_postcommit(self, form):
+        rows = Result.query.filter_by(**self.queryparams).filter(*self.queryfilters).order_by(Result.time, Result.tmpos, Result.tmpos).all()
+        place = 1
+        for row in rows:
+            row.place = place
+            place += 1
+        db.session.commit()
+        # note table is refreshed after the create (afterdatatables.js editor.on('postCreate'))
+        # so place display is correct
+        
+        ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
+        ## not present in the data. Need to revisit this later.
+        # if 'since' in form:
+        #     since = form['since']
     
-    #         # bring in all rows since the requested time
-    #         self.filterrowssince(since)
-    #         self.getrowssince()
+        #     # bring in all rows since the requested time
+        #     self.filterrowssince(since)
+        #     self.getrowssince()
 
     def beforequery(self):
         '''
@@ -190,7 +200,7 @@ results_view = ResultsView(
         'csv'
     ],
     clientcolumns = [
-        {'data': 'place', 'name': 'place', 'label': 'Place'},
+        {'data': 'placepos', 'name': 'placepos', 'label': 'Place'},
         {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos'},
         {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No'},
         {'data': 'time', 'name': 'time', 'label': 'Time'},

@@ -19,7 +19,7 @@ const PING_INTERVAL = 30000;
 const CHECK_CONNECTED_WAIT = 3000;
 const REOPEN_SOCKET_WAIT = 5000;
 // TODO: change to 1000
-const CHECK_TABLE_UPDATE = 10000;
+const CHECK_TABLE_UPDATE = 1000;
 
 // save last draw time
 var last_draw;

@@ -42,6 +42,12 @@ def tm_reader(ws):
             result.tmpos = msg['pos']
             result.time = timesecs(msg['time'])
             result.race_id = msg['raceid']
+            lastrow = Result.query.filter_by(race_id=result.race_id).order_by(Result.place.desc()).first()
+            if lastrow:
+                lastplace = lastrow.place
+            else:
+                lastplace = 0
+            result.place = lastplace + 1
             db.session.add(result)
             db.session.commit()
             
