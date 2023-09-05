@@ -11,6 +11,8 @@ from websockets import connect, ConnectionClosed
 from websockets.server import serve
 from serial_asyncio import create_serial_connection
 
+class ReaderClosed(Exception): pass
+
 log = getLogger('tm-csv-connector')
 log.setLevel(DEBUG)
 handler = StreamHandler(stdout)
@@ -141,7 +143,7 @@ async def reader(port, logging_path):
     protocol.set_logging_path(logging_path)
 
     # ref https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html
-    async for websocket in connect(backenduri):
+        log.debug(f'websocket to backend connected')
         try:
             while True:
                 global stop_reader
@@ -149,7 +151,8 @@ async def reader(port, logging_path):
                     log.debug('reader stopped')
                     stop_reader = False
                     transport.close()
-                    break
+                    await websocket.close()
+                    raise ReaderClosed
                 
                 await sleep(0.3)
                 
@@ -163,7 +166,11 @@ async def reader(port, logging_path):
                 protocol.resume_reading()
         
         except ConnectionClosed:
+            log.debug(f'websocket to backend closed, reconnecting')
             continue
+        
+        except ReaderClosed:
+            return
 
 def reader_thread(port, logging_path):
     log.debug(f'in reader_thread')
