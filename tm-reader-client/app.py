@@ -3,7 +3,7 @@ from sys import stdout
 from asyncio import run, Future, Protocol, sleep, get_event_loop, new_event_loop, set_event_loop
 from threading import Thread
 from json import loads, dumps
-from logging import getLogger, DEBUG, StreamHandler, Formatter
+from logging import getLogger, DEBUG, StreamHandler, Formatter, LoggerAdapter
 from logging.handlers import TimedRotatingFileHandler
 
 # pypi
@@ -21,6 +21,9 @@ formatter = Formatter('%(asctime)s %(name)s %(levelname)s: %(message)s')
 handler.setFormatter(formatter)
 log.addHandler(handler)
 
+# # this should be configurable
+# getLogger('websockets').setLevel(DEBUG)
+
 backenduri = 'ws://tm.localhost:8080/tm_reader'
 PRIMARY = b'\x17'
 SELECT  = b'\x14'
@@ -36,6 +39,16 @@ queued_msgs = []
 
 # save latest raceid
 raceid = 0
+
+class LoggerAdapter(LoggerAdapter):
+    """Add connection ID and client IP address to websockets logs."""
+    def process(self, msg, kwargs):
+        try:
+            websocket = kwargs["extra"]["websocket"]
+        except KeyError:
+            return msg, kwargs
+        xff = websocket.request_headers.get("X-Forwarded-For")
+        return f"{websocket.id} {xff} {msg}", kwargs
 
 class InputChunkProtocol(Protocol):
     """adapted from https://pyserial-asyncio.readthedocs.io/en/latest/shortintro.html#serial-transports-protocols-and-streams
@@ -143,6 +156,8 @@ async def reader(port, logging_path):
     protocol.set_logging_path(logging_path)
 
     # ref https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html
+    # ref https://websockets.readthedocs.io/en/stable/topics/logging.html
+    async for websocket in connect(backenduri, logger=LoggerAdapter(getLogger("websockets.client"))):
         log.debug(f'websocket to backend connected')
         try:
             while True:
