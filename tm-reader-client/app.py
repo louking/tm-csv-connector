@@ -3,7 +3,7 @@ from sys import stdout
 from asyncio import run, Future, Protocol, sleep, get_event_loop, new_event_loop, set_event_loop
 from threading import Thread
 from json import loads, dumps
-from logging import getLogger, DEBUG, StreamHandler, Formatter, LoggerAdapter
+from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatter, LoggerAdapter
 from logging.handlers import TimedRotatingFileHandler
 
 # pypi
@@ -13,16 +13,22 @@ from serial_asyncio import create_serial_connection
 
 class ReaderClosed(Exception): pass
 
-log = getLogger('tm-csv-connector')
-log.setLevel(DEBUG)
-handler = StreamHandler(stdout)
-handler.setLevel(DEBUG)
-formatter = Formatter('%(asctime)s %(name)s %(levelname)s: %(message)s')
-handler.setFormatter(formatter)
-log.addHandler(handler)
+basicConfig(
+    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+    level=DEBUG,
+)
 
-# # this should be configurable
-# getLogger('websockets').setLevel(DEBUG)
+log = getLogger('tm-csv-connector')
+# log.setLevel(DEBUG)
+# handler = StreamHandler(stdout)
+# handler.setLevel(DEBUG)
+# formatter = Formatter('%(asctime)s %(name)s %(levelname)s: %(message)s')
+# handler.setFormatter(formatter)
+# log.addHandler(handler)
+
+# these should be configurable
+getLogger('websockets.client').setLevel(INFO)
+getLogger('websockets.server').setLevel(INFO)
 
 backenduri = 'ws://tm.localhost:8080/tm_reader'
 PRIMARY = b'\x17'
@@ -47,7 +53,10 @@ class LoggerAdapter(LoggerAdapter):
             websocket = kwargs["extra"]["websocket"]
         except KeyError:
             return msg, kwargs
-        xff = websocket.request_headers.get("X-Forwarded-For")
+        if getattr(websocket, 'request_headers', None):
+            xff = websocket.request_headers.get("X-Forwarded-For")
+        else:
+            xff = '??'
         return f"{websocket.id} {xff} {msg}", kwargs
 
 class InputChunkProtocol(Protocol):
@@ -83,7 +92,7 @@ class InputChunkProtocol(Protocol):
         return super().connection_lost(exc)
 
     def data_received(self, data):
-        log.debug(f'data received: {data}')
+        log.debug(f'time machine data received: {data}')
         msgs = data.split(b'\r\n')
         
         # update first part of data with residual, making sure there's at least one item in msgs
@@ -96,7 +105,7 @@ class InputChunkProtocol(Protocol):
         # note the residual may be the only item in msgs
         self.residual = msgs.pop()
         if self.residual:
-            log.debug(f'residual: {self.residual}')
+            log.debug(f'time machine residual: {self.residual}')
         
         
         # don't connect if nothing to send
@@ -106,7 +115,7 @@ class InputChunkProtocol(Protocol):
             # assumes cross-country mode is used
             for msg in msgs:
                 try:
-                    log.debug(f'msg processed: {msg}')
+                    log.debug(f'time machine msg processed: {msg}')
                     # split message into parts
                     control = msg[0:1]
                     if control in [PRIMARY, SELECT]:
@@ -146,11 +155,11 @@ async def send_to_backend(websocket, data):
         data (dict): dict to serialize and send
     """
     sending = dumps(data)
-    log.debug(f'sending: {sending}')
+    log.debug(f'websocket sending to backend: {sending}')
     await websocket.send(sending)
         
 async def reader(port, logging_path):
-    log.debug(f'async reader started with port {port}')
+    log.info(f'time machine async reader started with port {port}')
     readloop = get_event_loop()
     transport, protocol = await create_serial_connection(readloop, InputChunkProtocol, port)
     protocol.set_logging_path(logging_path)
@@ -158,12 +167,12 @@ async def reader(port, logging_path):
     # ref https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html
     # ref https://websockets.readthedocs.io/en/stable/topics/logging.html
     async for websocket in connect(backenduri, logger=LoggerAdapter(getLogger("websockets.client"))):
-        log.debug(f'websocket to backend connected')
+        log.info(f'websocket to backend connected')
         try:
             while True:
                 global stop_reader
                 if stop_reader:
-                    log.debug('reader stopped')
+                    log.info('time machine reader stopped')
                     stop_reader = False
                     transport.close()
                     await websocket.close()
@@ -181,20 +190,20 @@ async def reader(port, logging_path):
                 protocol.resume_reading()
         
         except ConnectionClosed:
-            log.debug(f'websocket to backend closed, reconnecting')
+            log.info(f'websocket to backend closed, reconnecting')
             continue
         
         except ReaderClosed:
             return
 
 def reader_thread(port, logging_path):
-    log.debug(f'in reader_thread')
+    log.info(f'in reader_thread')
     readloop = new_event_loop()
     set_event_loop(readloop)
     # readloop.run_until_complete(reader(port, logging_path))
     # readloop.close()
     run(reader(port, logging_path))
-    log.debug('exiting reader_thread()')
+    log.info('exiting reader_thread()')
     
 async def controller(websocket):
     """server for control commands
@@ -208,7 +217,7 @@ async def controller(websocket):
         
         # just wanna know what's going on
         if opcode in ['open', 'close', 'raceid']:
-            log.debug(f'received {event}')
+            log.debug(f'websocket received {event}')
         
         # backend opened the connection
         if opcode == 'open':
@@ -217,7 +226,7 @@ async def controller(websocket):
             readloop_threadid = Thread(target=reader_thread, args=(port, logging_path)).start()
             # readloop = get_event_loop()
             # readloop.run_until_complete(reader(port, logging_path))
-            log.debug('returned from Thread')
+            log.info('controller returned from Thread')
         
         # backend closed the connection
         elif opcode == 'close':
