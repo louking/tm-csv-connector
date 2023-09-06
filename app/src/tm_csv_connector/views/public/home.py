@@ -26,7 +26,8 @@ sincerender = asctime('%Y-%m-%dT%H:%M:%S%z')
 
 class TmConnectorView (DbCrudApi):
     def permission(self):
-        self.race = Race.query.filter_by(id=session['_results_raceid']).one_or_none()
+        race_id = session['_results_raceid'] if '_results_raceid' in session else None
+        self.race = Race.query.filter_by(id=race_id).one_or_none()
         return True
 
 class Home(MethodView):
@@ -156,8 +157,9 @@ class ResultsView(TmConnectorView):
         :return:
         '''
         # self.race set in self.permission()
-        self.race = Race.query.filter_by(id=session['_results_raceid']).one_or_none()
-        self.queryparams['race_id'] = self.race.id
+        race_id = session['_results_raceid'] if '_results_raceid' in session else None
+        self.race = Race.query.filter_by(id=race_id).one_or_none()
+        self.queryparams['race_id'] = race_id
         
         ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
         ## not present in the data. Need to revisit this later.
