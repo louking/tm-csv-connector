@@ -93,13 +93,12 @@ class InputChunkProtocol(Protocol):
 
     def data_received(self, data):
         log.debug(f'time machine data received: {data}')
-        msgs = data.split(b'\r\n')
         
-        # update first part of data with residual, making sure there's at least one item in msgs
-        if len(msgs) > 0:
-            msgs[0] = self.residual + msgs[0]
-        else:
-            msgs = [self.residual]
+        # update first part of data with residual
+        data = self.residual + data
+
+        # split into separate messages            
+        msgs = data.split(b'\r\n')
         
         # last part is saved for later, may be empty, don't send to back end
         # note the residual may be the only item in msgs
@@ -189,8 +188,8 @@ async def reader(port, logging_path):
 
                 protocol.resume_reading()
         
-        except ConnectionClosed:
-            log.info(f'websocket to backend closed, reconnecting')
+        except ConnectionClosed as e:
+            log.info(f'websocket to backend closed, reconnecting ({type(e)}, {e})')
             continue
         
         except ReaderClosed:
