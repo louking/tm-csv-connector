@@ -106,30 +106,27 @@ class InputChunkProtocol(Protocol):
         if self.residual:
             log.debug(f'time machine residual: {self.residual}')
         
-        
-        # don't connect if nothing to send
-        if msgs:
-            # connect to websocket, send each relevant message to the back end
-            # relevant message format on p3-1 of Time Machine User Manual
-            # assumes cross-country mode is used
-            for msg in msgs:
-                try:
-                    log.debug(f'time machine msg processed: {msg}')
-                    # split message into parts
-                    control = msg[0:1]
-                    if control in [PRIMARY, SELECT]:
-                        pos = int(msg[8:13])
-                        time = msg[13:24].decode()
-                    
-                        # check control character; queue message for handling in the background
-                        global queued_msgs
-                        if control == PRIMARY:
-                            queued_msgs.append({'opcode': 'primary', 'raceid': raceid, 'pos': pos, 'time': time})
-                        elif control == SELECT:
-                            bib = int(msg[27:32].decode())
-                            queued_msgs.append({'opcode': 'select', 'raceid': raceid, 'pos': pos, 'time': time, 'bibno': bib})
-                except ValueError:
-                    log.error(f'could not decode message: {msg}')
+        # send each relevant message to the back end
+        # relevant message format on p3-1 of Time Machine User Manual
+        # assumes cross-country mode is used
+        for msg in msgs:
+            try:
+                log.debug(f'time machine msg processed: {msg}')
+                # split message into parts
+                control = msg[0:1]
+                if control in [PRIMARY, SELECT]:
+                    pos = int(msg[8:13])
+                    time = msg[13:24].decode()
+                
+                    # check control character; queue message for handling in the background
+                    global queued_msgs
+                    if control == PRIMARY:
+                        queued_msgs.append({'opcode': 'primary', 'raceid': raceid, 'pos': pos, 'time': time})
+                    elif control == SELECT:
+                        bib = int(msg[27:32].decode())
+                        queued_msgs.append({'opcode': 'select', 'raceid': raceid, 'pos': pos, 'time': time, 'bibno': bib})
+            except ValueError:
+                log.error(f'could not decode message: {msg}')
         
         # stop callbacks again immediately
         self.pause_reading()
