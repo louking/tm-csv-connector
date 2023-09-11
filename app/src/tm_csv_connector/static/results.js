@@ -12,7 +12,7 @@ var ccinterval;
 var connected;
 
 // form parameters
-var raceid, port, outputdir, logdir;
+var raceid, port, logdir;
 
 // constants
 const PING_INTERVAL = 30000;
@@ -221,7 +221,6 @@ function setParams() {
     // query and set age grade
     raceid = $('#race').val();
     port = $('#port').val();
-    outputdir = $('#outputdir').val();
     logdir = $('#logdir').val();
 
     // send latest raceid to reader process
@@ -236,7 +235,6 @@ function setParams() {
         data: {
             port: port, 
             raceid: raceid, 
-            outputdir: outputdir, 
             logdir: logdir
         },
         success: function ( json ) {

@@ -86,12 +86,20 @@ services:
         - "host.docker.internal:host-gateway"
     volumes:
       - ./config:/config:ro
+      # OUTPUT_DIR needs to be set in .env, using forward slashes, similar to
+      # OUTPUT_DIR="c:/Users/lking/Documents/Lou's Software/test/time-machine/tm-csv-connector/file-output"
+      - type: bind
+        source: ${OUTPUT_DIR}
+        target: /output_dir
+
     environment:
       - FLASK_DEBUG=True
       - APP_DATABASE=tm-csv-connector
       - APP_USER=tm-csv-connector
       - APP_PASSWORD_FILE=/run/secrets/tm-csv-connector-password
-    command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--worker-class", "eventlet", "--access-logfile", "-", "--log-file", "-", "app:app"]
+    # access log is in web container
+    # command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--worker-class", "eventlet", "--access-logfile", "-", "--log-file", "-", "app:app"]
+    command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--worker-class", "eventlet", "--log-file", "-", "app:app"]
 
 volumes:
   db-data:

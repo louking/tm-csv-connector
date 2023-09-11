@@ -5,7 +5,10 @@ home - public views
 # standard
 from datetime import timedelta
 from traceback import format_exception_only, format_exc
-from pytz import utc
+from os.path import join
+from shutil import copy
+from csv import DictWriter
+from tempfile import mkstemp
 
 # pypi
 from flask import g, render_template, session, request, current_app, jsonify
@@ -18,6 +21,7 @@ from loutilities.filters import filtercontainerdiv
 # homegrown
 from . import bp
 from ...model import db, Race, Result, Setting
+from ...fileformat import filecolumns, db2file
 
 class ParameterError(Exception): pass
 
@@ -93,14 +97,6 @@ def get_results_filters():
                         option(port, selected='true')
                     else:
                         option(port)
-    results_filter_outputdir = div(_class='filter-item')
-    results_filters += results_filter_outputdir
-    with results_filter_outputdir:
-        span('Output Dir', _class='label')
-        with span(_class='filter'):
-            if '_results_outputdir' not in session:
-                session['_results_outputdir'] = ''
-            input_(id="outputdir", value=session['_results_outputdir'], type="text", name="outputdir", _class="validate", required='true', aria_required="true", onchange="setParams()")
     return results_filters.render()
 
 def results_validate(action, formdata):
@@ -133,6 +129,8 @@ class ResultsView(TmConnectorView):
     #         self._responsedata += self.dte.get_response_data(row)
     
     def editor_method_postcommit(self, form):
+        ## TODO: acquire LOCK here
+        
         rows = Result.query.filter_by(**self.queryparams).filter(*self.queryfilters).order_by(Result.time, Result.tmpos, Result.tmpos).all()
         place = 1
         for row in rows:
@@ -141,6 +139,29 @@ class ResultsView(TmConnectorView):
         db.session.commit()
         # note table is refreshed after the create (afterdatatables.js editor.on('postCreate'))
         # so place display is correct
+
+        # get output file pathname
+        filesetting = Setting.query.filter_by(name='output-file').one_or_none()
+        if filesetting:
+            filepath = join('/output_dir', filesetting.value)
+            
+            # create temporary file
+            from tempfile import TemporaryDirectory
+            fdir = TemporaryDirectory()
+            tmpfname = join(fdir.name, filesetting.value)
+            with open(tmpfname, mode='w') as f:
+                csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
+                for row in rows:
+                    rowdict = {}
+                    db2file.transform(row, rowdict)
+                    csvf.writerow(rowdict)
+
+            # overwrite file
+            current_app.logger.debug(f'overwriting {filesetting.value}')
+            copy(tmpfname, filepath)
+            fdir.cleanup()
+
+        ## TODO: release LOCK here
         
         ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
         ## not present in the data. Need to revisit this later.
