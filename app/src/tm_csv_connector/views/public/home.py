@@ -230,6 +230,7 @@ results_view = ResultsView(
         # {'data': 'update_time', 'name': 'update_time', 'label': 'Update Time', 'type': 'readonly'},
     ],
     dtoptions={
+        'order': [['placepos:name', 'desc']],
         'scrollCollapse': True,
         'scrollX': True,
         'scrollXInner': "100%",
