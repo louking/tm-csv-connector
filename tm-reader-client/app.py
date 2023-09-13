@@ -167,38 +167,28 @@ async def reader(port, logging_path):
     transport, protocol = await create_serial_connection(readloop, InputChunkProtocol, port)
     protocol.set_logging_path(logging_path)
 
-    # ref https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html
-    # ref https://websockets.readthedocs.io/en/stable/topics/logging.html
-    async for websocket in connect(backenduri, logger=LoggerAdapter(getLogger("websockets.client"))):
-        log.info(f'websocket to backend connected')
-        try:
-            while True:
-                global stop_reader
-                if stop_reader:
-                    log.info('time machine reader stopped')
-                    stop_reader = False
-                    transport.close()
-                    await websocket.close()
-                    raise ReaderClosed
-                
-                await sleep(0.3)
-                
-                # send any queued messages
-                global queued_msgs
-                if queued_msgs:
-                    while len(queued_msgs) > 0:
-                        msg = queued_msgs.pop(0)
-                        send_to_backend(msg)
+    try:
+        while True:
+            global stop_reader
+            if stop_reader:
+                log.info('time machine reader stopped')
+                stop_reader = False
+                transport.close()
+                raise ReaderClosed
+            
+            await sleep(0.3)
+            
+            # send any queued messages
+            global queued_msgs
+            if queued_msgs:
+                while len(queued_msgs) > 0:
+                    msg = queued_msgs.pop(0)
+                    send_to_backend(msg)
 
-                protocol.resume_reading()
-        
-        # this should be dead code as websocket transmission to backend was removed
-        except ConnectionClosed as e:
-            log.info(f'websocket to backend closed, reconnecting ({type(e)}, {e})')
-            continue
-        
-        except ReaderClosed:
-            return
+            protocol.resume_reading()
+    
+    except ReaderClosed:
+        return
 
 def reader_thread(port, logging_path):
     log.info(f'in reader_thread')
