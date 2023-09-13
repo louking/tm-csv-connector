@@ -1,5 +1,7 @@
 """file columns definition, including transformation from database formatting
 """
+# standard
+from threading import Lock
 
 # homegrown
 from loutilities.transform import Transform
@@ -7,6 +9,9 @@ from loutilities.renderrun import rendertime
 
 # these names must match the message keys from tm-reader-client to the backend server
 filecolumns = ['pos', 'bibno', 'time']
+
+# provide lock for file update
+filelock = Lock()
 
 def fulltime(timesecs):
     """convert seconds to hh:mm:ss.dd

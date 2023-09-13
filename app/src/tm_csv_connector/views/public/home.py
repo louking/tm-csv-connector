@@ -20,7 +20,7 @@ from loutilities.filters import filtercontainerdiv
 # homegrown
 from . import bp
 from ...model import db, Race, Result, Setting
-from ...fileformat import filecolumns, db2file
+from ...fileformat import filecolumns, db2file, filelock
 
 class ParameterError(Exception): pass
 
@@ -128,8 +128,16 @@ class ResultsView(TmConnectorView):
     #         self._responsedata += self.dte.get_response_data(row)
     
     def editor_method_postcommit(self, form):
-        ## TODO: acquire LOCK here
+        # LOCK file access
+        filelock.acquire()
         
+        # # test lock
+        # from time import sleep
+        # current_app.logger.debug(f'sleeping')
+        # sleep(10)
+        # current_app.logger.debug(f'awake')
+
+        # set place
         rows = Result.query.filter_by(**self.queryparams).filter(*self.queryfilters).order_by(Result.time, Result.tmpos, Result.tmpos).all()
         place = 1
         for row in rows:
@@ -160,8 +168,6 @@ class ResultsView(TmConnectorView):
             copy(tmpfname, filepath)
             fdir.cleanup()
 
-        ## TODO: release LOCK here
-        
         ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
         ## not present in the data. Need to revisit this later.
         # if 'since' in form:
@@ -171,6 +177,9 @@ class ResultsView(TmConnectorView):
         #     self.filterrowssince(since)
         #     self.getrowssince()
 
+        # UNLOCK file access
+        filelock.release()
+        
     def beforequery(self):
         '''
         filter on current race
@@ -373,6 +382,16 @@ bp.add_url_rule('/_setparams', view_func=params_api, methods=['POST',])
 class PostResultApi(MethodView):
     def post(self):
         try:
+            ## LOCK file access
+            filelock.acquire()
+            
+            # # test lock
+            # from time import sleep
+            # current_app.logger.debug(f'sleeping')
+            # sleep(10)
+            # current_app.logger.debug(f'awake')
+
+            # receive message
             msg = request.json
             current_app.logger.debug(f'received data {msg}')
             
@@ -384,7 +403,6 @@ class PostResultApi(MethodView):
             # handle messages from tm-reader-client
             opcode = msg.pop('opcode', None)
             if opcode in ['primary', 'select']:
-                ## TODO: acquire LOCK here
                 
                 # determine place. if no records yet, create the output file
                 lastrow = Result.query.filter_by(race_id=msg['raceid']).order_by(Result.place.desc()).first()
@@ -416,21 +434,28 @@ class PostResultApi(MethodView):
                         csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
                         csvf.writerow(filedata)
                 
-                ## TODO: release LOCK here
                 
             # how did this happen?
             else:
                 current_app.logger.error(f'unknown opcode received: {opcode}')
 
+            ## UNLOCK file access and return
+            filelock.release()
+            return jsonify(status='success')
+
         except Exception as e:
+            ## UNLOCK file access
+            filelock.release()
+            
+            # report exception
             exc = ''.join(format_exception_only(type(e), e))
             output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
             # roll back database updates and close transaction
             db.session.rollback()
             current_app.logger.error(format_exc())
             return jsonify(output_result)
         
-        return jsonify(status='success')
 
 postresult_api = PostResultApi.as_view('_postresult')
 bp.add_url_rule('/_postresult', view_func=postresult_api, methods=['POST',])
