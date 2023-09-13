@@ -5,6 +5,8 @@ from threading import Thread
 from json import loads, dumps
 from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatter, LoggerAdapter
 from logging.handlers import TimedRotatingFileHandler
+from requests import post
+from requests import codes
 
 # pypi
 from websockets import connect, ConnectionClosed
@@ -31,6 +33,7 @@ getLogger('websockets.client').setLevel(INFO)
 getLogger('websockets.server').setLevel(INFO)
 
 backenduri = 'ws://tm.localhost:8080/tm_reader'
+backendpost = 'http://tm.localhost:8080/_postresult'
 PRIMARY = b'\x17'
 SELECT  = b'\x14'
 
@@ -143,16 +146,20 @@ class InputChunkProtocol(Protocol):
         self.logging_path = logging_path
         log.error(f'need to set logging path in logger')
         
-async def send_to_backend(websocket, data):
+def send_to_backend(data):
     """send data to backend
 
     Args:
-        websocket (websocket): websocket to send to
         data (dict): dict to serialize and send
     """
-    sending = dumps(data)
-    log.debug(f'websocket sending to backend: {sending}')
-    await websocket.send(sending)
+    log.debug(f'sending to backend: {data}')
+    rsp = post(backendpost, json=data)
+    if rsp.status_code != codes.ok:
+        log.error(f'error sending to backend: status = {rsp.status_code}')
+    else:
+        respdata = loads(rsp.text)
+        if respdata['status'] != 'success':
+            log.error(f'error sending to backend: response = {respdata["error"]}')
         
 async def reader(port, logging_path):
     log.info(f'time machine async reader started with port {port}')
@@ -181,10 +188,11 @@ async def reader(port, logging_path):
                 if queued_msgs:
                     while len(queued_msgs) > 0:
                         msg = queued_msgs.pop(0)
-                        await send_to_backend(websocket, msg)
+                        send_to_backend(msg)
 
                 protocol.resume_reading()
         
+        # this should be dead code as websocket transmission to backend was removed
         except ConnectionClosed as e:
             log.info(f'websocket to backend closed, reconnecting ({type(e)}, {e})')
             continue
@@ -196,8 +204,6 @@ def reader_thread(port, logging_path):
     log.info(f'in reader_thread')
     readloop = new_event_loop()
     set_event_loop(readloop)
-    # readloop.run_until_complete(reader(port, logging_path))
-    # readloop.close()
     run(reader(port, logging_path))
     log.info('exiting reader_thread()')
     

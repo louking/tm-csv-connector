@@ -8,7 +8,6 @@ from traceback import format_exception_only, format_exc
 from os.path import join
 from shutil import copy
 from csv import DictWriter
-from tempfile import mkstemp
 
 # pypi
 from flask import g, render_template, session, request, current_app, jsonify
@@ -369,3 +368,68 @@ class SetParamsApi(MethodView):
 
 params_api = SetParamsApi.as_view('_setparams')
 bp.add_url_rule('/_setparams', view_func=params_api, methods=['POST',])
+
+class PostResultApi(MethodView):
+    def post(self):
+        try:
+            msg = request.json
+            current_app.logger.debug(f'received data {msg}')
+            
+            # get output file pathname
+            filesetting = Setting.query.filter_by(name='output-file').one_or_none()
+            if filesetting:
+                filepath = join('/output_dir', filesetting.value)
+
+            # handle messages from tm-reader-client
+            opcode = msg.pop('opcode', None)
+            if opcode in ['primary', 'select']:
+                ## TODO: acquire LOCK here
+                
+                # determine place. if no records yet, create the output file
+                lastrow = Result.query.filter_by(race_id=msg['raceid']).order_by(Result.place.desc()).first()
+                if lastrow:
+                    place = lastrow.place + 1
+                else:
+                    place = 1
+                    # create file
+                    if filesetting:
+                        with open(filepath, mode='w') as f:
+                            current_app.logger.info(f'creating {filesetting.value}')
+                    
+                # write to database
+                result = Result()
+                result.bibno = msg['bibno'] if 'bibno' in msg else None
+                result.tmpos = msg['pos']
+                result.time = timesecs(msg['time'])
+                result.race_id = msg['raceid']
+                result.place = place
+                db.session.add(result)
+                db.session.commit()
+                
+                # write to the file
+                if filesetting:
+                    with open(filepath, mode='a') as f:
+                        filedata = {}
+                        db2file.transform(result, filedata)
+                        current_app.logger.debug(f'appending to {filesetting.value}: {filedata["pos"],filedata["bibno"],filedata["time"]}')
+                        csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
+                        csvf.writerow(filedata)
+                
+                ## TODO: release LOCK here
+                
+            # how did this happen?
+            else:
+                current_app.logger.error(f'unknown opcode received: {opcode}')
+
+        except Exception as e:
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+        return jsonify(status='success')
+
+postresult_api = PostResultApi.as_view('_postresult')
+bp.add_url_rule('/_postresult', view_func=postresult_api, methods=['POST',])
