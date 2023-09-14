@@ -14,7 +14,7 @@ from flask import g, render_template, session, request, current_app, jsonify
 from flask.views import MethodView
 from loutilities.tables import DbCrudApi
 from loutilities.timeu import asctime, timesecs
-from dominate.tags import div, button, span, select, option, input_
+from dominate.tags import div, button, span, select, option, p
 from loutilities.filters import filtercontainerdiv
 
 # homegrown
@@ -67,7 +67,9 @@ results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
 results_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
 
 def get_results_filters():
+    prehtml = div()
     results_filters = filtercontainerdiv()
+    prehtml += results_filters
     results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item'), _class='filter')
     results_filter_race = div(_class='filter-item')
     results_filters += results_filter_race
@@ -96,7 +98,11 @@ def get_results_filters():
                         option(port, selected='true')
                     else:
                         option(port)
-    return results_filters.render()
+    updates_suspended_warning = div()
+    prehtml += updates_suspended_warning
+    with updates_suspended_warning:
+        p('display updates suspended - deselect to resume', id='updates-suspended', style='color: white; font-weight: bold; background-color: red; text-align: center; display: none;')
+    return prehtml.render()
 
 def results_validate(action, formdata):
     results = []
@@ -231,10 +237,10 @@ results_view = ResultsView(
         'csv'
     ],
     clientcolumns = [
-        {'data': 'placepos', 'name': 'placepos', 'label': 'Place'},
-        {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos'},
-        {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No'},
-        {'data': 'time', 'name': 'time', 'label': 'Time'},
+        {'data': 'placepos', 'name': 'placepos', 'label': 'Place', 'type': 'readonly', 'fieldInfo': 'calculated by the system'},
+        {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos', 'fieldInfo': 'received from time machine'},
+        {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No', 'className': 'bibno_field'},
+        {'data': 'time', 'name': 'time', 'label': 'Time', 'className': 'time_field'},
         # for testing only
         # {'data': 'update_time', 'name': 'update_time', 'label': 'Update Time', 'type': 'readonly'},
     ],
@@ -244,15 +250,6 @@ results_view = ResultsView(
         'scrollX': True,
         'scrollXInner': "100%",
         'scrollY': True,
-    },
-    edoptions={
-        'formOptions': {
-            'inline': {
-                # uses name field as key; value is used for editor.inline() options
-                'bibno': {'submitOnBlur': True},
-                'time': {'submitOnBlur': True},
-            },
-        }
     },
 )
 results_view.register()
