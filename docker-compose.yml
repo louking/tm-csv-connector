@@ -22,6 +22,7 @@ services:
     #   - MYSQL_PASSWORD_FILE=/run/secrets/users-password
 
   web:
+    image: louking/tm-csv-connector-web:${APP_VER}
     build: 
       context: web
       args:
@@ -46,28 +47,8 @@ services:
     environment:
       - PMA_ABSOLUTE_URI=http://phpmyadmin/phpmyadmin
 
-  # crond:
-  #   build:
-  #     context: crond
-  #     args:
-  #       - ALPINE_VER=${ALPINE_VER}
-  #   restart: always
-  #   depends_on:
-  #     - db
-  #   networks:
-  #     - backend-network
-  #   secrets:
-  #     - db-password
-  #   volumes:
-  #     - ./config/msmtprc:/etc/msmtprc:ro
-  #   environment:
-  #     - TZ=America/New_York
-  #   # start crond with log level 8 in foreground, output to stderr
-  #   command: ["crond", "-f", "-d", "8"]
-  #   # use this to debug
-  #   # command: ["crond", "-f", "-d", "8", "-l", "2", "-L", "/dev/stdout"]
-
   app:
+    image: louking/tm-csv-connector-app:${APP_VER}
     build: 
       context: app
       args:
