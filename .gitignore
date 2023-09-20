@@ -161,6 +161,7 @@ cython_debug/
 
 # local configuration files
 *.json
+!tasks.json
 *.cfg
 *-config.js
 *_config.py

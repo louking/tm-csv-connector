@@ -1,0 +1,13 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build tm-csv-connector",
+            "type": "shell",
+            "command": ".venv/scripts/activate; pyinstaller tm-reader-client/app.py -n tm-csv-connector"
+            // "command": ".venv/scripts/activate; pyinstaller --version-file app/src/tm_csv_connector/version.py tm-reader-client/app.py -n tm-csv-connector"
+        }
+    ]
+}
