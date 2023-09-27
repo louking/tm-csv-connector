@@ -8,6 +8,14 @@
             "type": "shell",
             "command": ".venv/scripts/activate; pyinstaller tm-reader-client/app.py -n tm-csv-connector"
             // "command": ".venv/scripts/activate; pyinstaller --version-file app/src/tm_csv_connector/version.py tm-reader-client/app.py -n tm-csv-connector"
+        }, 
+        {
+            "label": "build docs",
+            "type": "shell",
+            "command": "../.venv/scripts/activate; ./make html",
+            "options": {
+                "cwd": "./docs"
+            }
         }
     ]
 }
