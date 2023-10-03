@@ -121,6 +121,7 @@ celerybeat.pid
 
 # Environments
 .env
+!dist/.env
 .venv
 env/
 venv/
@@ -162,6 +163,7 @@ cython_debug/
 # local configuration files
 *.json
 !tasks.json
+!launch.json
 *.cfg
 *-config.js
 *_config.py
