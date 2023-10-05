@@ -26,7 +26,6 @@ var last_draw;
 
 $( function() {
     cd = $('#connect-disconnect');
-    cd.button();
     cd.on('click', cdbuttonclick);
 
     $('#race').select2({

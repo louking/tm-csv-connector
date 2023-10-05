@@ -65,12 +65,13 @@ def nav_menu():
                 contexthelp[url_for(endpoint, **kwargs)] = self.basehelp + slugify(prelink + ' ' + text + ' view')
 
 
-    connector_view = add_view('https://tmtility.readthedocs.io/en/{docversion}/tm-csv-connector-reference.html#')
+    # connector_view = add_view('file:///docs/index.html#')
 
     navbar.items.append(View('Home', 'public.home'))
     navbar.items.append(View('Races', 'public.races'))
     navbar.items.append(View('Results', 'public.results'))
     navbar.items.append(View('Settings', 'public.settings'))
+    navbar.items.append(Link('Admin Guide', '/docs/index.html#'))
 
     # common items
     # navbar.items.append(View('About', 'admin.sysinfo'))

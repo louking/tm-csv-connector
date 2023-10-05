@@ -12,9 +12,9 @@
         {
             "label": "build docs",
             "type": "shell",
-            "command": "../.venv/scripts/activate; ./make html",
+            "command": "../../.venv/scripts/activate; ./make html",
             "options": {
-                "cwd": "./docs"
+                "cwd": "./web/docs"
             }
         }
     ]

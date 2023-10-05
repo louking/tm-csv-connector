@@ -1,5 +1,4 @@
-# See https://packaging.python.org/guides/distributing-packages-using-setuptools/#semantic-versioning-preferred
-__version__ = '1.0.0.dev1'
+from os import environ
+
+__version__ = environ['APP_VER'] # from .env
 __docversion__ = __version__
-# uncomment for development
-__docversion__ = 'latest'

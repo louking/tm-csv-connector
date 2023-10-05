@@ -69,6 +69,7 @@ services:
       - APP_DATABASE=tm-csv-connector
       - APP_USER=tm-csv-connector
       - APP_PASSWORD_FILE=/run/secrets/tm-csv-connector-password
+      - APP_VER=${APP_VER}
     # access log is in web container
     # command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--worker-class", "eventlet", "--access-logfile", "-", "--log-file", "-", "app:app"]
     command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--worker-class", "eventlet", "--log-file", "-", "app:app"]

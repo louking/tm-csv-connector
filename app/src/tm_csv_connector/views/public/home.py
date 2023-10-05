@@ -70,7 +70,7 @@ def get_results_filters():
     prehtml = div()
     results_filters = filtercontainerdiv()
     prehtml += results_filters
-    results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item'), _class='filter')
+    results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item ui-button'), _class='filter')
     results_filter_race = div(_class='filter-item')
     results_filters += results_filter_race
     with results_filter_race:

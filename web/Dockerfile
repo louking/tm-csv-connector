@@ -7,3 +7,4 @@ COPY index.html /usr/share/nginx/html/index.html
 # must be something wrong with scoping on PHPMYADMIN_VER, but will need to look at this later. see https://stackoverflow.com/questions/43473236/docker-build-arg-and-copy#comment107312537_43473956
 # COPY --from=phpmyadmin/phpmyadmin:${PHPMYADMIN_VER}-fpm /var/www/html /usr/share/nginx/html
 COPY --from=phpmyadmin/phpmyadmin:5.2.1-fpm /var/www/html /usr/share/nginx/html
+COPY ./docs/build/html /usr/share/nginx/html/docs
