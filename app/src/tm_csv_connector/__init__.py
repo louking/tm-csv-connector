@@ -17,6 +17,7 @@ from loutilities.configparser import getitems
 # homegrown
 from .model import Race
 from .websockets_server import init_app
+from .version import __version__
 
 appname = 'tm-csv-connector'
 
@@ -48,6 +49,7 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
     # define product name (don't import nav until after app.jinja_env.globals['_productname'] set)
     app.jinja_env.globals['_productname'] = app.config['THISAPP_PRODUCTNAME']
     app.jinja_env.globals['_productname_text'] = app.config['THISAPP_PRODUCTNAME_TEXT']
+    app.jinja_env.globals['_product_version'] = __version__
 
     # initialize database
     from .model import db

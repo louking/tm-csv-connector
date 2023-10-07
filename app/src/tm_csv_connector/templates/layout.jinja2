@@ -9,6 +9,7 @@
 
         {# note smartmenu classes are added using jquery in layout.js because nav doesn't provide api for that #}
         {{ nav.nav_menu.render(id='navigation', renderer='nav_renderer') }}
+        <small class=body style="float: right;">{{ _product_version|safe }}</small>
     {% endif %}
 {% endblock %}
 
