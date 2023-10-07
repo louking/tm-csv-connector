@@ -15,6 +15,7 @@ and the release version at the top of the view. **Admin Guide** can be clicked t
 
 Races view
 ======================
+Results are collected by race. The Races view is used to configure the races in the system.
 
     :Date:
         date of race in ISO format (yyyy-mm-dd)
@@ -37,6 +38,7 @@ Races view
 
 Results view
 ======================
+The Results view is used to see the results for a particular Race as they come in from the Time Machine, and to adjust them as needed. 
 
     :Place:
         current place of this result after edits, insertions, deletions
@@ -93,6 +95,7 @@ off the field after update, or hitting return submits the edit to the database.
 
 Settings view
 ======================
+The Settings view is used to update individual settings required by the system.
 
     :Setting:
         the setting to be edited
