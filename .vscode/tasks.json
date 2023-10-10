@@ -6,7 +6,8 @@
         {
             "label": "build time machine reader",
             "type": "shell",
-            "command": ".venv/scripts/activate; pyinstaller tm-reader-client/app.py -n tm-csv-connector"
+            "command": ".venv/scripts/activate; pyinstaller tm-reader-client/app.py -n tm-reader",
+            "problemMatcher": []
         },
         {
             "label": "build, push app",
