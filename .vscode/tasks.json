@@ -7,19 +7,20 @@
             "label": "build time machine reader",
             "type": "shell",
             "command": ".venv/scripts/activate; pyinstaller tm-reader-client/app.py -n tm-csv-connector"
-        }, 
+        },
         {
             "label": "build, push app",
             "type": "shell",
             "command": ".venv/scripts/activate; docker compose -f docker-compose.yml -f docker-compose.build.yml build; docker compose -f docker-compose.yml -f docker-compose.build.yml push"
-        }, 
+        },
         {
             "label": "build docs",
             "type": "shell",
             "command": "../../.venv/scripts/activate; ./make html",
             "options": {
                 "cwd": "./web/docs"
-            }
+            },
+            "problemMatcher": []
         }
     ]
 }
