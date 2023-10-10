@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 #########################################################
-Welcome to Time Machine - CSV Connector's Admin Guide
+Time Machine - CSV Connector
 #########################################################
 
 .. toctree::
@@ -14,17 +14,11 @@ Welcome to Time Machine - CSV Connector's Admin Guide
 .. toctree::
     :maxdepth: 3
 
+    users-guide
     admin-guide
-
-.. toctree::
-    :maxdepth: 3
-
     admin-reference
-
-.. toctree::
-    :maxdepth: 3
-
     design
+    background
 
 *******************
 Indices and tables

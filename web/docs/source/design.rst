@@ -2,9 +2,6 @@
 High Level Design
 ******************
 
-Background
-======================
-
 The `Time Machine (TM) <https://timemachine.org/>`_ is a device used to time races. This device has a numeric keypad with an Enter button, and a printer. 
 When a runner approaches the finish line, the operator uses the numeric keypad to enter their bib number, and when the runner crosses the finish line, 
 the operator presses Enter to record their time. The position, bib number, and time are printed. If several runners approach the finish, the operator 
@@ -33,7 +30,8 @@ One process (reader) reads the wireless interface data and when it sees a result
 file (open, append, close).
 
 A web frontend displays a results table, and "redraws" it periodically (nominally 1/sec). The web backend will pull data from the database table 
-for the redraw. This is to pick up new reads. It's possible we can optimize this to only pick up new reads since the last redraw.
+for the redraw. This is to pick up new reads. It's possible to optimize this to only pick up new reads since the last redraw, but this doesn't
+seem necessary to add this complexity.
 
 The web backend and frontend is local on the machine used with RaceDay Scoring.
 
