@@ -29,6 +29,7 @@ sincerender = asctime('%Y-%m-%dT%H:%M:%S%z')
 
 class TmConnectorView (DbCrudApi):
     def permission(self):
+        session.permanent = True
         race_id = session['_results_raceid'] if '_results_raceid' in session else None
         self.race = Race.query.filter_by(id=race_id).one_or_none()
         return True
@@ -362,6 +363,7 @@ class SetParamsApi(MethodView):
                 session[f'_results_{key}'] = form[key]
             
             output_result = {'status' : 'success'}
+            session.permanent = True
 
             return jsonify(output_result)
 
