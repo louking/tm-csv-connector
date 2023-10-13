@@ -8,7 +8,6 @@ certifi==2023.7.22
 charset-normalizer==3.2.0
 click==8.1.6
 colorama==0.4.6
-crudini==0.9.4
 dnspython==2.4.1
 docutils==0.18.1
 dominate==2.8.0
