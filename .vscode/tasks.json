@@ -12,7 +12,8 @@
         {
             "label": "build, push app",
             "type": "shell",
-            "command": ".venv/scripts/activate; docker compose -f docker-compose.yml -f docker-compose.build.yml build; docker compose -f docker-compose.yml -f docker-compose.build.yml push"
+            "command": ".venv/scripts/activate; docker compose -f docker-compose.yml -f docker-compose.build.yml build; docker compose -f docker-compose.yml -f docker-compose.build.yml push",
+            "problemMatcher": []
         },
         {
             "label": "build docs",
