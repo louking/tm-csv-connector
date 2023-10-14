@@ -1,0 +1,2 @@
+Compress-Archive -Path install/* -DestinationPath dist/tm-csv-connector.zip -Force
+Compress-Archive ./.env, ./docker-compose.yml, config/tm-csv-connector.cfg -Update -DestinationPath dist/tm-csv-connector.zip
