@@ -32,7 +32,53 @@ Follow instructions in https://docs.docker.com/get-docker/
 
     the application is a Linux container, so ignore all the stuff about windows containers on the webpage
 
-.. warning:: LOTS TO BE ADDED HERE
+
+App Installation
+---------------------
+* download https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
+* extract files from the downloaded file you want the app to run from
+* navigate to this directory
+* start powershell **Run as Administrator**, and navigate to this directory
+
+    .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
+
+* run the install procedure
+
+    .. code-block:: shell
+
+        ./install
+
+    * enter directory names for the output csv file, and for the logging files (full path)
+    * enter passwords for root and app database users -- accepting the defaults are fine
+
+    .. note:: you can see the values of these later by navigating to config/db in the installation directory
+
+* the first time it's run, it takes a bit of time for the app to create the database, etc
+* navigate to http://tm.localhost:8080/ to verify app operation
+
+
+App Upgrade
+-------------
+* download https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
+* start powershell **Run as Administrator**, and navigate to the install directory
+
+    .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
+
+* disable the app
+
+    .. code-block:: shell
+
+        ./disable-all
+
+* extract files from the downloaded file to the install directory
+
+* run the install procedure
+
+    .. code-block:: shell
+
+        ./install
+
+    * enter directory names for the output csv file, and for the logging files (full path)
 
 
 .. _set up RDS:
