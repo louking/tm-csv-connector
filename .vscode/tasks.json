@@ -10,12 +10,6 @@
             "problemMatcher": []
         },
         {
-            "label": "build, push app",
-            "type": "shell",
-            "command": ".venv/scripts/activate; docker compose -f docker-compose.yml -f docker-compose.build.yml build; docker compose -f docker-compose.yml -f docker-compose.build.yml push",
-            "problemMatcher": []
-        },
-        {
             "label": "build docs",
             "type": "shell",
             "command": "../../.venv/scripts/activate; ./make html",
@@ -23,6 +17,21 @@
                 "cwd": "./web/docs"
             },
             "problemMatcher": []
-        }
+        },
+        {
+            "label": "build, push app",
+            "type": "shell",
+            "command": "docker compose -f docker-compose.yml -f docker-compose.build.yml build; docker compose -f docker-compose.yml -f docker-compose.build.yml push",
+            "problemMatcher": []
+        },
+        {
+            "label": "release",
+            "type": "shell",
+            "command": "./new-release",
+            "options": {
+                "cwd": "."
+            },
+            "problemMatcher": []
+        },
     ]
 }
