@@ -20,7 +20,7 @@ basicConfig(
     level=DEBUG,
 )
 
-log = getLogger('tm-csv-connector')
+log = getLogger('tm-reader')
 # log.setLevel(DEBUG)
 # handler = StreamHandler(stdout)
 # handler.setLevel(DEBUG)
@@ -243,4 +243,7 @@ async def main():
         await Future() # run forever
     
 if __name__ == "__main__":
-    run(main())
+    try:
+        run(main())
+    except KeyboardInterrupt:
+        log.info('tm-reader exiting')
