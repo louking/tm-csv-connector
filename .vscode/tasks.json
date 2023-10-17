@@ -33,5 +33,14 @@
             },
             "problemMatcher": []
         },
+        {
+            "label": "Build",
+            "dependsOn": [
+                "build time machine reader", 
+                "build docs",
+                "build, push app",
+                "release",
+            ]
+        }
     ]
 }
