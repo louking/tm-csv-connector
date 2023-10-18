@@ -47,8 +47,7 @@ App Installation
   .. code-block:: shell
 
     edit `c:\Windows\System32\Drivers\etc\hosts`, add 127.0.0.1 tm.localhost
-    Set-ExecutionPolicy Bypass # type *y* to accept
-    Unblock-File *.ps1, *.psm1
+    Set-ExecutionPolicy Bypass # type y to accept
     docker login # then enter your credentials
 
   * if you see something similar to 
