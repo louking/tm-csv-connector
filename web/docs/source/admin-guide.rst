@@ -47,7 +47,7 @@ App Installation
   .. code-block:: shell
 
     edit `c:\Windows\System32\Drivers\etc\hosts`, add 127.0.0.1 tm.localhost
-    Set-ExecutionPolicy Unrestricted
+    Set-ExecutionPolicy Bypass # type *y* to accept
     Unblock-File *.ps1, *.psm1
     docker login # then enter your credentials
 
@@ -74,7 +74,10 @@ App Installation
     .. note:: you can see the values of these later by navigating to config/db in the installation directory
 
 * the first time it's run, it takes a bit of time for the app to create the database, etc
-* navigate to http://tm.localhost:8080/ to verify app operation
+* with your browser, navigate to http://tm.localhost:8080/ 
+* navigate to Settings view (this only has to be done once)
+
+  * add New setting, Setting=output-file, Value=tm-data.dsv # or whatever filename you want the outputput put in
 
 
 App Upgrade
