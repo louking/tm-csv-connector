@@ -13,14 +13,14 @@ is sent over this interface.
 `RaceDay Scoring <https://racedayscoring.blog/features/>`_ (RDS) is used on the laptop to connect bib numbers to participants, but doesn't have a direct 
 interface to read the bluetooth connection.
 
-Time Machine - CSV Connector (TM-CSV-C) reads the bluetooth connection and creates a file which RaceDay Scoring can ingest. 
+Time Machine - CSV Connector (**tmtility**) reads the bluetooth connection and creates a file which RaceDay Scoring can ingest. 
 It allows editing of result records to correct or add missing bib numbers.
 
 RunSignUp (the vendor for RaceDay Scoring) had a program to do this function called TMKeyPad, but there were some issues which could not be resolved
 so TMKeyPad was abandoned by the vendor.
 
 .. note::
-    While TM-CSV-C was designed for use with and tested with RaceDay Scoring, it it possible this can be used with other scoring software
+    While **tmtility** was designed for use with and tested with RaceDay Scoring, it it possible this can be used with other scoring software
 
 
 Design

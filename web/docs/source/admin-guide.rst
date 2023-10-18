@@ -6,8 +6,8 @@ Admin Guide
    :height: 3ex
    :class: no-scaled-link
 
-The Time Machine Reader app runs as a Windows service, while the web server
-runs under Docker. 
+The Time Machine Reader app runs as a Windows service, while the web backend
+runs under Docker. Both together make the app known as **tmtility**.
 
 Installation
 ======================
@@ -41,6 +41,26 @@ App Installation
 * start powershell **Run as Administrator**, and navigate to this directory
 
     .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
+
+* before you execute these commands for the first time, you'll need to do the following
+
+  .. code-block:: shell
+
+    edit `c:\Windows\System32\Drivers\etc\hosts`, add 127.0.0.1 tm.localhost
+    Set-ExecutionPolicy Unrestricted
+    Unblock-File *.ps1, *.psm1
+    docker login # then enter your credentials
+
+  * if you see something similar to 
+
+      .. code-block:: shell
+
+          The package(s) come(s) from a package source that is not marked as trusted.
+          Are you sure you want to install software from
+          'https://onegetcdn.azureedge.net/providers/nuget-2.8.5.208.package.swidtag'?
+          [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "N"):
+  
+    type `a`
 
 * run the install procedure
 
@@ -77,8 +97,6 @@ App Upgrade
     .. code-block:: shell
 
         ./install
-
-    * enter directory names for the output csv file, and for the logging files (full path)
 
 
 .. _set up RDS:
