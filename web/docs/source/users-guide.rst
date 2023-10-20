@@ -102,24 +102,27 @@ Set Up Race in RaceDay Scoring
     * click **RANGE INSERT** to set up age groups
     * click **SAVE**
 
-.. Padding. See https://github.com/sphinx-doc/sphinx/issues/2258
+  .. Padding. See https://github.com/sphinx-doc/sphinx/issues/2258
 
-* click timing locations |rds-locations| to set times
+  * click timing locations |rds-locations| to set times
 
-  * delete Start location
-  * click Finish **SETTINGS**
+    * delete Start location
+    * click Finish **SETTINGS**
   
-    * set Consider Finish/Split Finish Times after (earliest expected Finish/Split Time): 12:00:00.00 AM race day
-    * click **SAVE**
+      * set Consider Finish/Split Finish Times after (earliest expected Finish/Split Time): 12:00:00.00 AM race day
+      * click **SAVE**
 
-.. Padding. See https://github.com/sphinx-doc/sphinx/issues/2258
+  .. Padding. See https://github.com/sphinx-doc/sphinx/issues/2258
 
-* click reports |rds-reports| to set up autosave
+  * click reports |rds-reports| to set up autosave
 
-  * click **AUTO-SAVE SETTINGS**
-  * click **+** under RunSignup Results
-  * click **ADD STREAM**
-  * click **SAVE SETTINGS**
+    * click **AUTO-SAVE SETTINGS**
+    * click **+** under RunSignup Results
+    * click **ADD STREAM**
+    * click **SAVE SETTINGS**
+    * click **QUICK PUBLISH SETTINGS**
+    * under Advanced Options, modify Custom Field xx: Gender Place: *Send as Whole Number*
+    * click **SAVE SETTINGS**
 
 Race Day
 ====================
