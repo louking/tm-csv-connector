@@ -47,19 +47,9 @@ App Installation
   .. code-block:: shell
 
     edit `c:\Windows\System32\Drivers\etc\hosts`, add 127.0.0.1 tm.localhost
-    Set-ExecutionPolicy Bypass # type y to accept
+    Set-ExecutionPolicy Bypass [<ExecutionPolicyScope>] # type y to accept
+    # for details see https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy 
     docker login # then enter your credentials
-
-  * if you see something similar to 
-
-      .. code-block:: shell
-
-          The package(s) come(s) from a package source that is not marked as trusted.
-          Are you sure you want to install software from
-          'https://onegetcdn.azureedge.net/providers/nuget-2.8.5.208.package.swidtag'?
-          [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "N"):
-  
-    type `a`
 
 * run the install procedure
 
@@ -67,10 +57,19 @@ App Installation
 
         ./install
 
-    * enter directory names for the output csv file, and for the logging files (full path)
-    * enter passwords for root and app database users -- accepting the defaults are fine
+  * if you see something similar to the following, type *a* for Yes to All
 
-    .. note:: you can see the values of these later by navigating to config/db in the installation directory
+      .. code-block:: shell
+
+          The package(s) come(s) from a package source that is not marked as trusted.
+          Are you sure you want to install software from
+          'https://onegetcdn.azureedge.net/providers/nuget-2.8.5.208.package.swidtag'?
+          [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "N"):
+
+  * enter directory names for the output csv file, and for the logging files (full path)
+  * enter passwords for root and app database users -- accepting the defaults are fine
+
+  .. note:: you can see the values of these later by navigating to config/db in the installation directory
 
 * the first time it's run, it takes a bit of time for the app to create the database, etc
 * with your browser, navigate to http://tm.localhost:8080/ 
