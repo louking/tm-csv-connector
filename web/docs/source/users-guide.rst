@@ -121,7 +121,7 @@ Set Up Race in RaceDay Scoring
     * under Advanced Options
     
       * set Chip Time: [blank]
-      * set Custom Field xx: Gender Place: *Send as Whole Number*
+      * set Custom Field: Gender Place: *Send as Whole Number*
 
     * click **ADD STREAM**
     * click **SAVE SETTINGS**
