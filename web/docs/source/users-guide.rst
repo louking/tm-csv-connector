@@ -118,10 +118,12 @@ Set Up Race in RaceDay Scoring
 
     * click **AUTO-SAVE SETTINGS**
     * click **+** under RunSignup Results
+    * under Advanced Options
+    
+      * set Chip Time: [blank]
+      * set Custom Field xx: Gender Place: *Send as Whole Number*
+
     * click **ADD STREAM**
-    * click **SAVE SETTINGS**
-    * click **QUICK PUBLISH SETTINGS**
-    * under Advanced Options, modify Custom Field xx: Gender Place: *Send as Whole Number*
     * click **SAVE SETTINGS**
 
 Race Day
