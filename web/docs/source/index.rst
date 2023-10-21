@@ -21,6 +21,8 @@ interface to read the bluetooth connection.
 Time Machine - CSV Connector (**tmtility**) reads the bluetooth connection and creates a file which RaceDay Scoring can ingest. 
 It allows editing of result records to correct or add missing bib numbers.
 
+Source can be found at https://github.com/louking/tm-csv-connector
+
 .. toctree::
    :maxdepth: 4
    :caption: Contents:
