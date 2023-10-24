@@ -6,7 +6,7 @@
         {
             "label": "build time machine reader",
             "type": "shell",
-            "command": ".venv/scripts/activate; pyinstaller tm-reader-client/app.py -n tm-reader",
+            "command": ".venv/scripts/activate; pyinstaller --noconfirm --distpath install tm-reader-client/app.py -n tm-reader",
             "problemMatcher": []
         },
         {
@@ -36,11 +36,12 @@
         {
             "label": "Build",
             "dependsOn": [
-                "build time machine reader", 
+                "build time machine reader",
                 "build docs",
                 "build, push app",
-                "release",
-            ]
+                "release"
+            ],
+            "problemMatcher": []
         }
     ]
 }
