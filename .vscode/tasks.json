@@ -41,6 +41,7 @@
                 "build, push app",
                 "release"
             ],
+            "dependsOrder": "sequence",
             "problemMatcher": []
         }
     ]
