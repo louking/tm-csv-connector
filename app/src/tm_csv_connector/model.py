@@ -39,9 +39,10 @@ Base = db.Model
 
 class Race(Base):
     __tablename__ = 'race'
-    id      = Column(Integer(), primary_key=True)
-    name    = Column(Text)
-    date    = Column(Date)
+    id          = Column(Integer(), primary_key=True)
+    name        = Column(Text)
+    date        = Column(Date)
+    start_time  = Column(Time)
     results = relationship('Result', back_populates='race', cascade='all, delete, delete-orphan')
     
     @hybrid_property

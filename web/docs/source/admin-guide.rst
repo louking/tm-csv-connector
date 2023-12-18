@@ -75,7 +75,7 @@ App Installation
 * with your browser, navigate to http://tm.localhost:8080/ 
 * navigate to Settings view (this only has to be done once)
 
-  * add New setting, Setting=output-file, Value=tm-data.dsv # or whatever filename you want the outputput put in
+  * add New setting, Setting=output-file, Value=tm-data.dsv # or whatever filename you want the output put in
 
 
 App Upgrade

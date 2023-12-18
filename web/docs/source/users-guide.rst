@@ -80,7 +80,7 @@ Set Up Race in RaceDay Scoring
   
     * click Quick Setup
     * set Start Time Location: Not a timed start
-    * set Actual Start Time to midnight
+    * verify Actual Start Time is set to the race start time
     * click **Save**
   
   * click Streams |rds-streams|
@@ -156,7 +156,7 @@ Time Machine and **tmtility** Connection
 
 * On the laptop, in browser, navigate to `http://tm.localhost:8080/ <http://tm.localhost:8080/>`_
 
-  * create the Race using :ref:`Races view`
+  * create the Race using :ref:`Races view`, with date and start time configured the same as RaceDay Scoring
   * navigate to :ref:`Results view` for duration of the race
   * verify **Race** is set correctly
   

@@ -9,7 +9,7 @@ import os.path
 # pypi
 from flask import Flask, send_from_directory, g, session, request, render_template, current_app
 from jinja2 import ChoiceLoader, PackageLoader
-from sqlalchemy import select
+from sqlalchemy import text
 from sqlalchemy.exc import NoReferencedTableError, ProgrammingError
 import loutilities
 from loutilities.configparser import getitems
@@ -74,8 +74,8 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
         # is database available?
         database_available = True
         try:
-            # races = db.session.scalars(select(Race))
-            races = Race.query.all()
+            # https://stackoverflow.com/a/75547136/799921
+            db.session.execute(text('SELECT 1'))
         except (NoReferencedTableError, ProgrammingError):
             database_available = False
     

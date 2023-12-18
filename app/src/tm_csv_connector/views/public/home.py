@@ -3,7 +3,7 @@ home - public views
 =================================
 '''
 # standard
-from datetime import timedelta
+from datetime import timedelta, time
 from traceback import format_exception_only, format_exc
 from os.path import join
 from shutil import copy
@@ -166,8 +166,7 @@ class ResultsView(TmConnectorView):
             with open(tmpfname, mode='w') as f:
                 csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
                 for row in rows:
-                    rowdict = {}
-                    db2file.transform(row, rowdict)
+                    rowdict = db2file(row)
                     csvf.writerow(rowdict)
 
             # overwrite file
@@ -255,12 +254,14 @@ results_view = ResultsView(
 )
 results_view.register()
 
-races_dbattrs = 'id,name,date'.split(',')
-races_formfields = 'rowid,name,date'.split(',')
+races_dbattrs = 'id,name,date,start_time'.split(',')
+races_formfields = 'rowid,name,date,start_time'.split(',')
 races_dbmapping = dict(zip(races_dbattrs, races_formfields))
 races_formmapping = dict(zip(races_formfields, races_dbattrs))
 races_dbmapping['date'] = lambda formrow: dtrender.asc2dt(formrow['date']).date()
 races_formmapping['date'] = lambda dbrow: dtrender.dt2asc(dbrow.date)
+races_dbmapping['start_time'] = lambda formrow: time.fromisoformat(formrow['start_time'])
+races_formmapping['start_time'] = lambda dbrow: dbrow.start_time.isoformat('minutes')
 
 def races_validate(action, formdata):
     races = []
@@ -292,6 +293,13 @@ races_view = RacesView(
         {'data': 'date', 'name': 'date', 'label': 'Date',
          'type': 'datetime',
          'className': 'field_req',
+        },
+        {'data': 'start_time', 'name': 'start_time', 'label': 'Start Time',
+         'type': 'datetime',
+         'className': 'field_req',
+         'ed': {
+             'format': 'HH:mm',
+         }
         },
         {'data': 'name', 'name': 'name', 'label': 'Name',
          'className': 'field_req',
@@ -427,8 +435,7 @@ class PostResultApi(MethodView):
                 # write to the file
                 if filesetting:
                     with open(filepath, mode='a') as f:
-                        filedata = {}
-                        db2file.transform(result, filedata)
+                        filedata = db2file(result)
                         current_app.logger.debug(f'appending to {filesetting.value}: {filedata["pos"],filedata["bibno"],filedata["time"]}')
                         csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
                         csvf.writerow(filedata)

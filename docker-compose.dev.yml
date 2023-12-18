@@ -23,6 +23,7 @@ services:
       - APP_DATABASE=tm-csv-connector
       - APP_USER=tm-csv-connector
       - APP_PASSWORD_FILE=/run/secrets/tm-csv-connector-password
+      - APP_VER=${APP_VER}
     tty: true # https://stackoverflow.com/a/55953120/799921
 
   app:

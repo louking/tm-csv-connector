@@ -3,7 +3,7 @@
 # standard
 from threading import Lock
 
-# homegrown
+# pypi
 from loutilities.transform import Transform
 from loutilities.renderrun import rendertime
 
@@ -35,8 +35,26 @@ def fulltime(timesecs):
 
     return ':'.join(timesplit)
     
-db2file = Transform({
-    'pos': 'tmpos',
-    'time': lambda r: fulltime(r.time),
-    'bibno': 'bibno'
-}, sourceattr=True, targetattr=False)
+
+def db2file(result):
+    """convert database result (elapsed time) to file dict (time of day)
+    
+    Args:
+        result (model.Result): result as received from time machine (elapsed time)
+
+    Returns:
+        dict: result row for file, with time as time of day, see db2filet Transform
+    """
+    start_time = result.race.start_time
+    tod_offset = 3600*start_time.hour + 60*start_time.minute + start_time.second
+    
+    db2filet = Transform({
+        'pos': 'tmpos',
+        'time': lambda r: fulltime(r.time + tod_offset),
+        'bibno': 'bibno'
+    }, sourceattr=True, targetattr=False)
+
+    resultrow = {}
+    db2filet.transform(result, resultrow)
+
+    return resultrow
