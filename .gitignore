@@ -170,5 +170,8 @@ cython_debug/
 *_config.py
 config/
 
+# ignore weirdness which started appearing since maybe Oct 15, 2023, possibly due to esbonio update
+%SystemDrive%/
+
 # external javascript
 js/
