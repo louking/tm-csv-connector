@@ -16,7 +16,6 @@ from loutilities.configparser import getitems
 
 # homegrown
 from .model import Race
-from .websockets_server import init_app
 from .version import __version__
 
 appname = 'tm-csv-connector'
@@ -55,9 +54,6 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
     from .model import db
     db.init_app(app)
     
-    # initialize websockets
-    websockets_server.init_app(app)
-
     # # initialize uploads
     # if init_for_operation:
     #     init_uploads(app)
