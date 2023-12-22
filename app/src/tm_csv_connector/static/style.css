@@ -414,7 +414,13 @@
   nav {
     display: inline;
   }
-  
+
+  /* display confirmed rows as green, should only happen in results view */
+  table.dataTable tbody tr[is_confirmed="true"]
+  {
+      background-color: #99FF99;  /*green*/
+  }
+
   /* hide some features for small screens, match bootstrap breakpoint */
   @media screen and (max-width: 767.98px) {
       /* but this does not match bootstrap classes, see https://getbootstrap.com/docs/4.1/utilities/display/#hiding-elements */

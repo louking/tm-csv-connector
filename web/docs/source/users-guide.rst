@@ -154,9 +154,11 @@ Time Machine and **tmtility** Connection
   * set up as normal (Event#)
   * LED on wireless interface should be blinking red
 
-* On the laptop, in browser, navigate to `http://tm.localhost:8080/ <http://tm.localhost:8080/>`_
+* On the laptop, in browser, navigate to `http://tm.localhost:8080/
+  <http://tm.localhost:8080/>`_
 
-  * create the Race using :ref:`Races view`, with date and start time configured the same as RaceDay Scoring
+  * create the Race using :ref:`Races view`, with date and start time configured
+    the same as RaceDay Scoring
   * navigate to :ref:`Results view` for duration of the race
   * verify **Race** is set correctly
   
@@ -165,29 +167,56 @@ Time Machine and **tmtility** Connection
   
   * verify **Port** is set correctly, then click **Connect**
   
-    * LED on Time Machine wireless interface should change to steady green, **Connect** button display changes to **Disconnect**
+    * LED on Time Machine wireless interface should change to steady green,
+      **Connect** button display changes to **Disconnect**
 
+
+If chip timing, synchronize actual start times
+-------------------------------------------------
+
+.. note::
+
+    it's important this this is done soon after the race starts, and in any event 
+    before any participant finishes
+
+If chip timing is in use, the chip timing system will send time of day for each
+result to RaceDay Scoring. For Time Machine backup results to work correctly,
+it's important that the actual start time be synchronized between RDS and
+**tmtility**.
+
+The *actual start time* can be driven by a GPS watch, be based on a 'start'
+timestamp from the chip system, or be determined by the first raw read time seen
+at the start by the chip timing system.
+
+* in RaceDay Scoring, under Scored Events |rds-scored-events|, update **Actual
+  Start Time**
+* in **tmtility**, under Races, update **Start Time** for this race
 
 Time Machine Operation
 ----------------------------
 
-Use of the Time Machine (TM) is identical to the technique used prior to use of RaceDay Scoring data collection.
+Use of the Time Machine (TM) is identical to the technique used prior to use of
+RaceDay Scoring data collection.
 
-* Time Machine is turned on and configured with a new race number in Cross Country Mode (the default)
+* Time Machine is turned on and configured with a new race number in Cross
+  Country Mode (the default)
 * initial time is set to 0:0:0 (the default)
-* printer should turned on
+* printer should be turned on
 * when race starts
 
   * depress Start Time button
 
-* when runner approaches the finish line, if it is clear this will be the next finisher
+* when runner approaches the finish line, if it is clear this will be the next
+  finisher
 
   * "select" the runner's bib number with the Time Machine keypad
   * as runner crosses the finish, depress ENTER button
 
-* sometimes too many runners will cross the finish line, or it won't be clear which runner in a group will be first
+* sometimes too many runners will cross the finish line at the same time, or it
+  won't be clear which runner in a group will be first
 
-  * as each runner finishes, depress ENTER button (i.e., there's no "select" of the bib number)
+  * as each runner finishes, depress ENTER button (i.e., there's no "select" of
+    the bib number)
 
 
 .. _tmtility operation:
@@ -212,7 +241,8 @@ All of these cases can be corrected in **tmtility**.
 
 The pull tag spindles should be collected periodically from the finish line. The
 pull tags should be reviewed to verify there is a row in the grid for each pull
-tag.
+tag. After updating **tmtility** to match the pull tags, these results need to be
+confirmed to send them to the csv file.
 
 .. note:: 
     when editing rows, the grid display update is disabled. Deselect any selected 
@@ -220,7 +250,7 @@ tag.
 
 To fix an incorrect/missing bib number (or time)
 
-* doubleclick on the incorrect bib number (or time)
+* click on the incorrect bib number (or time)
 * to accept the edit, press ENTER on the keyboard or click away from the field
 * make sure the row is deselected to allow results display to resume (e.g.,
   click on the row to deselect if highlighted)
@@ -236,6 +266,13 @@ To add a missing result
 * enter Bib No and Time for the missing result (leave TM Pos blank)
 * click **Create**
 
+To confirm a set of results
+
+* select the last result which is to be confirmed by clicking on the row (away
+  from the bib number or time fields to avoid inline edit of these)
+* click **Confirm**
+* the confirmed rows will be displayed in green shortly thereafter
+
 RaceDay Scoring Operation
 -----------------------------
 
@@ -250,21 +287,41 @@ problems must be fixed in **tmtility**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * see :ref:`tmtility operation` to fix bib number or time problems
-* once several problems have been fixed, the Time Machine stream need to be
-  replayed after clearing Raw Reads
+* results are not sent to RaceDay Scoring until they have been confirmed in
+  **tmtility**, so if all the confirmed results are correct, there is no
+  need for any additional action in RaceDay Scoring
+* if any results which had been previously confirmed are subsequently edited in
+  **tmtility**, the Time Machine stream needs to be replayed after removing any
+  affected Raw Reads
 
-  * on the Dashboard |rds-home| view, under RAW READS, click **CLEAR**, then
-    click **DELETE**
+  .. warning::
+
+    the following is likely to change based on the outcome of
+    `louking/tm-csv-connector#48 RaceDay Scoring showing old result after edit
+    <https://github.com/louking/tm-csv-connector/issues/48>`_
+
+  * if any bib numbers were removed (e.g., in the case of a mistyped bib number,
+    the bib number that was incorrectly entered was removed) 
+    
+      * on the Dashboard |rds-home| view, click **RAW READS** 
+      * on the Raw Reads view, under *Action* select the bib number(s) which
+        were removed, then click **DELETE SELECTED READS** 
+      * on the Dashboard |rds-home| view, under RAW READS, click **RECALC**,
+        then click **RECALCULATE**
+
   * on the Streams |rds-streams| view, next to Time Machine click **REPLAY**
+  * on the Scored Events |rds-scored-events| view, click **Save**
   * click Dashboard |rds-home| to get back to the race overview
-  
-* the reads get recalculated in the background, so it might take just a
-  little while
 
+  .. note::
+
+    the result updates are recalculated in the background so be patient
+  
 Awards
 --------------------
 
 To see the awards, click Reports |rds-reports|
 
 * the Age Group Report is probably the one you're interested in
-* alternately, assuming internet connectivity, the results / awards can be seen on the RunSignUp race registration site
+* alternately, assuming internet connectivity, the results / awards can be seen
+  on the RunSignUp race site under **Results**

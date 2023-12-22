@@ -38,13 +38,15 @@ Results are collected by race. The Races view is used to configure the races in 
 
 Results view
 ======================
-The Results view is used to see the results for a particular Race as they come in from the Time Machine, and to adjust them as needed. 
+The Results view is used to see the results for a particular Race as they come
+in from the Time Machine, and to adjust them as needed. 
 
     :Place:
         current place of this result after edits, insertions, deletions
     
     :TM Pos:
-        position (place) as known by the time machine. This can be compared against the paper tape
+        position (place) as known by the time machine. This can be compared
+        against the paper tape
 
     :Bib No:
         bib number
@@ -55,20 +57,29 @@ The Results view is used to see the results for a particular Race as they come i
 The view has the following controls:
 
     :Connect / Disconnect:
-        the button on the left of the controls is used to connect or disconnect from the time machine.
-        If the button says "placeholder" for more than a second or two, there's a problem communicating with the reader service
+        the button on the left of the controls is used to connect or disconnect
+        from the time machine. If the button says "placeholder" for more than a
+        second or two, there's a problem communicating with the reader service
     
     :Race:
         choose the race previously defined at :ref:`Races view`
     
     :Port:
-        the COM port which has been set up to communicate with the Time Machine. See 
-        `Wireless Computer Interface User's Guide <https://timemachine.org/tmwci_user_s_guide.pdf>`_ for information on 
+        the COM port which has been set up to communicate with the Time Machine.
+        See `Wireless Computer Interface User's Guide
+        <https://timemachine.org/tmwci_user_s_guide.pdf>`_ for information on
         how to set up the communication.
 
-To select a row, click on the row. Note when any row is selected, updates to the display are suspended and a warning is displayed. The row must be 
-deselected by clicking on it again to resume results display. Edits to Bib No and Time can be done inline by clicking on the field to be updated. Clicking 
-off the field after update, or hitting return submits the edit to the database.
+To select a row, click on the row. Note when any row is selected, updates to the
+display are suspended and a warning is displayed. The row must be deselected by
+clicking on it again to resume results display. Edits to Bib No and Time can be
+done inline by clicking on the field to be updated. Clicking off the field after
+update, or hitting return submits the edit to the database.
+
+Confirmed results have been sent to RaceDay Scoring via the csv file. The
+confirmed results are shown in green. To confirm a set of results, click on the
+last result to be confirmed (i.e., with the highest *Place* number), then click
+the **Confirm** button.
 
 .. figure:: images/results-view.*
     :align: center

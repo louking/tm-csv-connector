@@ -51,13 +51,14 @@ class Race(Base):
     
 class Result(Base):
     __tablename__ = 'result'
-    id      = Column(Integer(), primary_key=True)
-    race_id = mapped_column(ForeignKey('race.id'))
-    race    = relationship('Race', back_populates='results')
-    tmpos   = Column(Integer)
-    place   = Column(Integer)
-    bibno   = Column(Text)
-    time    = Column(Float)
+    id           = Column(Integer(), primary_key=True)
+    race_id      = mapped_column(ForeignKey('race.id'))
+    race         = relationship('Race', back_populates='results')
+    tmpos        = Column(Integer)
+    place        = Column(Integer)
+    bibno        = Column(Text)
+    time         = Column(Float)
+    is_confirmed = Column(Boolean, default=False)
     
     # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
     update_time = Column(DateTime,

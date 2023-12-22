@@ -16,6 +16,7 @@ from loutilities.tables import DbCrudApi
 from loutilities.timeu import asctime, timesecs
 from dominate.tags import div, button, span, select, option, p
 from loutilities.filters import filtercontainerdiv
+from sqlalchemy import update, and_, select as sqlselect
 
 # homegrown
 from . import bp
@@ -60,8 +61,8 @@ def time2asc(dbtime):
     frac = f'{round(int(frac)/10000):02}'
     return '.'.join([whole, frac])
 
-results_dbattrs = 'id,tmpos,place,bibno,time,race_id,update_time'.split(',')
-results_formfields = 'rowid,tmpos,placepos,bibno,time,race_id,update_time'.split(',')
+results_dbattrs = 'id,tmpos,place,bibno,time,race_id,is_confirmed,update_time'.split(',')
+results_formfields = 'rowid,tmpos,placepos,bibno,time,race_id,is_confirmed,update_time'.split(',')
 results_dbmapping = dict(zip(results_dbattrs, results_formfields))
 results_formmapping = dict(zip(results_formfields, results_dbattrs))
 results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
@@ -134,6 +135,112 @@ class ResultsView(TmConnectorView):
     #     for row in rows:
     #         self._responsedata += self.dte.get_response_data(row)
     
+    def nexttablerow(self):
+        """add result_confirmed class to row if is_confirmed
+
+        Returns:
+            dict: row dict
+        """
+        row = super().nexttablerow()
+        if row['is_confirmed']:
+            row['DT_RowAttr'] = {'is_confirmed': True}
+        else:
+            row['DT_RowAttr'] = {'is_confirmed': False}
+        return row
+    
+    def check_confirmed(self, thisid):
+        # flag for editor_method_postcommit; only rewrite file if a previously
+        # confirmed entry was edited
+        self.rewritefile = False
+        
+        if self.action != 'create':
+            # retrieve the indicated row before any editing
+            self.result = db.session.execute(
+                sqlselect(Result)
+                .where(Result.id == thisid)
+            ).one()[0]
+
+            # if the operator edited a previously confirmed entry, the file needs to be rewritten
+            # the rewrite happens in editor_method_postcommit()
+            if self.result.is_confirmed:
+                self.rewritefile = True
+                
+    def createrow(self, formdata):
+        # if edit for previously confirmed entry is done, this will cause the file to be rewritten
+        self.check_confirmed(0)
+        return super().createrow(formdata)
+        
+    def deleterow(self, thisid):
+        # if edit for previously confirmed entry is done, this will cause the file to be rewritten
+        self.check_confirmed(thisid)
+        return super().deleterow(thisid)
+    
+    def updaterow(self, thisid, formdata):
+        """if confirm is indicated, confirm all the rows prior to and including this one
+
+        Args:
+            thisid (int): id of row to be updated
+            formdata (unmutable dict): data from edit form
+
+        Returns:
+            row: eturned row for rendering, e.g., from DataTablesEditor.get_response_data()
+        
+        NOTE: other rows which have been modified will be retrieved in the next polling cycle
+        """
+        # if edit for previously confirmed entry is done, this will cause the file to be rewritten
+        # NOTE: this sets self.result
+        self.check_confirmed(thisid)
+
+        if 'confirm' in formdata and formdata['confirm'] == 'true':
+            # LOCK file access
+            filelock.acquire()
+            
+            # don't rewrite file when confirming
+            self.rewritefile = False
+
+            # set is_confirmed for all rows in this race which have place <= the selected row
+            updated = db.session.execute(
+                sqlselect(Result)
+                .where(and_(
+                    Result.race_id == self.result.race_id,
+                    Result.place <= self.result.place,
+                    Result.is_confirmed == False)
+                )
+                .order_by(Result.place)
+            ).all()
+            
+            # not sure why there is a need to for r[0] -- is this new in sqlalchemy 2.0?
+            updated = [r[0] for r in updated]
+            
+            db.session.execute(
+                update(Result)
+                .where(Result.id.in_([r.id for r in updated]))
+                .values(is_confirmed=True)
+            )
+            db.session.flush()
+
+            # get output file pathname and write updated results to file
+            filesetting = Setting.query.filter_by(name='output-file').one_or_none()
+            if filesetting:
+                filepath = join('/output_dir', filesetting.value)
+
+                # write to the file
+                with open(filepath, mode='a') as f:
+                    for result in updated:
+                        filedata = db2file(result)
+                        current_app.logger.debug(f'appending to {filesetting.value}: {filedata["pos"],filedata["bibno"],filedata["time"]}')
+                        csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
+                        csvf.writerow(filedata)
+            
+            # UNLOCK file access
+            filelock.release()
+            
+            thisrow = self.dte.get_response_data(self.result)
+            return thisrow
+            
+        else:
+            return super().updaterow(thisid, formdata)
+    
     def editor_method_postcommit(self, form):
         # LOCK file access
         filelock.acquire()
@@ -154,9 +261,9 @@ class ResultsView(TmConnectorView):
         # note table is refreshed after the create (afterdatatables.js editor.on('postCreate'))
         # so place display is correct
 
-        # get output file pathname
+        # get output file pathname, self.rewritefile is set in self.check_confirmed()
         filesetting = Setting.query.filter_by(name='output-file').one_or_none()
-        if filesetting:
+        if self.rewritefile and filesetting:
             filepath = join('/output_dir', filesetting.value)
             
             # create temporary file
@@ -166,6 +273,10 @@ class ResultsView(TmConnectorView):
             with open(tmpfname, mode='w') as f:
                 csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
                 for row in rows:
+                    # this assumes when an unconfirmed row is encountered, no more rows should be sent to the file
+                    if not row.is_confirmed: break
+                    
+                    # write confirmed rows to the file
                     rowdict = db2file(row)
                     csvf.writerow(rowdict)
 
@@ -173,7 +284,7 @@ class ResultsView(TmConnectorView):
             current_app.logger.debug(f'overwriting {filesetting.value}')
             copy(tmpfname, filepath)
             fdir.cleanup()
-
+            
         ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
         ## not present in the data. Need to revisit this later.
         # if 'since' in form:
@@ -230,22 +341,31 @@ results_view = ResultsView(
     formmapping=results_formmapping,
     validate=results_validate,
     idSrc='rowid',
-    buttons=[
+    buttons=lambda: [
         'edit',
         'create',
         'remove',
-        'csv'
+        'spacer',
+        {
+            'extend': 'edit',
+            'text': 'Confirm',
+            'attr': {'id': 'confirm-button'},
+            'action': {'eval': 'results_confirm'},
+        },
+        'spacer',
+        'csv', 
     ],
     clientcolumns = [
         {'data': 'placepos', 'name': 'placepos', 'label': 'Place', 'type': 'readonly', 'fieldInfo': 'calculated by the system'},
         {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos', 'fieldInfo': 'received from time machine'},
         {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No', 'className': 'bibno_field'},
         {'data': 'time', 'name': 'time', 'label': 'Time', 'className': 'time_field'},
+        
         # for testing only
         # {'data': 'update_time', 'name': 'update_time', 'label': 'Update Time', 'type': 'readonly'},
     ],
     dtoptions={
-        'order': [['placepos:name', 'desc']],
+        'order': [['placepos:name', 'asc']],
         'scrollCollapse': True,
         'scrollX': True,
         'scrollXInner': "100%",
@@ -429,17 +549,9 @@ class PostResultApi(MethodView):
                 result.time = timesecs(msg['time'])
                 result.race_id = msg['raceid']
                 result.place = place
+                result.is_confirmed = False
                 db.session.add(result)
                 db.session.commit()
-                
-                # write to the file
-                if filesetting:
-                    with open(filepath, mode='a') as f:
-                        filedata = db2file(result)
-                        current_app.logger.debug(f'appending to {filesetting.value}: {filedata["pos"],filedata["bibno"],filedata["time"]}')
-                        csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
-                        csvf.writerow(filedata)
-                
                 
             # how did this happen?
             else:
