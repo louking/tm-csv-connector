@@ -287,9 +287,9 @@ problems must be fixed in **tmtility**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * see :ref:`tmtility operation` to fix bib number or time problems
-* results are not sent to RaceDay Scoring until they have been confirmed in
-  **tmtility**, so if all the confirmed results are correct, there is no
-  need for any additional action in RaceDay Scoring
+* results are not sent to the csv file which RaceDay Scoring reads until they
+  have been confirmed in **tmtility**, so if all the confirmed results are
+  correct, there is no need for any additional action in RaceDay Scoring
 * if any results which had been previously confirmed are subsequently edited in
   **tmtility**, the Time Machine stream needs to be replayed after removing any
   affected Raw Reads
