@@ -1,5 +1,5 @@
 alabaster==0.7.13
-alembic==1.11.1
+alembic==1.13.1
 altgraph==0.17.3
 annotated-types==0.5.0
 Babel==2.12.1

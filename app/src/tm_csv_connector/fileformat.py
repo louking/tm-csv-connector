@@ -45,8 +45,7 @@ def db2file(result):
     Returns:
         dict: result row for file, with time as time of day, see db2filet Transform
     """
-    start_time = result.race.start_time
-    tod_offset = 3600*start_time.hour + 60*start_time.minute + start_time.second
+    tod_offset = result.race.start_time
     
     db2filet = Transform({
         'pos': 'tmpos',

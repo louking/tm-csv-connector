@@ -21,6 +21,7 @@ Index = db.Index
 Column = db.Column
 Integer = db.Integer
 Float = db.Float
+Double = db.Double
 Boolean = db.Boolean
 String = db.String
 Text = db.Text
@@ -42,7 +43,7 @@ class Race(Base):
     id          = Column(Integer(), primary_key=True)
     name        = Column(Text)
     date        = Column(Date)
-    start_time  = Column(Time)
+    start_time  = Column(Double) # seconds since midnight
     results = relationship('Result', back_populates='race', cascade='all, delete, delete-orphan')
     
     @hybrid_property

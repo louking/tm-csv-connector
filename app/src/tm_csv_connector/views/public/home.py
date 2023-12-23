@@ -50,6 +50,7 @@ bp.add_url_rule('/', view_func=home_view, methods=['GET',])
 # similar to https://github.com/docker/awesome-compose/blob/e6b1d2755f2f72a363fc346e52dce10cace846c8/nginx-flask-mysql/backend/hello.py
 
 def asc2time(asctime):
+    # print(f'asctime={asctime}, timesecs(asctime)={timesecs(asctime)}')
     return timesecs(asctime)
 
 def time2asc(dbtime):
@@ -380,8 +381,8 @@ races_dbmapping = dict(zip(races_dbattrs, races_formfields))
 races_formmapping = dict(zip(races_formfields, races_dbattrs))
 races_dbmapping['date'] = lambda formrow: dtrender.asc2dt(formrow['date']).date()
 races_formmapping['date'] = lambda dbrow: dtrender.dt2asc(dbrow.date)
-races_dbmapping['start_time'] = lambda formrow: time.fromisoformat(formrow['start_time'])
-races_formmapping['start_time'] = lambda dbrow: dbrow.start_time.isoformat('minutes')
+races_dbmapping['start_time'] = lambda formrow: asc2time(formrow['start_time'])
+races_formmapping['start_time'] = lambda dbrow: time2asc(dbrow.start_time) if dbrow.start_time else None
 
 def races_validate(action, formdata):
     races = []
@@ -421,7 +422,7 @@ races_view = RacesView(
          'type': 'datetime',
          'className': 'field_req',
          'ed': {
-             'format': 'HH:mm',
+             'format': 'HH:mm:ss.SS',
          }
         },
     ],
