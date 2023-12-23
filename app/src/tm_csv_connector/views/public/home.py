@@ -410,6 +410,9 @@ races_view = RacesView(
         'remove',
     ],
     clientcolumns = [
+        {'data': 'name', 'name': 'name', 'label': 'Name',
+         'className': 'field_req',
+         },
         {'data': 'date', 'name': 'date', 'label': 'Date',
          'type': 'datetime',
          'className': 'field_req',
@@ -421,9 +424,6 @@ races_view = RacesView(
              'format': 'HH:mm',
          }
         },
-        {'data': 'name', 'name': 'name', 'label': 'Name',
-         'className': 'field_req',
-         },
     ],
     dtoptions={
         'scrollCollapse': True,
