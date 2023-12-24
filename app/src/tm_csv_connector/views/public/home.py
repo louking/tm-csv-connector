@@ -136,19 +136,6 @@ class ResultsView(TmConnectorView):
     #     for row in rows:
     #         self._responsedata += self.dte.get_response_data(row)
     
-    def nexttablerow(self):
-        """add result_confirmed class to row if is_confirmed
-
-        Returns:
-            dict: row dict
-        """
-        row = super().nexttablerow()
-        if row['is_confirmed']:
-            row['DT_RowAttr'] = {'is_confirmed': True}
-        else:
-            row['DT_RowAttr'] = {'is_confirmed': False}
-        return row
-    
     def check_confirmed(self, thisid):
         # flag for editor_method_postcommit; only rewrite file if a previously
         # confirmed entry was edited
@@ -166,9 +153,47 @@ class ResultsView(TmConnectorView):
             if self.result.is_confirmed:
                 self.rewritefile = True
                 
+    def beforequery(self):
+        '''
+        filter on current race
+        :return:
+        '''
+        race_id = session['_results_raceid'] if '_results_raceid' in session else None
+        self.race = Race.query.filter_by(id=race_id).one_or_none()
+        self.queryparams['race_id'] = race_id
+        
+        ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
+        ## not present in the data. Need to revisit this later.
+        # self.queryfilters = []
+        # since = request.args.get('since', None)
+        # self.filterrowssince(since)
+
+    def nexttablerow(self):
+        """add result_confirmed class to row if is_confirmed
+
+        Returns:
+            dict: row dict
+        """
+        row = super().nexttablerow()
+        if row['is_confirmed']:
+            row['DT_RowAttr'] = {'is_confirmed': True}
+        else:
+            row['DT_RowAttr'] = {'is_confirmed': False}
+        return row
+    
     def createrow(self, formdata):
+        '''
+        creates row in database
+
+        :param formdata: data from create form
+        :rtype: returned row for rendering, e.g., from DataTablesEditor.get_response_data()
+        '''
+        # make sure we record the row's race id
+        formdata['race_id'] = self.race.id
+
         # if edit for previously confirmed entry is done, this will cause the file to be rewritten
         self.check_confirmed(0)
+
         return super().createrow(formdata)
         
     def deleterow(self, thisid):
@@ -298,37 +323,6 @@ class ResultsView(TmConnectorView):
         # UNLOCK file access
         filelock.release()
         
-    def beforequery(self):
-        '''
-        filter on current race
-        :return:
-        '''
-        # self.race set in self.permission()
-        race_id = session['_results_raceid'] if '_results_raceid' in session else None
-        self.race = Race.query.filter_by(id=race_id).one_or_none()
-        self.queryparams['race_id'] = race_id
-        
-        ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
-        ## not present in the data. Need to revisit this later.
-        # self.queryfilters = []
-        # since = request.args.get('since', None)
-        # self.filterrowssince(since)
-
-    def createrow(self, formdata):
-        '''
-        creates row in database
-
-        :param formdata: data from create form
-        :rtype: returned row for rendering, e.g., from DataTablesEditor.get_response_data()
-        '''
-        # make sure we record the row's race id
-        formdata['race_id'] = self.race.id
-
-        # return the row
-        row = super().createrow(formdata)
-
-        return row
-
 results_view = ResultsView(
     app=bp,  # use blueprint instead of app
     db=db,
