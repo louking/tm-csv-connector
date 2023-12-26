@@ -388,7 +388,7 @@ races_formmapping = dict(zip(races_formfields, races_dbattrs))
 races_dbmapping['date'] = lambda formrow: dtrender.asc2dt(formrow['date']).date()
 races_formmapping['date'] = lambda dbrow: dtrender.dt2asc(dbrow.date)
 races_dbmapping['start_time'] = lambda formrow: asc2time(formrow['start_time'])
-races_formmapping['start_time'] = lambda dbrow: time2asc(dbrow.start_time) if dbrow.start_time else None
+races_formmapping['start_time'] = lambda dbrow: time2asc(dbrow.start_time) if dbrow.start_time != None else None
 
 def races_validate(action, formdata):
     races = []
