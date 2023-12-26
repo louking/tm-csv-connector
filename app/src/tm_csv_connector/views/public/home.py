@@ -121,6 +121,37 @@ def results_validate(action, formdata):
         
     return results
 
+def refreshfile(rows):
+    """rewrite csv file
+    
+    NOTE: caller must acquire/release filelock
+
+    Args:
+        rows ([Result, ...]): list of Result rows to write, in place order
+    """
+    filesetting = Setting.query.filter_by(name='output-file').one_or_none()
+    if filesetting:
+        filepath = join('/output_dir', filesetting.value)
+        
+        # create temporary file
+        from tempfile import TemporaryDirectory
+        fdir = TemporaryDirectory()
+        tmpfname = join(fdir.name, filesetting.value)
+        with open(tmpfname, mode='w') as f:
+            csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
+            for row in rows:
+                # this assumes when an unconfirmed row is encountered, no more rows should be sent to the file
+                if not row.is_confirmed: break
+                
+                # write confirmed rows to the file
+                rowdict = db2file(row)
+                csvf.writerow(rowdict)
+
+        # overwrite file
+        current_app.logger.debug(f'overwriting {filesetting.value}')
+        copy(tmpfname, filepath)
+        fdir.cleanup()
+            
 class ResultsView(TmConnectorView):
     ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
     ## not present in the data. Need to revisit this later.
@@ -287,30 +318,10 @@ class ResultsView(TmConnectorView):
         # note table is refreshed after the create (afterdatatables.js editor.on('postCreate'))
         # so place display is correct
 
-        # get output file pathname, self.rewritefile is set in self.check_confirmed()
-        filesetting = Setting.query.filter_by(name='output-file').one_or_none()
-        if self.rewritefile and filesetting:
-            filepath = join('/output_dir', filesetting.value)
-            
-            # create temporary file
-            from tempfile import TemporaryDirectory
-            fdir = TemporaryDirectory()
-            tmpfname = join(fdir.name, filesetting.value)
-            with open(tmpfname, mode='w') as f:
-                csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
-                for row in rows:
-                    # this assumes when an unconfirmed row is encountered, no more rows should be sent to the file
-                    if not row.is_confirmed: break
-                    
-                    # write confirmed rows to the file
-                    rowdict = db2file(row)
-                    csvf.writerow(rowdict)
-
-            # overwrite file
-            current_app.logger.debug(f'overwriting {filesetting.value}')
-            copy(tmpfname, filepath)
-            fdir.cleanup()
-            
+        # only rewrite the file if a previously confirmed row has been updated. see self.check_confirmed()
+        if self.rewritefile:
+            refreshfile(rows)
+        
         ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
         ## not present in the data. Need to revisit this later.
         # if 'since' in form:
@@ -322,6 +333,7 @@ class ResultsView(TmConnectorView):
 
         # UNLOCK file access
         filelock.release()
+
         
 results_view = ResultsView(
     app=bp,  # use blueprint instead of app
@@ -482,9 +494,35 @@ class SetParamsApi(MethodView):
     def post(self):
         try:
             form = request.form
+
+            # skip race_changed because it's transient
             for key in form:
+                if key == 'race_changed': continue
                 session[f'_results_{key}'] = form[key]
             
+            # rewrite csv file if race changed
+            if 'race_changed' in form:
+                # LOCK file access
+                filelock.acquire()
+                
+                results = db.session.execute(
+                    sqlselect(Result)
+                    .where(and_(
+                        Result.race_id == form['raceid'],
+                        Result.is_confirmed == True)
+                    )
+                    .order_by(Result.place)
+                ).all()
+            
+                # not sure why there is a need to for r[0] -- is this new in sqlalchemy 2.0?
+                results = [r[0] for r in results]
+                
+                # rewrite the file
+                refreshfile(results)
+                
+                # UNLOCK file access
+                filelock.release()
+                
             output_result = {'status' : 'success'}
             session.permanent = True
 

@@ -217,10 +217,40 @@ function setParams() {
     // set up for table redraw
     let resturl = window.location.pathname + '/rest';
 
-    // query and set age grade
+    // did raceid change?
+    let last_raceid = raceid;
+    console.log(`last_raceid = ${last_raceid}`);
+
+    // we'll be sending these to the server
     raceid = $('#race').val();
     port = $('#port').val();
     logdir = $('#logdir').val();
+    let data = {
+        port: port, 
+        raceid: raceid, 
+        logdir: logdir
+    }
+
+    // trigger a csv file rewrite if the raceid changed
+    if (raceid != last_raceid) {
+        // if not the initial case, confirm with user
+        if (last_raceid == undefined) {
+            confirmed = true;
+        } else {
+            confirmed = confirm('Race update will overwrite the csv file\nPress OK or Cancel');
+        }
+
+        // initial case or user confirmation causes rewrite of file based on new raceid
+        if (confirmed) {
+            data.race_changed = true;
+        
+        // otherwise revert the change
+        } else {
+            raceid = last_raceid;
+            $('#race').select2('val', last_raceid);
+            data.raceid = last_raceid;
+        }
+    }
 
     // send latest raceid to reader process
     msg = JSON.stringify({opcode: 'raceid', raceid: raceid});
@@ -231,11 +261,7 @@ function setParams() {
         url: '/_setparams',
         type: 'post',
         dataType: 'json',
-        data: {
-            port: port, 
-            raceid: raceid, 
-            logdir: logdir
-        },
+        data: data,
         success: function ( json ) {
             if (json.status == 'success') {
                 refresh_table_data(_dt_table, resturl);
