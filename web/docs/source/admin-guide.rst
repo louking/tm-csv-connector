@@ -99,6 +99,25 @@ App Upgrade
 
         ./install
 
+  if you see the error
+
+    .. code-block:: shell
+
+        ./install : File <...>\install.ps1 cannot be loaded. The file <...>\install.ps1 is not digitally signed. You cannot run this script on the current system. 
+        For more information about running scripts and setting execution policy, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.
+        At line:1 char:1
+        + ./install
+        + ~~~~~~~~~
+            + CategoryInfo          : SecurityError: (:) [], PSSecurityException
+            + FullyQualifiedErrorId : UnauthorizedAccess
+
+  enter the following 
+
+    .. code-block:: shell
+
+        Set-ExecutionPolicy Bypass CurrentUser # type y to accept
+        ./install
+
 
 .. _set up RDS:
 
