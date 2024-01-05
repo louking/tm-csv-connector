@@ -2,27 +2,39 @@
 Development
 ******************
 
-* make sure tm-reader-client is not running as a service
+* make sure tm-reader-client is not running as a service, docker-compose app aren't running
 
-  * in installtest folder, from run Administrator powershell, run :code:`disable-tm-reader.ps1`
+  * in installtest folder, from run Administrator powershell, run :code:`./disable-all.ps1`
 
-* make sure docker-compose app isn't running
+* start tm-reader-client
 
-  * in Docker Desktop, check if tm-csv-connector is running, if so stop it
+  * in vscode, Run and Debug > Python: tm-reader-client
 
-* run tm-reader-client
+* start tm-csv-connector (debug)
 
-  * in vscode, from main folder, run :code:`python .\tm-reader-client\app.py`
+  * ctrl-p task docker-compose: debug
+  * in vscode, Run and Debug > Python: Remote Attach
 
-* run tm-csv-connector
+* start tm-csv-connector (no debug)
 
-  * in vscode, from main folder, run :code:`docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.dev.yml up --build -d`
+  * ctrl-p task docker-compose: up
 
-* to do database migration, upgrade, stop tm-csv-connector then run migration and upgrade
+* stop tm-csv-connector
+
+  * ctrl-p task docker-compose: down
+
+* to do database migration, upgrade, run migration then upgrade by starting app [needs test]
+
+  from docker pane, right click tm-csv-connector-app > Attach Shell
+
+  .. code-block:: shell
+
+    flask db migrate -m "races: add start_time"
+  
+  OR from powershell
 
   .. code-block:: powershell
     
-    docker compose -f docker-compose.yml -f docker-compose.dev.yml down
-    exec tm-csv-connector-shell-1 flask db migrate -m "races: add start_time"
-    docker exec tm-csv-connector-shell-1 flask db upgrade
-    # run tm-csv-connector as indicated above
+    docker exec tm-csv-connector-app-1 flask db migrate -m "races: add start_time"
+
+  then stop tm-csv-connector, start tm-csv-connector as above
