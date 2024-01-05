@@ -306,8 +306,6 @@ problems must be fixed in **tmtility**
       * on the Dashboard |rds-home| view, click **RAW READS** 
       * on the Raw Reads view, under *Action* select the bib number(s) which
         were removed, then click **DELETE SELECTED READS** 
-      * on the Dashboard |rds-home| view, under RAW READS, click **RECALC**,
-        then click **RECALCULATE**
 
   * on the Streams |rds-streams| view, next to Time Machine click **REPLAY**
   * on the Scored Events |rds-scored-events| view, click **Save**
