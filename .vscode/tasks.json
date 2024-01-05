@@ -19,9 +19,21 @@
             "problemMatcher": []
         },
         {
+            "label": "build app",
+            "type": "shell",
+            "dependsOn": [
+                "build docs"
+            ],
+            "command": "docker compose -f docker-compose.yml build",
+            "problemMatcher": []
+        },
+        {
             "label": "build, push app",
             "type": "shell",
-            "command": "docker compose -f docker-compose.yml -f docker-compose.build.yml build; docker compose -f docker-compose.yml -f docker-compose.build.yml push",
+            "dependsOn": [
+                "build app"
+            ],
+            "command": "docker compose -f docker-compose.yml push",
             "problemMatcher": []
         },
         {
@@ -37,12 +49,60 @@
             "label": "Build",
             "dependsOn": [
                 "build time machine reader",
-                "build docs",
                 "build, push app",
                 "release"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": []
-        }
+        },
+        {
+            "type": "docker-compose",
+            "label": "docker-compose: debug",
+            "dependsOn": [
+                "build app"
+            ],
+            "dockerCompose": {
+                "up": {
+                  "detached": true,
+                  "build": false,
+                },
+                "files": [
+                  "${workspaceFolder}/docker-compose.yml",
+                  "${workspaceFolder}/docker-compose.debug.yml"
+                ]
+          },
+        },
+        {
+            "type": "docker-compose",
+            "label": "docker-compose: up",
+            "dependsOn": [
+                "build app"
+            ],
+            "dockerCompose": {
+                "up": {
+                  "detached": true,
+                  "build": false,
+                },
+                "files": [
+                  "${workspaceFolder}/docker-compose.yml",
+                ]
+          },
+        },
+        {
+            "type": "docker-compose",
+            "label": "docker-compose: down",
+            // "dependsOn": [
+            //     "build app"
+            // ],
+            "dockerCompose": {
+                "down": {
+                //   "services": ["app"]
+                },
+                "files": [
+                  "${workspaceFolder}/docker-compose.yml",
+                  "${workspaceFolder}/docker-compose.debug.yml"
+                ]
+          },
+        },
     ]
 }

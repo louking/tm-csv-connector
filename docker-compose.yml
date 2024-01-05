@@ -23,6 +23,11 @@ services:
 
   web:
     image: louking/tm-csv-connector-web:${APP_VER}
+    build: 
+      context: web
+      args:
+        - NGINX_VER=${NGINX_VER}
+        - PHPMYADMIN_VER=${PHPMYADMIN_VER}
     restart: always
     networks:
       - frontend-network
@@ -44,6 +49,10 @@ services:
 
   app:
     image: louking/tm-csv-connector-app:${APP_VER}
+    build: 
+      context: app
+      args:
+        - PYTHON_VER=${PYTHON_VER}
     restart: always
     depends_on:
       - db

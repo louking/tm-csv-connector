@@ -5,13 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: tm-reader-client",
+            "type": "python",
+            "request": "launch",
+            "module": "tm-reader-client.app",
+            "justMyCode": false
+        },
+        {
+            // from https://code.visualstudio.com/docs/containers/docker-compose#_python
             "name": "Python: Remote Attach",
             "type": "python",
             "request": "attach",
-            // "connect": {
-                "host": "localhost",
-                "port": 5678,
-            // },
+            "host": "localhost",
+            "port": 5678,
             "pathMappings": [
                 {
                     "localRoot": "${workspaceFolder}/app/src",
@@ -24,6 +30,31 @@
                 }
             ],
             "justMyCode": false
-        }
+        },
+        {
+            "name": "Launch Chrome",
+            "request": "launch",
+            "type": "chrome",
+            "url": "http://tm.localhost:8080",
+            "webRoot": "${workspaceFolder}/app/src/tm_csv_connector/"
+        },
+        // this doesn't seem to work -- get alert, 'Invalid message: either "program", "module", or "code" needs to be specified'
+        // from https://code.visualstudio.com/docs/containers/quickstart-python#_gunicorn-modifications-for-djangoflask-apps
+        // I think this was created by Docker: Add Docker Files to Workspace... command
+        // {
+        //     "name": "Docker: Python - Flask",
+        //     "type": "docker",
+        //     "request": "launch",
+        //     // "preLaunchTask": "docker-compose: debug",
+        //     "python": {
+        //         "pathMappings": [
+        //             {
+        //                 "localRoot": "${workspaceFolder}/app/src",
+        //                 "remoteRoot": "/app"
+        //             }
+        //         ],
+        //         "projectType": "flask"
+        //     }
+        // }
     ]
 }
