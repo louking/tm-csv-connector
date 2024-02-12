@@ -101,11 +101,13 @@ def get_results_filters():
                         option(port, selected='true')
                     else:
                         option(port)
+    return prehtml.render()
+
+def get_results_posttablehtml():
     updates_suspended_warning = div()
-    prehtml += updates_suspended_warning
     with updates_suspended_warning:
         p('display updates suspended - deselect to resume', id='updates-suspended', style='color: white; font-weight: bold; background-color: red; text-align: center; display: none;')
-    return prehtml.render()
+    return updates_suspended_warning.render()
 
 def results_validate(action, formdata):
     results = []
@@ -344,6 +346,7 @@ results_view = ResultsView(
     endpoint='public.results',
     rule='/results',
     pretablehtml=get_results_filters,
+    posttablehtml=get_results_posttablehtml,
     dbmapping=results_dbmapping,
     formmapping=results_formmapping,
     validate=results_validate,
