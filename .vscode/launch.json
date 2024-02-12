@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: tm-reader-client",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "tm-reader-client.app",
             "justMyCode": false
@@ -14,10 +14,9 @@
         {
             // from https://code.visualstudio.com/docs/containers/docker-compose#_python
             "name": "Python: Remote Attach",
-            "type": "python",
+            "type": "debugpy",
             "request": "attach",
-            "host": "localhost",
-            "port": 5678,
+            "connect": {"host": "localhost", "port": 5678},
             "pathMappings": [
                 {
                     "localRoot": "${workspaceFolder}/app/src",
