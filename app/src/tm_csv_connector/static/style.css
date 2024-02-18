@@ -416,9 +416,21 @@
   }
 
   /* display confirmed rows as green, should only happen in results view */
-  table.dataTable tbody tr[is_confirmed="true"]
+  table.dataTable tbody tr:has(.checkscanned)
+  {
+      background-color: #ffeb3b;  /*yellow https://www.w3schools.com/w3css/w3css_alerts.asp */
+  }
+
+  /* display confirmed rows as green, should only happen in results view */
+  /* NOTE: putting this after table.dataTable tbody tr:has(.checkscanned) forces this to take precedence */
+  table.dataTable tbody tr.confirmed
   {
       background-color: #99FF99;  /*green*/
+  }
+
+  /* scanned bib buttons */
+  .scannedbib button {
+    margin-right: 3px;
   }
 
   /* hide some features for small screens, match bootstrap breakpoint */

@@ -3,25 +3,24 @@ home - public views
 =================================
 '''
 # standard
-from datetime import timedelta, time
-from traceback import format_exception_only, format_exc
+from datetime import timedelta
 from os.path import join
-from shutil import copy
 from csv import DictWriter
 
 # pypi
-from flask import g, render_template, session, request, current_app, jsonify
+from flask import render_template, session, current_app
 from flask.views import MethodView
 from loutilities.tables import DbCrudApi
 from loutilities.timeu import asctime, timesecs
 from dominate.tags import div, button, span, select, option, p
+from dominate.util import text
 from loutilities.filters import filtercontainerdiv
 from sqlalchemy import update, and_, select as sqlselect
 
 # homegrown
 from . import bp
 from ...model import db, Race, Result, Setting
-from ...fileformat import filecolumns, db2file, filelock
+from ...fileformat import filecolumns, db2file, filelock, refreshfile
 
 class ParameterError(Exception): pass
 
@@ -62,18 +61,48 @@ def time2asc(dbtime):
     frac = f'{round(int(frac)/10000):02}'
     return '.'.join([whole, frac])
 
-results_dbattrs = 'id,tmpos,place,bibno,time,race_id,is_confirmed,update_time'.split(',')
-results_formfields = 'rowid,tmpos,placepos,bibno,time,race_id,is_confirmed,update_time'.split(',')
+def scanned_bibno(dbrow):
+    bibno = dbrow.scannedbib.bibno if dbrow.scannedbib else ''
+    scanid = dbrow.scannedbib.id if dbrow.scannedbib else 'null'
+    
+    # if scannedbib has been received for this row, show the scanned bib number and buttons
+    render = None
+    if dbrow.had_scannedbib:
+        scannedbib = span(_class="scannedbib", __pretty=False)
+        use_state = 'ui-state-disabled' if bibno == dbrow.bibno or not bibno or dbrow.is_confirmed else ''
+        ins_state = 'ui-state-disabled' if dbrow.is_confirmed else ''
+        del_state = 'ui-state-disabled' if dbrow.is_confirmed else ''
+        with scannedbib:
+            with span(style="margin-left: 2px;"):
+                # actions processed in api.ScanActionApi.post()
+                button('Use', type='button', _class=f"ui-button ui-corner-all ui-widget {use_state}", 
+                        onclick=f'scan_action(event, {{action: "use", resultid: {dbrow.id}, scanid: {scanid}}})')
+                button('Ins', type='button', _class=f"ui-button ui-corner-all ui-widget {ins_state}", 
+                        onclick=f'scan_action(event, {{action: "insert", resultid: {dbrow.id}, scanid: {scanid}}})')
+                button('Del', type='button', _class=f"ui-button ui-corner-all ui-widget {del_state}", 
+                        onclick=f'scan_action(event, {{action: "delete", resultid: {dbrow.id}, scanid: {scanid}}})')
+                text(f'{bibno}')
+    
+        render = scannedbib.render()
+    
+    return render
+
+# using bibno in dbattrs for bibalert as this gets replaced in formmapping, and this is readonly
+results_dbattrs = 'id,is_confirmed,tmpos,place,bibno,scannedbib.bibno,bibno,time,race_id,is_confirmed,update_time'.split(',')
+results_formfields = 'rowid,is_confirmed,tmpos,placepos,bibalert,scanned_bibno,bibno,time,race_id,is_confirmed,update_time'.split(',')
 results_dbmapping = dict(zip(results_dbattrs, results_formfields))
 results_formmapping = dict(zip(results_formfields, results_dbattrs))
 results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
 results_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
+results_formmapping['scanned_bibno'] = scanned_bibno
+results_formmapping['is_confirmed'] = lambda dbrow: '<i class="fa-solid fa-file-circle-check"></i>' if dbrow.is_confirmed else ''
+results_formmapping['bibalert'] = lambda dbrow: '<i class="fa-solid fa-not-equal checkscanned"></i>' if dbrow.scannedbib and dbrow.scannedbib.bibno != dbrow.bibno else ''
 
 def get_results_filters():
     prehtml = div()
     results_filters = filtercontainerdiv()
     prehtml += results_filters
-    results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item ui-button'), _class='filter')
+    
     results_filter_race = div(_class='filter-item')
     results_filters += results_filter_race
     with results_filter_race:
@@ -90,6 +119,7 @@ def get_results_filters():
                         selected = True
                     else:
                         option(r.raceyear, value=r.id)
+    
     results_filter_port = div(_class='filter-item')
     results_filters += results_filter_port
     with results_filter_port:
@@ -101,6 +131,9 @@ def get_results_filters():
                         option(port, selected='true')
                     else:
                         option(port)
+    
+    results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item ui-button'), _class='filter')
+    
     return prehtml.render()
 
 def get_results_posttablehtml():
@@ -123,37 +156,6 @@ def results_validate(action, formdata):
         
     return results
 
-def refreshfile(rows):
-    """rewrite csv file
-    
-    NOTE: caller must acquire/release filelock
-
-    Args:
-        rows ([Result, ...]): list of Result rows to write, in place order
-    """
-    filesetting = Setting.query.filter_by(name='output-file').one_or_none()
-    if filesetting:
-        filepath = join('/output_dir', filesetting.value)
-        
-        # create temporary file
-        from tempfile import TemporaryDirectory
-        fdir = TemporaryDirectory()
-        tmpfname = join(fdir.name, filesetting.value)
-        with open(tmpfname, mode='w') as f:
-            csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
-            for row in rows:
-                # this assumes when an unconfirmed row is encountered, no more rows should be sent to the file
-                if not row.is_confirmed: break
-                
-                # write confirmed rows to the file
-                rowdict = db2file(row)
-                csvf.writerow(rowdict)
-
-        # overwrite file
-        current_app.logger.debug(f'overwriting {filesetting.value}')
-        copy(tmpfname, filepath)
-        fdir.cleanup()
-            
 class ResultsView(TmConnectorView):
     ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
     ## not present in the data. Need to revisit this later.
@@ -208,10 +210,10 @@ class ResultsView(TmConnectorView):
             dict: row dict
         """
         row = super().nexttablerow()
+        
         if row['is_confirmed']:
-            row['DT_RowAttr'] = {'is_confirmed': True}
-        else:
-            row['DT_RowAttr'] = {'is_confirmed': False}
+            row['DT_RowClass'] = 'confirmed'
+
         return row
     
     def createrow(self, formdata):
@@ -226,6 +228,9 @@ class ResultsView(TmConnectorView):
 
         # if edit for previously confirmed entry is done, this will cause the file to be rewritten
         self.check_confirmed(0)
+
+        # remove scanned_bibno as this is readonly
+        formdata.pop('scanned_bibno')
 
         return super().createrow(formdata)
         
@@ -249,6 +254,9 @@ class ResultsView(TmConnectorView):
         # if edit for previously confirmed entry is done, this will cause the file to be rewritten
         # NOTE: this sets self.result
         self.check_confirmed(thisid)
+        
+        # remove scanned_bibno as this is readonly
+        formdata.pop('scanned_bibno')
 
         if 'confirm' in formdata and formdata['confirm'] == 'true':
             # LOCK file access
@@ -366,9 +374,37 @@ results_view = ResultsView(
         'csv', 
     ],
     clientcolumns = [
-        {'data': 'placepos', 'name': 'placepos', 'label': 'Place', 'type': 'readonly', 'fieldInfo': 'calculated by the system'},
+        {
+            'data': 'is_confirmed', 
+            'name': 'is_confirmed', 
+            'label': '<i class="fa-solid fa-file-circle-check"></i>', 
+            'type': 'readonly', 
+            'orderable': False,
+            'className': 'is_confirmed_field',
+            'ed': {'type': 'hidden'},
+        },
+        {'data': 'placepos', 'name': 'placepos', 'label': 'Place', 'type': 'readonly', 'className': 'placepos_field', 'fieldInfo': 'calculated by the system'},
         {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos', 'fieldInfo': 'received from time machine'},
-        {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No', 'className': 'bibno_field'},
+        {
+            'data': 'scanned_bibno', 
+            'name': 'scanned_bibno', 
+            'label': 'Scanned Bib No', 
+            'type': 'readonly', 
+            'fieldInfo': 'received from scanner',
+            'orderable': False,
+            'className': 'scanned_bibno_field',
+            'ed': {'type': 'hidden'},
+        },
+        {
+            'data': 'bibalert', 
+            'name': 'bibalert', 
+            'label': '<i class="fa-solid fa-not-equal"></i>', 
+            'type': 'readonly', 
+            'orderable': False,
+            'className': 'bibalert_field',
+            'ed': {'type': 'hidden'},
+        },
+        {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No', 'orderable': False, 'className': 'bibno_field'},
         {'data': 'time', 'name': 'time', 'label': 'Time', 'className': 'time_field'},
         
         # for testing only
@@ -493,123 +529,3 @@ settings_view = settingsView(
 )
 settings_view.register()
 
-class SetParamsApi(MethodView):
-    def post(self):
-        try:
-            form = request.form
-
-            # skip race_changed because it's transient
-            for key in form:
-                if key == 'race_changed': continue
-                session[f'_results_{key}'] = form[key]
-            
-            # rewrite csv file if race changed
-            if 'race_changed' in form:
-                # LOCK file access
-                filelock.acquire()
-                
-                results = db.session.execute(
-                    sqlselect(Result)
-                    .where(and_(
-                        Result.race_id == form['raceid'],
-                        Result.is_confirmed == True)
-                    )
-                    .order_by(Result.place)
-                ).all()
-            
-                # not sure why there is a need to for r[0] -- is this new in sqlalchemy 2.0?
-                results = [r[0] for r in results]
-                
-                # rewrite the file
-                refreshfile(results)
-                
-                # UNLOCK file access
-                filelock.release()
-                
-            output_result = {'status' : 'success'}
-            session.permanent = True
-
-            return jsonify(output_result)
-
-        except Exception as e:
-            exc = ''.join(format_exception_only(type(e), e))
-            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
-            # roll back database updates and close transaction
-            db.session.rollback()
-            current_app.logger.error(format_exc())
-            return jsonify(output_result)
-
-params_api = SetParamsApi.as_view('_setparams')
-bp.add_url_rule('/_setparams', view_func=params_api, methods=['POST',])
-
-class PostResultApi(MethodView):
-    def post(self):
-        try:
-            ## LOCK file access
-            filelock.acquire()
-            
-            # # test lock
-            # from time import sleep
-            # current_app.logger.debug(f'sleeping')
-            # sleep(10)
-            # current_app.logger.debug(f'awake')
-
-            # receive message
-            msg = request.json
-            current_app.logger.debug(f'received data {msg}')
-            
-            # get output file pathname
-            filesetting = Setting.query.filter_by(name='output-file').one_or_none()
-            if filesetting:
-                filepath = join('/output_dir', filesetting.value)
-
-            # handle messages from tm-reader-client
-            opcode = msg.pop('opcode', None)
-            if opcode in ['primary', 'select']:
-                
-                # determine place. if no records yet, create the output file
-                lastrow = Result.query.filter_by(race_id=msg['raceid']).order_by(Result.place.desc()).first()
-                if lastrow:
-                    place = lastrow.place + 1
-                else:
-                    place = 1
-                    # create file
-                    if filesetting:
-                        with open(filepath, mode='w') as f:
-                            current_app.logger.info(f'creating {filesetting.value}')
-                    
-                # write to database
-                result = Result()
-                result.bibno = msg['bibno'] if 'bibno' in msg else None
-                result.tmpos = msg['pos']
-                result.time = timesecs(msg['time'])
-                result.race_id = msg['raceid']
-                result.place = place
-                result.is_confirmed = False
-                db.session.add(result)
-                db.session.commit()
-                
-            # how did this happen?
-            else:
-                current_app.logger.error(f'unknown opcode received: {opcode}')
-
-            ## UNLOCK file access and return
-            filelock.release()
-            return jsonify(status='success')
-
-        except Exception as e:
-            ## UNLOCK file access
-            filelock.release()
-            
-            # report exception
-            exc = ''.join(format_exception_only(type(e), e))
-            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
-            
-            # roll back database updates and close transaction
-            db.session.rollback()
-            current_app.logger.error(format_exc())
-            return jsonify(output_result)
-        
-
-postresult_api = PostResultApi.as_view('_postresult')
-bp.add_url_rule('/_postresult', view_func=postresult_api, methods=['POST',])

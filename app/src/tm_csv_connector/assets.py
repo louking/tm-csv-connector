@@ -36,7 +36,7 @@ moment_ver = '2.29.4'       # moment.js (see https://momentjs.com/)
 lodash_ver = '4.17.21'      # lodash.js (see https://lodash.com)
 d3_ver = '7.1.1'            # d3js.org (see https://d3js.org/)
 d3_tip_ver = '1.1'          # https://github.com/VACLab/d3-tip
-fa_ver = '5.13.0'           # https://fontawesome.com/
+fa_ver = '6.5.1'            # https://fontawesome.com/
 nunjucks_ver = '3.2.0'      # https://mozilla.github.io/nunjucks/
 cke_type='classic'           # https://ckeditor.com/ckeditor-5/
 cke_ver='26.0.0-members-414' # https://ckeditor.com/ckeditor-5/
@@ -114,8 +114,9 @@ frontend_common_css = Bundle(
     f'js/select2-{s2_ver}/css/select2.css',
     # 'js/yadcf-{ver}/jquery.dataTables.yadcf.css'.format(ver=yadcf_ver),
 
-    # 'js/fontawesome-{ver}/css/fontawesome.css'.format(ver=fa_ver), 
-    # 'js/fontawesome-{ver}/css/solid.css'.format(ver=fa_ver), 
+    f'js/fontawesome-{fa_ver}/css/fontawesome.css', 
+    f'js/fontawesome-{fa_ver}/css/solid.css', 
+    f'js/fontawesome-{fa_ver}/css/regular.css', 
 
     'datatables.css',  # from loutilities
     'editor.css',  # from loutilities
@@ -255,8 +256,9 @@ asset_bundles = {
         Bundle(f'js/select2-{s2_ver}/css/select2.css', filters=['cssrewrite', 'cssmin']),
         # Bundle('js/yadcf-{ver}/jquery.dataTables.yadcf.css'.format(ver=yadcf_ver), filters=['cssrewrite', 'cssmin']),
 
-        # Bundle('js/fontawesome-{ver}/css/fontawesome.css'.format(ver=fa_ver), filters=['cssrewrite', 'cssmin']),
-        # Bundle('js/fontawesome-{ver}/css/solid.css'.format(ver=fa_ver), filters=['cssrewrite', 'cssmin']),
+        Bundle(f'js/fontawesome-{fa_ver}/css/fontawesome.css', filters=['cssrewrite', 'cssmin']),
+        Bundle(f'js/fontawesome-{fa_ver}/css/solid.css', filters=['cssrewrite', 'cssmin']),
+        Bundle(f'js/fontawesome-{fa_ver}/css/regular.css', filters=['cssrewrite', 'cssmin']),
 
         Bundle('datatables.css', filters=['cssrewrite', 'cssmin']),   # from loutilities
         Bundle('editor.css', filters=['cssrewrite', 'cssmin']),       # from loutilities

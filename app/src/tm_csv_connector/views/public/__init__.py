@@ -9,3 +9,4 @@ bp = Blueprint('public', __name__.split('.')[0], url_prefix='', static_folder='s
 
 # specific views
 from . import home
+from . import api

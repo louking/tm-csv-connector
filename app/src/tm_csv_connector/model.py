@@ -44,11 +44,21 @@ class Race(Base):
     name        = Column(Text)
     date        = Column(Date)
     start_time  = Column(Double) # seconds since midnight
-    results = relationship('Result', back_populates='race', cascade='all, delete, delete-orphan')
+    results     = relationship('Result', back_populates='race', cascade='all, delete, delete-orphan')
+    scannedbibs = relationship('ScannedBib', back_populates='race', cascade='all, delete, delete-orphan')
     
     @hybrid_property
     def raceyear(self):
         return self.name + ' ' + self.date.strftime('%Y')
+    
+class ScannedBib(Base):
+    __tablename__ = 'scannedbib'
+    id           = Column(Integer(), primary_key=True)
+    race_id      = mapped_column(ForeignKey('race.id'))
+    race         = relationship('Race', back_populates='scannedbibs')
+    order        = Column(Integer)
+    bibno        = Column(Text)
+    result       = relationship("Result", uselist=False, back_populates="scannedbib")
     
 class Result(Base):
     __tablename__ = 'result'
@@ -57,6 +67,9 @@ class Result(Base):
     race         = relationship('Race', back_populates='results')
     tmpos        = Column(Integer)
     place        = Column(Integer)
+    scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
+    scannedbib    = relationship('ScannedBib', back_populates='result')
+    had_scannedbib = Column(Boolean, default=False)
     bibno        = Column(Text)
     time         = Column(Float)
     is_confirmed = Column(Boolean, default=False)

@@ -1,11 +1,18 @@
-"""file columns definition, including transformation from database formatting
+"""file management, including transformation from database formatting
 """
 # standard
 from threading import Lock
+from os.path import join
+from shutil import copy
+from csv import DictWriter
 
 # pypi
+from flask import current_app
 from loutilities.transform import Transform
 from loutilities.renderrun import rendertime
+
+# homegrown
+from .model import Setting
 
 # these names must match the message keys from tm-reader-client to the backend server
 filecolumns = ['pos', 'bibno', 'time']
@@ -57,3 +64,35 @@ def db2file(result):
     db2filet.transform(result, resultrow)
 
     return resultrow
+
+def refreshfile(rows):
+    """rewrite csv file
+    
+    NOTE: caller must acquire/release filelock
+
+    Args:
+        rows ([Result, ...]): list of Result rows to write, in place order
+    """
+    filesetting = Setting.query.filter_by(name='output-file').one_or_none()
+    if filesetting:
+        filepath = join('/output_dir', filesetting.value)
+        
+        # create temporary file
+        from tempfile import TemporaryDirectory
+        fdir = TemporaryDirectory()
+        tmpfname = join(fdir.name, filesetting.value)
+        with open(tmpfname, mode='w') as f:
+            csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
+            for row in rows:
+                # this assumes when an unconfirmed row is encountered, no more rows should be sent to the file
+                if not row.is_confirmed: break
+                
+                # write confirmed rows to the file
+                rowdict = db2file(row)
+                csvf.writerow(rowdict)
+
+        # overwrite file
+        current_app.logger.debug(f'overwriting {filesetting.value}')
+        copy(tmpfname, filepath)
+        fdir.cleanup()
+            

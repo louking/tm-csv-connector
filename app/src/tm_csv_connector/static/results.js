@@ -18,7 +18,6 @@ var raceid, port, logdir;
 const PING_INTERVAL = 30000;
 const CHECK_CONNECTED_WAIT = 3000;
 const REOPEN_SOCKET_WAIT = 5000;
-// TODO: change to 1000
 const CHECK_TABLE_UPDATE = 1000;
 
 // save last draw time
@@ -257,7 +256,6 @@ function setParams() {
     tm_reader.send(msg);
 
     $.ajax( {
-        // application specific: my application has different urls for different methods
         url: '/_setparams',
         type: 'post',
         dataType: 'json',
@@ -272,5 +270,27 @@ function setParams() {
         }
     } );
 
-  }
-  
+}
+
+function scan_action(e, options) {
+    e.stopPropagation();
+    console.log(`scanaction()`);
+
+    // set up for table redraw
+    let resturl = window.location.pathname + '/rest';
+
+    $.ajax( {
+        url: '/_scanaction',
+        type: 'post',
+        dataType: 'json',
+        data: options,
+        success: function ( json ) {
+            if (json.status == 'success') {
+                refresh_table_data(_dt_table, resturl);
+            }
+            else {
+                alert(json.error);
+            }
+        }
+    } );
+}
