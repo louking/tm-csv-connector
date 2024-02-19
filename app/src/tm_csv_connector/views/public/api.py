@@ -86,9 +86,81 @@ class PostResultApi(MethodView):
             current_app.logger.error(format_exc())
             return jsonify(output_result)
         
-
 postresult_api = PostResultApi.as_view('_postresult')
 bp.add_url_rule('/_postresult', view_func=postresult_api, methods=['POST',])
+
+
+class PostBibApi(MethodView):
+    def post(self):
+        try:
+            ## LOCK file access
+            filelock.acquire()
+            
+            # # test lock
+            # from time import sleep
+            # current_app.logger.debug(f'sleeping')
+            # sleep(10)
+            # current_app.logger.debug(f'awake')
+
+            # receive message
+            msg = request.json
+            current_app.logger.debug(f'received data {msg}')
+            
+            # handle messages from barcode-scanner-client
+            opcode = msg.pop('opcode', None)
+            if opcode in ['scannedbib']:
+                
+                # determine place. if no records yet, create the output file
+                lastrow = ScannedBib.query.filter_by(race_id=msg['raceid']).order_by(ScannedBib.order.desc()).first()
+                if lastrow:
+                    order = lastrow.order + 1
+                else:
+                    order = 1
+                    
+                # write to database
+                scannedbib = ScannedBib()
+                scannedbib.bibno = msg['bibno']
+                scannedbib.race_id = msg['raceid']
+                scannedbib.order = order
+                db.session.add(scannedbib)
+                db.session.flush()
+                
+                # update next result to use this scanned bib
+                result = Result.query.filter_by(race_id=msg['raceid'], had_scannedbib=False).order_by(Result.place.asc()).first()
+                if result:
+                    result.scannedbib = scannedbib
+                    result.had_scannedbib = True
+                
+                else:
+                    # TODO: no result yet, need to queue
+                    pass
+                
+                db.session.commit()
+                
+            # how did this happen?
+            else:
+                current_app.logger.error(f'unknown opcode received: {opcode}')
+
+            ## UNLOCK file access and return
+            filelock.release()
+            return jsonify(status='success')
+
+        except Exception as e:
+            ## UNLOCK file access
+            filelock.release()
+            
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+postbib_api = PostBibApi.as_view('_postbib')
+bp.add_url_rule('/_postbib', view_func=postbib_api, methods=['POST',])
+
 
 class SetParamsApi(MethodView):
     def post(self):

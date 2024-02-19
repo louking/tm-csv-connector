@@ -13,6 +13,7 @@ from flask.views import MethodView
 from loutilities.tables import DbCrudApi
 from loutilities.timeu import asctime, timesecs
 from dominate.tags import div, button, span, select, option, p
+from dominate.tags import table, thead, tbody, tr, th, td
 from dominate.util import text
 from loutilities.filters import filtercontainerdiv
 from sqlalchemy import update, and_, select as sqlselect
@@ -100,40 +101,56 @@ results_formmapping['bibalert'] = lambda dbrow: '<i class="fa-solid fa-not-equal
 
 def get_results_filters():
     prehtml = div()
-    results_filters = filtercontainerdiv()
-    prehtml += results_filters
     
-    results_filter_race = div(_class='filter-item')
-    results_filters += results_filter_race
-    with results_filter_race:
-        span('Race', _class='label')
-        with span(_class='filter'):
-            results_filter_race_select = select(id='race', name="race", _class="validate", required='true', aria_required="true", onchange="setParams()")
-            races = Race.query.order_by(Race.date.desc()).all()
-            # select first (lastest) race
-            selected = False
-            with results_filter_race_select:
-                for r in races:
-                    if not selected:
-                        option(r.raceyear, value=r.id, selected='true')
-                        selected = True
-                    else:
-                        option(r.raceyear, value=r.id)
+    # TODO: get from tm-reader-client via serial.tools.list_ports
+    comports = ['COM3', 'COM4', 'COM5', 'COM6']
     
-    results_filter_port = div(_class='filter-item')
-    results_filters += results_filter_port
-    with results_filter_port:
-        span('Port', _class='label')
-        with span(_class='filter'):
-            with select(id='port', name="port", _class="validate", required='true', aria_required="true", onchange="setParams()"):
-                for port in ['COM3', 'COM4', 'COM8']:
-                    if '_results_port' in session and port == session['_results_port']:
-                        option(port, selected='true')
-                    else:
-                        option(port)
-    
-    results_filters += div(button("placeholder", id="connect-disconnect", _class='filter-item ui-button'), _class='filter')
-    
+    with prehtml.add(filtercontainerdiv()).add(table()):
+        with thead().add(tr()):
+            th('')
+            th('Time Machine', style='text-align: center;')
+            th('Scanner', style='text-align: center;')
+        
+        with tbody().add(tr()):
+            with td().add(div(_class='filter-item')):
+                span('Race', _class='label')
+                with span(_class='filter'):
+                    results_filter_race_select = select(id='race', name="race", _class="validate", required='true', aria_required="true", onchange="setParams()")
+                    races = Race.query.order_by(Race.date.desc()).all()
+                    # select first (lastest) race
+                    selected = False
+                    with results_filter_race_select:
+                        for r in races:
+                            if not selected:
+                                option(r.raceyear, value=r.id, selected='true')
+                                selected = True
+                            else:
+                                option(r.raceyear, value=r.id)
+        
+            with td().add(div(_class='filter-item')):
+                # span('Port', _class='label')
+                with span(_class='filter'):
+                    with select(id='port', name="port", _class="validate", required='true', aria_required="true", onchange="setParams()"):
+                        for port in comports:
+                            if '_results_port' in session and port == session['_results_port']:
+                                option(port, selected='true')
+                            else:
+                                option(port)
+        
+                div(button("placeholder", id="connect-disconnect", _class='filter-item ui-button'), _class='filter')
+        
+            with td().add(div(_class='filter-item')):
+                # span('Port', _class='label')
+                with span(_class='filter'):
+                    with select(id='scannerport', name="scannerport", _class="validate", required='true', aria_required="true", onchange="setParams()"):
+                        for port in comports:
+                            if '_results_scannerport' in session and port == session['_results_scannerport']:
+                                option(port, selected='true')
+                            else:
+                                option(port)
+        
+                div(button("placeholder", id="scanner-connect-disconnect", _class='filter-item ui-button'), _class='filter')
+        
     return prehtml.render()
 
 def get_results_posttablehtml():

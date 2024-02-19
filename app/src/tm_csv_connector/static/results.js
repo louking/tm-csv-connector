@@ -1,18 +1,20 @@
-// global #connect-disconnect button
-var cd;
+// global #connect-disconnect, #scanner-connect-disconnect buttons
+var cd, scd;
 
 // global websockets
 var tm_reader; // process which interacts directly with time machine
+var scanner;   // process which interacts directly with scanner
 const serveruri = 'ws://tm.localhost:8080/tm_reader';
 const readeruri = 'ws://tm.localhost:8081/';
+const scanneruri = 'ws://tm.localhost:8082/';
 // track checkConnected interval
-var ccinterval;
+var ccinterval, scanner_ccinterval;
 
 // remember if connected
-var connected;
+var connected, scanner_connected;
 
 // form parameters
-var raceid, port, logdir;
+var raceid, port, scannerport, logdir;
 
 // constants
 const PING_INTERVAL = 30000;
@@ -27,11 +29,18 @@ $( function() {
     cd = $('#connect-disconnect');
     cd.on('click', cdbuttonclick);
 
+    scd = $('#scanner-connect-disconnect');
+    scd.on('click', scanner_cdbuttonclick);
+
     $('#race').select2({
         placeholder: 'select a race',
         width: "style",
     });
     $('#port').select2({
+        placeholder: 'select a port',
+        width: "style",
+    });
+    $('#scannerport').select2({
         placeholder: 'select a port',
         width: "style",
     });
@@ -42,7 +51,7 @@ $( function() {
         uri: readeruri,
         open_callback: setParams,
         recv_msg_callback: function(msg) {
-            rsp = JSON.parse(msg);
+            let rsp = JSON.parse(msg);
             // console.log(`reader: received ${msg}`);
             connected = rsp.connected;
             if (rsp.connected) {
@@ -52,16 +61,37 @@ $( function() {
             }    
         }
     });
-    ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT);
+    // determine text for button by querying tm-reader-client over websocket
+    scanner = new StableWebSocket({
+        name: 'scanner',
+        uri: scanneruri,
+        open_callback: setParams,
+        recv_msg_callback: function(msg) {
+            let rsp = JSON.parse(msg);
+            // console.log(`scanner: received ${msg}`);
+            scanner_connected = rsp.connected;
+            if (rsp.connected) {
+                scd.text('Disconnect');
+                $('.scanned_bibno_field, .bibalert_field').show();
+            } else {
+                scd.text('Connect');
+                $('.scanned_bibno_field, .bibalert_field').hide();
+            }    
+        }
+    });
+
+    // keep the connect/disconnect buttons updated
+    ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, tm_reader);
+    scanner_ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, scanner);
 });
 
 // check whether connected to time machine periodically
-function checkConnected() {
+function checkConnected(asyncprocess) {
     // message is sent if websocket state is OPEN, else throws exception
     try {
-        var msg = JSON.stringify({opcode: 'is_connected'});
+        let msg = JSON.stringify({opcode: 'is_connected'});
         // console.log(`sending ${msg}`);
-        tm_reader.send(msg);      
+        asyncprocess.send(msg);      
     }
     catch(e) {
         // do nothing, will try again later
@@ -211,6 +241,22 @@ function cdbuttonclick() {
     }
 }
 
+function scanner_cdbuttonclick() {
+    var msg;
+    if (scannerport != null) {
+        if (!scanner_connected) {
+            msg = JSON.stringify({opcode: 'open', port: scannerport, raceid: raceid, loggingpath: ''});
+            scanner.send(msg);
+        } else {
+            msg = JSON.stringify({opcode: 'close'});
+            scanner.send(msg);
+        }
+    } else {
+        alert('set port first');
+    }
+}
+
+
 // setParams
 function setParams() {
     // set up for table redraw
@@ -223,9 +269,11 @@ function setParams() {
     // we'll be sending these to the server
     raceid = $('#race').val();
     port = $('#port').val();
+    scannerport = $('#scannerport').val();
     logdir = $('#logdir').val();
     let data = {
         port: port, 
+        scannerport: scannerport,
         raceid: raceid, 
         logdir: logdir
     }
@@ -251,9 +299,10 @@ function setParams() {
         }
     }
 
-    // send latest raceid to reader process
+    // send latest raceid to reader and scanner processes
     msg = JSON.stringify({opcode: 'raceid', raceid: raceid});
     tm_reader.send(msg);
+    scanner.send(msg);
 
     $.ajax( {
         url: '/_setparams',
