@@ -7,6 +7,7 @@ from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatte
 from logging.handlers import TimedRotatingFileHandler
 from requests import post
 from requests import codes
+from serial.tools.list_ports import comports
 
 # pypi
 from websockets import connect, ConnectionClosed
@@ -208,7 +209,7 @@ async def controller(websocket):
         opcode = event['opcode']
         
         # just wanna know what's going on
-        if opcode in ['open', 'close', 'raceid']:
+        if opcode in ['open', 'close', 'raceid', 'get_comports']:
             log.debug(f'websocket received {event}')
         
         # backend opened the connection
@@ -234,9 +235,19 @@ async def controller(websocket):
             global raceid
             raceid = event['raceid']
         
-        # backend wants to know if we're connected to time machine
+        # browser wants to know if we're connected to time machine
         elif opcode == 'is_connected':
-            await websocket.send(dumps({'connected': connected}))
+            await websocket.send(dumps({'opcode': 'connection_status', 'connected': connected}))
+
+        # browser wants to know available com ports
+        elif opcode == 'get_comports':
+            cp = comports()
+            bt_desc = 'Standard Serial over Bluetooth link'
+            for c in cp:
+                if len(c.description) >= len(bt_desc) and c.description[:len(bt_desc)]==bt_desc:
+                    c.description = f'Bluetooth ({c.device})'
+            the_comports = [{'id': c.device, 'text': c.description} for c in cp]
+            await websocket.send(dumps({'opcode': 'available_comports', 'comports': the_comports}))
 
 async def main():
     async with serve(controller, host="localhost", port=8081):

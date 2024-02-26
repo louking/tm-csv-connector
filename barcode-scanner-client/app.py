@@ -218,7 +218,7 @@ async def controller(websocket):
             global raceid
             raceid = event['raceid']
         
-        # backend wants to know if we're connected to barcode scanner
+        # browser wants to know if we're connected to barcode scanner
         elif opcode == 'is_connected':
             await websocket.send(dumps({'connected': connected}))
 

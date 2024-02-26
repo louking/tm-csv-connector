@@ -102,8 +102,14 @@ results_formmapping['bibalert'] = lambda dbrow: '<i class="fa-solid fa-not-equal
 def get_results_filters():
     prehtml = div()
     
-    # TODO: get from tm-reader-client via serial.tools.list_ports
+    # NOTE: this will be overwritten from the browser window, though
     comports = ['COM3', 'COM4', 'COM5', 'COM6']
+    
+    if '_results_scannerport' in session and session['_results_scannerport'] not in comports:
+        comports.append(session['_results_scannerport'])
+    if '_results_port' in session and session['_results_port'] not in comports:
+        comports.append(session['_results_port'])
+    comports.sort()
     
     with prehtml.add(filtercontainerdiv()).add(table()):
         with thead().add(tr()):

@@ -19,6 +19,7 @@ var raceid, port, scannerport, logdir;
 // constants
 const PING_INTERVAL = 30000;
 const CHECK_CONNECTED_WAIT = 3000;
+const GET_COMPORTS_WAIT = 1000;
 const REOPEN_SOCKET_WAIT = 5000;
 const CHECK_TABLE_UPDATE = 1000;
 
@@ -45,23 +46,65 @@ $( function() {
         width: "style",
     });
 
-    // determine text for button by querying tm-reader-client over websocket
+    // determine text for connect/disconnect button by querying tm-reader-client over websocket
+    // handle response for 'get_comports'
     tm_reader = new StableWebSocket({
         name: 'reader',
         uri: readeruri,
         open_callback: setParams,
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
-            // console.log(`reader: received ${msg}`);
-            connected = rsp.connected;
-            if (rsp.connected) {
-                cd.text('Disconnect');
-            } else {
-                cd.text('Connect');
-            }    
+            if (rsp.opcode == 'connection_status') {
+                // console.log(`reader: received ${msg}`);
+                connected = rsp.connected;
+                if (rsp.connected) {
+                    cd.text('Disconnect');
+                } else {
+                    cd.text('Connect');
+                }    
+            
+            // what are the current comports? this comes in when the view is initialized
+            } else if (rsp.opcode == 'available_comports') {
+                // https://select2.org/programmatic-control/add-select-clear-items
+                let portselects = ['#port', '#scannerport'];
+                for (let i=0; i<portselects.length; i++) {
+                    // which select are we working with?
+                    let portselect = $(portselects[i]);
+
+                    // remember if any is selected
+                    let portselected = portselect.val();
+
+                    // let's remember if what was selected before is available
+                    let portselected_reset = false;
+
+                    // empty out the current select and add an empty option
+                    portselect.empty();
+                    portselect.append(new Option('select port', null));
+
+                    // add the current comports
+                    for (let j=0;j<rsp.comports.length; j++) {
+                        comport = rsp.comports[j];
+                        option = new Option(comport.text, comport.id);
+                        portselect.append(option);
+                        if (portselected == comport.id) {
+                            portselected_reset = true;
+                        }
+                    }
+
+                    // reset the previously selected
+                    if (portselected_reset) {
+                        portselect.val(portselected);
+                    }
+
+                    // let select2 and others know of the changes
+                    portselect.trigger('change');
+                }
+
+            }
         }
     });
-    // determine text for button by querying tm-reader-client over websocket
+
+    // determine text for connect/disconnect button by querying scanner over websocket
     scanner = new StableWebSocket({
         name: 'scanner',
         uri: scanneruri,
@@ -83,6 +126,9 @@ $( function() {
     // keep the connect/disconnect buttons updated
     ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, tm_reader);
     scanner_ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, scanner);
+
+    // ask tm reader what are the connected comports
+    get_comports();
 });
 
 // check whether connected to time machine periodically
@@ -98,6 +144,15 @@ function checkConnected(asyncprocess) {
     }
 }
 
+function get_comports() {
+    try {
+        tm_reader.send(JSON.stringify({opcode: 'get_comports'}));
+    }
+
+    catch(e) {
+        setTimeout(get_comports, GET_COMPORTS_WAIT);
+    }
+}
 /**
  * TODO: move to loutilities
  * 
