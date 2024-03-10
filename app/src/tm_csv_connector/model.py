@@ -38,6 +38,15 @@ backref = db.backref
 object_mapper = db.object_mapper
 Base = db.Model
 
+class ScannedBib(Base):
+    __tablename__ = 'scannedbib'
+    id           = Column(Integer(), primary_key=True)
+    race_id      = mapped_column(ForeignKey('race.id'))
+    race         = relationship('Race', back_populates='scannedbibs', foreign_keys=[race_id])
+    order        = Column(Integer)
+    bibno        = Column(Text)
+    result       = relationship("Result", uselist=False, back_populates="scannedbib")
+    
 class Race(Base):
     __tablename__ = 'race'
     id          = Column(Integer(), primary_key=True)
@@ -45,20 +54,14 @@ class Race(Base):
     date        = Column(Date)
     start_time  = Column(Double) # seconds since midnight
     results     = relationship('Result', back_populates='race', cascade='all, delete, delete-orphan')
-    scannedbibs = relationship('ScannedBib', back_populates='race', cascade='all, delete, delete-orphan')
+    scannedbibs = relationship('ScannedBib', back_populates='race', foreign_keys=[ScannedBib.race_id], cascade='all, delete, delete-orphan')
+    # next_scannedbib is set when there are more scanned bibs than there are results
+    next_scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
+    next_scannedbib    = relationship('ScannedBib', foreign_keys=[next_scannedbib_id])
     
     @hybrid_property
     def raceyear(self):
         return self.name + ' ' + self.date.strftime('%Y')
-    
-class ScannedBib(Base):
-    __tablename__ = 'scannedbib'
-    id           = Column(Integer(), primary_key=True)
-    race_id      = mapped_column(ForeignKey('race.id'))
-    race         = relationship('Race', back_populates='scannedbibs')
-    order        = Column(Integer)
-    bibno        = Column(Text)
-    result       = relationship("Result", uselist=False, back_populates="scannedbib")
     
 class Result(Base):
     __tablename__ = 'result'

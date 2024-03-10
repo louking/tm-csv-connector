@@ -15,7 +15,7 @@ from loutilities.timeu import timesecs
 
 # homegrown
 from . import bp
-from ...model import db, Result, Setting, ScannedBib
+from ...model import db, Result, Setting, ScannedBib, Race
 from ...fileformat import filelock, refreshfile
 
 class PostResultApi(MethodView):
@@ -55,13 +55,26 @@ class PostResultApi(MethodView):
                             current_app.logger.info(f'creating {filesetting.value}')
                     
                 # write to database
+                bibno = msg['bibno'] if 'bibno' in msg else None
+                race_id = msg['raceid']
                 result = Result()
-                result.bibno = msg['bibno'] if 'bibno' in msg else None
+                result.bibno = bibno
                 result.tmpos = msg['pos']
                 result.time = timesecs(msg['time'])
-                result.race_id = msg['raceid']
+                result.race_id = race_id
                 result.place = place
                 result.is_confirmed = False
+                
+                # check to see if a scanned bib is queued
+                race = Race.query.filter_by(id=race_id).one()
+                if race.next_scannedbib:
+                    result.scannedbib = race.next_scannedbib
+                    result.had_scannedbib = True
+                    # check strictly greater than to find the next in the queue
+                    next_scannedbib = ScannedBib.query.filter_by(race_id=race_id).filter(ScannedBib.order>race.next_scannedbib.order).order_by(ScannedBib.order.desc()).first()
+                    # if None returned, this should work properly
+                    race.next_scannedbib = next_scannedbib
+                
                 db.session.add(result)
                 db.session.commit()
                 
@@ -118,22 +131,28 @@ class PostBibApi(MethodView):
                     order = 1
                     
                 # write to database
+                bibno = msg['bibno']
+                race_id = msg['raceid']
                 scannedbib = ScannedBib()
-                scannedbib.bibno = msg['bibno']
-                scannedbib.race_id = msg['raceid']
+                scannedbib.bibno = bibno
+                scannedbib.race_id = race_id
                 scannedbib.order = order
                 db.session.add(scannedbib)
                 db.session.flush()
                 
                 # update next result to use this scanned bib
-                result = Result.query.filter_by(race_id=msg['raceid'], had_scannedbib=False).order_by(Result.place.asc()).first()
+                result = Result.query.filter_by(race_id=race_id, had_scannedbib=False).order_by(Result.place.asc()).first()
                 if result:
                     result.scannedbib = scannedbib
                     result.had_scannedbib = True
                 
                 else:
-                    # TODO: no result yet, need to queue
-                    pass
+                    # no result available to assign this scanned bib
+                    race = Race.query.filter_by(id=race_id).one()
+                    
+                    # next_scannedbib is the next one to use; update if not set already
+                    if not race.next_scannedbib:
+                        race.next_scannedbib = scannedbib
                 
                 db.session.commit()
                 
@@ -256,7 +275,7 @@ class ScanActionApi(MethodView):
                         thisresult.bibno = thisscannedbib.bibno
                     
                     # insert blank scanned bibno before current result
-                    # shift scanned bibnos down
+                    # shift scanned bibnos to later results
                     case 'insert':
                         # need strictly greater than thisplace to get the later results
                         later_results = Result.query.filter(Result.race == thisrace, Result.place > thisplace).order_by(Result.place).all()
@@ -273,38 +292,64 @@ class ScanActionApi(MethodView):
                             for r in later_results:
                                 r.scannedbib = next(scannedbibs)
                                 r.had_scannedbib = True
+                                
+                        # stop when there are some results for which scanned bibs have not been assigned
                         except StopIteration:
-                            # TODO: if there are any remaining scanned bibs, prepend them to the scanned bib queue
                             pass
+                        
+                        # we've gone through all the results
+                        # if there are any remaining scanned bibs, the next one is the start of the scanned bib queue
+                        else:
+                            try:
+                                next_scannedbib = next(scannedbibs)
+                                thisrace.next_scannedbib = next_scannedbib
+                            except StopIteration:
+                                pass
                     
                     # delete scanned bibno from current result
-                    # shift scanned bibnos up
+                    # shift scanned bibnos to earlier results
                     case 'delete':
                         # need greater than or equals to get this and all later results
                         results = Result.query.filter(Result.race == thisrace, Result.place >= thisplace).order_by(Result.place).all()
                         
-                        # get all scanned bibs assigned to these results, after this one
+                        # get all scanned bibs assigned to these results, after this result
                         scannedbibs_d = [r.scannedbib for r in results[1:] if r.had_scannedbib]
                         
-                        # TODO: need to analyze whether we might need one more, e.g., in case where all of the results had been assigned a scanned bib
-                        # # may need one more, if it exists; note strictly greater than
-                        # later_scannedbibs = ScannedBib.query.filter(ScannedBib.race==thisrace, ScannedBib.order>scannedbibs_d.order).order_by(ScannedBib.order).all()
-                        # if later_scannedbibs:
-                        #     scannedbibs_d += [later_scannedbibs[0]]
-
+                        # we'll be iterating through these scanned bibs
                         scannedbibs = iter(scannedbibs_d)
                         
-                        # move all the later scanned bibs to the results; stop when we run out of scanned bibs
+                        # move all the later scanned bibs to the results
+                        # stop when we run out of scanned bibs or results
                         try:
                             for r in results:
                                 r.scannedbib = next(scannedbibs)
-                                r.had_scannedbib = True # probably not necessary as we're shifting down
+                                r.had_scannedbib = True # probably not necessary as we're shifting earlier
+                        
+                        # we ran out of scanned bibs
                         except StopIteration:
-                            # the next result's scanned bib was moved down
-                            # TODO: this doesn't look quite right, need to analyze all cases
-                            r.scannedbib = None
-                            r.had_scannedbib = False
-                            # TODO: do we need to do anything with any queues?
+                            # the next result's scanned bib was moved earlier
+                            if thisrace.next_scannedbib:
+                                r.scannedbib = thisrace.next_scannedbib
+                                r.had_scannedbib = True
+                                # may be more, remember it if it exists; note strictly greater than
+                                previous_next = thisrace.next_scannedbib
+                                next_scannedbib = ScannedBib.query.filter(ScannedBib.race==thisrace, ScannedBib.order>previous_next.order).order_by(ScannedBib.order).first()
+                                thisrace.next_scannedbib = next_scannedbib
+                                
+                            else:
+                                r.scannedbib = None
+                                r.had_scannedbib = False
+                        
+                        # we finished going through the results
+                        else:
+                            # if there are any additional scanned bibs they need to be queued
+                            try:
+                                next_scannedbib = next(scannedbibs)
+                                thisrace.next_scannedbib = next_scannedbib
+                            
+                            # no more scanned bibs => no queue
+                            except StopIteration:
+                                thisrace.next_scannedbib = None
                         
                 # commit to db before unlocking
                 db.session.commit()

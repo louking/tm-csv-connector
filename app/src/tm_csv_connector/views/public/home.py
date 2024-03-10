@@ -258,6 +258,12 @@ class ResultsView(TmConnectorView):
         return super().createrow(formdata)
         
     def deleterow(self, thisid):
+        # don't allow delete if this result has a scanned bib assigned
+        thisresult = Result.query.filter_by(id=thisid).one()
+        if thisresult.scannedbib:
+            self._error='cannot delete result which has scanned bib assigned - use Ins first'
+            raise ParameterError('cannot delete result which has scanned bib assigned - use Ins first')
+            
         # if edit for previously confirmed entry is done, this will cause the file to be rewritten
         self.check_confirmed(thisid)
         return super().deleterow(thisid)
@@ -347,6 +353,14 @@ class ResultsView(TmConnectorView):
         for row in rows:
             row.place = place
             place += 1
+
+        # set had_scannedbib depending on whether the next result had a scanned bib
+        if self.action == 'create':
+            thisresult = Result.query.filter_by(id=self.created_id).one()
+            next_result = Result.query.filter(Result.place>thisresult.place).order_by(Result.place).first()
+            thisresult.had_scannedbib = next_result and next_result.had_scannedbib
+        
+        # commit again
         db.session.commit()
         # note table is refreshed after the create (afterdatatables.js editor.on('postCreate'))
         # so place display is correct
