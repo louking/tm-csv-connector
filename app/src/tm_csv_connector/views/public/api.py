@@ -16,20 +16,14 @@ from loutilities.timeu import timesecs
 # homegrown
 from . import bp
 from ...model import db, Result, Setting, ScannedBib, Race
-from ...fileformat import filelock, refreshfile
+from ...fileformat import filelock, refreshfile, lock, unlock
 
 class PostResultApi(MethodView):
     def post(self):
         try:
             ## LOCK file access
-            filelock.acquire()
+            lock(filelock)
             
-            # # test lock
-            # from time import sleep
-            # current_app.logger.debug(f'sleeping')
-            # sleep(10)
-            # current_app.logger.debug(f'awake')
-
             # receive message
             msg = request.json
             current_app.logger.debug(f'received data {msg}')
@@ -83,12 +77,12 @@ class PostResultApi(MethodView):
                 current_app.logger.error(f'unknown opcode received: {opcode}')
 
             ## UNLOCK file access and return
-            filelock.release()
+            unlock(filelock)
             return jsonify(status='success')
 
         except Exception as e:
             ## UNLOCK file access
-            filelock.release()
+            unlock(filelock)
             
             # report exception
             exc = ''.join(format_exception_only(type(e), e))
@@ -107,14 +101,8 @@ class PostBibApi(MethodView):
     def post(self):
         try:
             ## LOCK file access
-            filelock.acquire()
+            lock(filelock)
             
-            # # test lock
-            # from time import sleep
-            # current_app.logger.debug(f'sleeping')
-            # sleep(10)
-            # current_app.logger.debug(f'awake')
-
             # receive message
             msg = request.json
             current_app.logger.debug(f'received data {msg}')
@@ -161,12 +149,12 @@ class PostBibApi(MethodView):
                 current_app.logger.error(f'unknown opcode received: {opcode}')
 
             ## UNLOCK file access and return
-            filelock.release()
+            unlock(filelock)
             return jsonify(status='success')
 
         except Exception as e:
             ## UNLOCK file access
-            filelock.release()
+            unlock(filelock)
             
             # report exception
             exc = ''.join(format_exception_only(type(e), e))
@@ -194,7 +182,7 @@ class SetParamsApi(MethodView):
             # rewrite csv file if race changed
             if 'race_changed' in form:
                 # LOCK file access
-                filelock.acquire()
+                lock(filelock)
                 
                 results = db.session.execute(
                     sqlselect(Result)
@@ -212,7 +200,7 @@ class SetParamsApi(MethodView):
                 refreshfile(results)
                 
                 # UNLOCK file access
-                filelock.release()
+                unlock(filelock)
                 
             output_result = {'status' : 'success'}
             session.permanent = True
@@ -221,7 +209,7 @@ class SetParamsApi(MethodView):
 
         except Exception as e:
             # UNLOCK file access
-            filelock.release()
+            unlock(filelock)
 
             # report exception
             exc = ''.join(format_exception_only(type(e), e))
@@ -247,7 +235,7 @@ class ScanActionApi(MethodView):
             current_app.logger.debug(f'_scanaction: action={action} resultid={resultid} scanid={scanid}')
             
             # LOCK file access / place change / etc
-            filelock.acquire()
+            lock(filelock)
             
             # get the relevant records
             thisresult = Result.query.filter_by(id=resultid).one_or_none()
@@ -358,14 +346,14 @@ class ScanActionApi(MethodView):
                 output_result = {'status' : 'success', 'error': error}
                 
             # UNLOCK file access
-            filelock.release()
+            unlock(filelock)
             
             # return appropriate response
             return jsonify(output_result)
 
         except Exception as e:
             # UNLOCK file access
-            filelock.release()
+            unlock(filelock)
 
             # report exception
             exc = ''.join(format_exception_only(type(e), e))

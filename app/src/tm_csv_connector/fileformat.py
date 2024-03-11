@@ -5,6 +5,8 @@ from threading import Lock
 from os.path import join
 from shutil import copy
 from csv import DictWriter
+from threading import get_native_id
+from time import sleep
 
 # pypi
 from flask import current_app
@@ -14,11 +16,31 @@ from loutilities.renderrun import rendertime
 # homegrown
 from .model import Setting
 
+# test_lock is true only for testing
+test_lock = False
+
 # these names must match the message keys from tm-reader-client to the backend server
 filecolumns = ['pos', 'bibno', 'time']
 
-# provide lock for file update
+# provide lock for file update and multirow/multitable database manipulation
 filelock = Lock()
+
+# lock/unlock functions
+def lock(thelock):
+    thelock.acquire()
+
+    # test lock
+    if test_lock:
+        current_app.logger.debug(f'thread {get_native_id()} sleeping in lock({thelock})')
+        sleep(10)
+        current_app.logger.debug(f'thread {get_native_id()} awake in lock({thelock})')
+
+def unlock(thelock):
+    thelock.release()
+    
+    if test_lock:
+        current_app.logger.debug(f'thread {get_native_id()} unlocked in unlock({thelock})')
+        
 
 def fulltime(timesecs):
     """convert seconds to hh:mm:ss.dd

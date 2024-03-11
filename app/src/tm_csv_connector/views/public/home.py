@@ -21,7 +21,7 @@ from sqlalchemy import update, and_, select as sqlselect
 # homegrown
 from . import bp
 from ...model import db, Race, Result, Setting
-from ...fileformat import filecolumns, db2file, filelock, refreshfile
+from ...fileformat import filecolumns, db2file, filelock, refreshfile, lock, unlock
 
 class ParameterError(Exception): pass
 
@@ -289,7 +289,7 @@ class ResultsView(TmConnectorView):
 
         if 'confirm' in formdata and formdata['confirm'] == 'true':
             # LOCK file access
-            filelock.acquire()
+            lock(filelock)
             
             # don't rewrite file when confirming
             self.rewritefile = False
@@ -329,7 +329,7 @@ class ResultsView(TmConnectorView):
                         csvf.writerow(filedata)
             
             # UNLOCK file access
-            filelock.release()
+            unlock(filelock)
             
             thisrow = self.dte.get_response_data(self.result)
             return thisrow
@@ -339,7 +339,7 @@ class ResultsView(TmConnectorView):
     
     def editor_method_postcommit(self, form):
         # LOCK file access
-        filelock.acquire()
+        lock(filelock)
         
         # # test lock
         # from time import sleep
@@ -379,7 +379,7 @@ class ResultsView(TmConnectorView):
         #     self.getrowssince()
 
         # UNLOCK file access
-        filelock.release()
+        unlock(filelock)
 
         
 results_view = ResultsView(
