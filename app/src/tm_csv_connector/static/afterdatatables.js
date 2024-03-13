@@ -44,6 +44,12 @@ function afterdatatables() {
             draw_interval = start_updates();
         })
 
+        // when remove is completed there's no selection, so need to start updates again
+        editor.on('remove.dt', function(e, json, indexes) {
+            $('#updates-suspended').hide();
+            draw_interval = start_updates();
+        })
+
         _dt_table.on('click', 'tbody td.bibno_field, tbody td.time_field', function (){
             editor.inline( this, {
                 onBlur: 'submit',
