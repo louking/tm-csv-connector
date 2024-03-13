@@ -115,10 +115,10 @@ $( function() {
             scanner_connected = rsp.connected;
             if (rsp.connected) {
                 scd.text('Disconnect');
-                $('.scanned_bibno_field, .bibalert_field').show();
+                $('.dataTable .scanned_bibno_field, .dataTable .bibalert_field').show();
             } else {
                 scd.text('Connect');
-                $('.scanned_bibno_field, .bibalert_field').hide();
+                $('.dataTable .scanned_bibno_field, .dataTable .bibalert_field').hide();
             }    
         }
     });

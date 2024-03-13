@@ -427,7 +427,6 @@ results_view = ResultsView(
             'name': 'scanned_bibno', 
             'label': 'Scanned Bib No', 
             'type': 'readonly', 
-            'fieldInfo': 'received from scanner',
             'orderable': False,
             'className': 'scanned_bibno_field',
             'ed': {'type': 'hidden'},
