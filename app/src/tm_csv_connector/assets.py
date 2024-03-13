@@ -13,7 +13,7 @@ jq_validate_ver = '1.19.3'
 # dataTables
 dt_buttons_ver = '2.3.6' # also used for colvis and html5
 dt_datatables_ver = '1.13.4'
-dt_editor_ver = '2.1.2'
+dt_editor_ver = '2.3.1'
 dt_datetime_ver = '1.4.1'
 dt_fixedcolumns_ver = '4.2.2'
 dt_responsive_ver = '2.4.1'
