@@ -348,7 +348,7 @@ class ResultsView(TmConnectorView):
         # current_app.logger.debug(f'awake')
 
         # set place
-        rows = Result.query.filter_by(**self.queryparams).filter(*self.queryfilters).order_by(Result.time, Result.tmpos, Result.tmpos).all()
+        rows = Result.query.filter_by(**self.queryparams).filter(*self.queryfilters).order_by(Result.time, Result.tmpos).all()
         place = 1
         for row in rows:
             row.place = place
