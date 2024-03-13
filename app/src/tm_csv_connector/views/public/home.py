@@ -421,7 +421,7 @@ results_view = ResultsView(
             'ed': {'type': 'hidden'},
         },
         {'data': 'placepos', 'name': 'placepos', 'label': 'Place', 'type': 'readonly', 'className': 'placepos_field', 'fieldInfo': 'calculated by the system'},
-        {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos', 'fieldInfo': 'received from time machine'},
+        {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos', 'orderable': False, 'fieldInfo': 'received from time machine'},
         {
             'data': 'scanned_bibno', 
             'name': 'scanned_bibno', 
@@ -441,7 +441,7 @@ results_view = ResultsView(
             'ed': {'type': 'hidden'},
         },
         {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No', 'orderable': False, 'className': 'bibno_field'},
-        {'data': 'time', 'name': 'time', 'label': 'Time', 'className': 'time_field'},
+        {'data': 'time', 'name': 'time', 'label': 'Time', 'orderable': False, 'className': 'time_field'},
         
         # for testing only
         # {'data': 'update_time', 'name': 'update_time', 'label': 'Update Time', 'type': 'readonly'},
