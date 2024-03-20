@@ -221,8 +221,8 @@ RaceDay Scoring data collection.
 
 .. _tmtility operation:
 
-**tmtility** Operation
---------------------------
+**tmtility** Operation (scanner not connected)
+-----------------------------------------------
 
 **tmtility** displays a grid with TM Pos, Bib No, Time, similar to the Time
 Machine printer tape. In addition, the currently computed Place is displayed.
@@ -230,12 +230,10 @@ Machine printer tape. In addition, the currently computed Place is displayed.
 Time Machine itself. Normally the Time should not be edited, but the Bib No can
 be edited for the following cases
 
-* no bib number was selected
-* wrong bib number was selected
-
-In the case the Time Machine operator depressed ENTER too many times, an extra
-row will appear in the grid. In the case the TM operator missed a runner, a row
-will be missing in the grid.
+* the bib number was not selected by the time machine operator (no bib number recorded)
+* the bib number selected by the time machine operator was mistyped (wrong bib number recorded)
+* the time machine operator recorded an extra result
+* the time machine operator missed recording a result
 
 All of these cases can be corrected in **tmtility**.
 
@@ -250,15 +248,15 @@ confirmed to send them to the csv file.
 
 To fix an incorrect/missing bib number (or time)
 
-* click on the incorrect bib number (or time)
+* click on the incorrect bib number (or time) to edit
 * to accept the edit, press ENTER on the keyboard or click away from the field
 * make sure the row is deselected to allow results display to resume (e.g.,
   click on the row to deselect if highlighted)
 
 To fix an extra finish result
 
-* click on the row with the extra result (row will be highlighted)
-* click **Delete** and accept the popup challenge
+* click on the row with the extra result (row will be highlighted in grey)
+* click **Delete** at the top of the table and accept the popup challenge
 
 To add a missing result
 
@@ -268,10 +266,148 @@ To add a missing result
 
 To confirm a set of results
 
-* select the last result which is to be confirmed by clicking on the row (away
-  from the bib number or time fields to avoid inline edit of these)
-* click **Confirm**
-* the confirmed rows will be displayed in green shortly thereafter
+* click on the row for latest result which is to be confirmed by clicking on the
+  row (away from the bib number or time fields to avoid inline edit of these)
+* click **Confirm** at the top of the table
+* the confirmed rows will be displayed in green shortly thereafter, with the
+  :fas:`file-circle-check` icon in the associated column -- these results are
+  added to the file which RDS reads
+
+**tmtility** Operation (scanner connected)
+-----------------------------------------------
+
+**tmtility** displays a grid with TM Pos, Bib No, Time, similar to the Time
+Machine printer tape. In addition, the currently computed Place is displayed. 
+With the scanner connected, there are Scanned Bib No and :fas:`not-equal` columns.
+
+The scanner acts like a pull tag spindle. The scanner operator scans the bib
+number barcode on the front of each bib in order. This allows the **tmtility**
+operator to correct the Bib No in the results.
+
+Under the Scanned Bib No column, there are controls to facilitate editing of the
+Bib No based on the scanned bib numbers which have been seen.
+
+When using a scanner, the following cases are considered
+
+* the bib number was not selected by the time machine operator (no bib number recorded)
+* the bib number selected by the time machine operator was mistyped (wrong bib number recorded)
+* the time machine operator recorded an extra result
+* the time machine operator missed recording a result
+* the barcode scanner operator missed scanning a bib
+* the barcode scanner operator scanned the same bib multiple times
+
+All of these cases can be corrected in **tmtility**.
+
+.. note::
+
+    **tmtility** allows the Bib No and Time to be edited. However when using the
+    Scanned Bib No controls, this should not be necessary.
+
+To confirm a set of results
+
+* click on the row for latest result which is to be confirmed by clicking on the
+  row (away from the bib number or time fields to avoid inline edit of these)
+* click **Confirm** at the top of the table
+* the confirmed rows will be displayed in green shortly thereafter, with the
+  :fas:`file-circle-check` icon in the associated column -- these results are
+  added to the file which RDS reads
+
+**tmtility** alerts the operator that there is something which needs to be corrected in two ways: 
+
+* the row is highlighted in yellow
+* the :fas:`not-equal` column for the row shows :fas:`not-equal`, which means
+  the Scanned Bib No doesn't equal the Bib No
+
+No bib number recorded (unselected result)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Example
+
+.. figure:: images/results-no-select.*
+    :align: center
+|
+
+Correction
+
+* on the yellow (:fas:`not-equal`) row, click **Use** button to use the scanned bib number
+
+Wrong bib number recorded
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Example
+
+.. figure:: images/results-bad-select.*
+    :align: center
+|
+
+Correction
+
+* on the yellow (:fas:`not-equal`) row, click **Use** button to use the scanned bib number
+
+Extra result recorded
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Example
+
+.. warning::
+
+    This looks very similar to, and can be ambiguous with :ref:`Missed scanning a bib`
+
+.. figure:: images/results-extra-result.*
+    :align: center
+|
+
+Correction
+
+* on the row with the extra result, click **Ins** button to insert an empty scanned bib
+* click on the extra result row, then click **Delete** at the top of the table
+  and accept the popup challenge
+
+Result missed
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Example
+
+.. figure:: images/results-missed-result.*
+    :align: center
+|
+
+Correction
+
+* click **New** edit control at top of table
+* enter bib number (match missing scanned bib), and time between the surrounding times
+* on new row, click **Del** to make scanned bibs line up
+
+Missed scanning a bib
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Example
+
+.. warning::
+
+    This looks very similar to, and if this coincides with an unselected result
+    can be ambiguous with, :ref:`Extra result recorded`
+
+.. figure:: images/results-missed-scan.*
+    :align: center
+|
+
+Correction
+
+* on the row with the missed scan, click **Ins** button to insert an empty scanned bib
+
+Bib scanned multiple times
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Example
+
+.. figure:: images/results-double-scan.*
+    :align: center
+|
+
+Correction
+
+* on the yellow (:fas:`not-equal`) row with the duplicate scanned bib, click **Del** button to delete the extra scanned bib
 
 RaceDay Scoring Operation
 -----------------------------

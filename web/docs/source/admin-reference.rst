@@ -86,6 +86,11 @@ the **Confirm** button.
 
     Results view
 
+.. figure:: images/results-view-scanner.*
+    :align: center
+
+    Results view with Barcode Scanner Connected
+
 .. figure:: images/results-edit-inline.*
     :align: center
 
@@ -100,6 +105,8 @@ the **Confirm** button.
     :align: center
 
     Full result edit (select row, click Edit)
+
+If a bib barcode scanner is connected, the Scanned Bib No and ≠ columns are shown.
 
 
 .. _Settings view:

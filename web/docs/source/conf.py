@@ -25,6 +25,8 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
     'sphinx.ext.graphviz',
+    'sphinx.ext.autosectionlabel',
+    'sphinx_design',
 ]
 
 templates_path = ['_templates']
@@ -54,4 +56,7 @@ html_static_path = ['_static']
 
 html_css_files = [
     'theme_overrides.css',  # override wide tables in RTD theme
+    'fontawesome-6.5.1/css/fontawesome.css',
+    'fontawesome-6.5.1/css/solid.css',
+    'fontawesome-6.5.1/css/regular.css',
 ]
