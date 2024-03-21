@@ -6,6 +6,7 @@ home - public views
 from datetime import timedelta
 from os.path import join
 from csv import DictWriter
+from copy import copy
 
 # pypi
 from flask import render_template, session, current_app
@@ -357,7 +358,9 @@ class ResultsView(TmConnectorView):
         # set had_scannedbib depending on whether the next result had a scanned bib
         if self.action == 'create':
             thisresult = Result.query.filter_by(id=self.created_id).one()
-            next_result = Result.query.filter(Result.place>thisresult.place).order_by(Result.place).first()
+            filters = copy(self.queryfilters)
+            filters.append(Result.place>thisresult.place)
+            next_result = Result.query.filter_by(**self.queryparams).filter(*filters).order_by(Result.place).first()
             thisresult.had_scannedbib = next_result and next_result.had_scannedbib
         
         # commit again
