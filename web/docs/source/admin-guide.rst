@@ -134,8 +134,43 @@ Set up RaceDay Scoring
   * Field Delimiter: ,
   * Assign as a Backup Stream for these Timing Locations: Finish
 
+
+Bib Barcode Scanner
+=========================
+
+A bib barcode scanner can be used to automatically serialize bibs which cross
+the finish line, similar to the use of pull tags and a spindle. **tmtility** was
+tested with Tera Model D5100 Wireless 2D Barcode Scanner
+(https://www.amazon.com/dp/B07M68LS2N). The requirement is that the scanner
+connect via a USB port, and send the bib numbers followed by one or more CR (\r)
+characters.
+
+The scanner needs to be set to use USB-COM mode after a factory reset. This
+needs to be done once, but the barcode commands are here just in case of a
+problem.
+
+.. figure:: images/scanner-factory-default.*
+    :align: center
+
+|
+
+.. figure:: images/scanner-usb-com.*
+    :align: center
+|
+
+If there is any issue pairing with the scanner, this barcode can be used to put
+the scanner into pairing mode. Again this shouldn't be needed as the scanner
+should already be paired with the dongle attached to it.
+
+.. figure:: images/scanner-pairing.*
+    :align: center
+|
+
+
 Jackery Working Time
 ======================
-* 241Wh * 0.85 / operating power of device
+* Jackery Portable Power Station 240 uses 241Wh * 0.85 / operating power of
+  device
 
-  * for laptop, approx operating power is 30W, giving 6.8 hours of runtime, plus laptop battery reserve
+  * for Dell Inspiron 15 3520 laptop, max operating power is 45W, so Jackery
+    gives 4.5 hours of full-throttle runtime, plus laptop battery reserve
