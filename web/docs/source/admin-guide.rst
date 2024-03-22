@@ -142,7 +142,7 @@ A bib barcode scanner can be used to automatically serialize bibs which cross
 the finish line, similar to the use of pull tags and a spindle. **tmtility** was
 tested with Tera Model D5100 Wireless 2D Barcode Scanner
 (https://www.amazon.com/dp/B07M68LS2N). The requirement is that the scanner
-connect via a USB port, and send the bib numbers followed by one or more CR (\r)
+connect via a USB port, and send the bib numbers followed by one or more CR (\\r)
 characters.
 
 The scanner needs to be set to use USB-COM mode after a factory reset. This
