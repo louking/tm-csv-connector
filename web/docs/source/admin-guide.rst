@@ -36,6 +36,9 @@ Follow instructions in https://docs.docker.com/get-docker/
 App Installation
 ---------------------
 * download https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
+
+    .. note:: your browser may want to scan the file for malware/virus. let it
+    
 * extract files from the downloaded file you want the app to run from
 * navigate to this directory
 * start powershell **Run as Administrator**, and navigate to this directory
@@ -81,6 +84,9 @@ App Installation
 App Upgrade
 -------------
 * download https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
+
+    .. note:: your browser may want to scan the file for malware/virus. let it
+
 * start powershell **Run as Administrator**, and navigate to the install directory
 
     .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
@@ -156,6 +162,7 @@ problem.
 
 .. figure:: images/scanner-usb-com.*
     :align: center
+
 |
 
 If there is any issue pairing with the scanner, this barcode can be used to put
@@ -164,6 +171,7 @@ should already be paired with the dongle attached to it.
 
 .. figure:: images/scanner-pairing.*
     :align: center
+
 |
 
 
