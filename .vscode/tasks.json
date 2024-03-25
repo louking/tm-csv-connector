@@ -10,6 +10,12 @@
             "problemMatcher": []
         },
         {
+            "label": "build barcode scanner reader",
+            "type": "shell",
+            "command": ".venv/scripts/activate; pyinstaller --noconfirm --distpath install barcode-scanner-client/app.py -n barcode-scanner",
+            "problemMatcher": []
+        },
+        {
             "label": "build docs",
             "type": "shell",
             "command": "../../.venv/scripts/activate; ./make html",
@@ -49,6 +55,7 @@
             "label": "Build",
             "dependsOn": [
                 "build time machine reader",
+                "build barcode scanner reader",
                 "build, push app",
                 "release"
             ],
