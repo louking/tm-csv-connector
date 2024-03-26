@@ -10,8 +10,10 @@ const scanneruri = 'ws://tm.localhost:8082/';
 // track checkConnected interval
 var ccinterval, scanner_ccinterval;
 
-// remember if connected
+// remember if connected, websockets open
 var connected, scanner_connected;
+var tm_websocket_open = false;
+var scanner_websocket_open = false;
 
 // form parameters
 var raceid, port, scannerport, logdir;
@@ -19,6 +21,7 @@ var raceid, port, scannerport, logdir;
 // constants
 const PING_INTERVAL = 30000;
 const CHECK_CONNECTED_WAIT = 3000;
+const CHECK_INITIALIZED_WAIT = 1000;
 const GET_COMPORTS_WAIT = 1000;
 const REOPEN_SOCKET_WAIT = 5000;
 const CHECK_TABLE_UPDATE = 1000;
@@ -51,7 +54,7 @@ $( function() {
     tm_reader = new StableWebSocket({
         name: 'reader',
         uri: readeruri,
-        open_callback: setParams,
+        open_callback: function() {tm_websocket_open = true},
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
             if (rsp.opcode == 'connection_status') {
@@ -108,7 +111,7 @@ $( function() {
     scanner = new StableWebSocket({
         name: 'scanner',
         uri: scanneruri,
-        open_callback: setParams,
+        open_callback: function() {scanner_websocket_open = true},
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
             // console.log(`scanner: received ${msg}`);
@@ -127,6 +130,9 @@ $( function() {
     ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, tm_reader);
     scanner_ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, scanner);
 
+    // when websockets first open, setParams
+    checkInitialized();
+
     // ask tm reader what are the connected comports
     get_comports();
 });
@@ -141,6 +147,15 @@ function checkConnected(asyncprocess) {
     }
     catch(e) {
         // do nothing, will try again later
+    }
+}
+
+// when both websockets first open at startup, setParams()
+function checkInitialized() {
+    if (tm_websocket_open && scanner_websocket_open) {
+        setParams();
+    } else {
+        setTimeout(checkInitialized, CHECK_INITIALIZED_WAIT)
     }
 }
 
