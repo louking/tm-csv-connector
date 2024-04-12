@@ -3,7 +3,7 @@
 # standard
 from threading import Lock
 from os.path import join
-from shutil import copy
+from shutil import copyfile
 from csv import DictWriter
 from threading import get_native_id
 from time import sleep
@@ -115,6 +115,6 @@ def refreshfile(rows):
 
         # overwrite file
         current_app.logger.debug(f'overwriting {filesetting.value}')
-        copy(tmpfname, filepath)
+        copyfile(tmpfname, filepath)
         fdir.cleanup()
             
