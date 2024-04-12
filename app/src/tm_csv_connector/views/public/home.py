@@ -71,7 +71,7 @@ def scanned_bibno(dbrow):
     render = None
     if dbrow.had_scannedbib:
         scannedbib = span(_class="scannedbib", __pretty=False)
-        use_state = 'ui-state-disabled' if bibno == dbrow.bibno or not bibno or dbrow.is_confirmed else ''
+        use_state = 'ui-state-disabled' if bibno == dbrow.bibno or bibno == '0000' or not bibno or dbrow.is_confirmed else ''
         ins_state = 'ui-state-disabled' if dbrow.is_confirmed else ''
         del_state = 'ui-state-disabled' if dbrow.is_confirmed else ''
         with scannedbib:
@@ -97,8 +97,10 @@ results_formmapping = dict(zip(results_formfields, results_dbattrs))
 results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
 results_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
 results_formmapping['scanned_bibno'] = scanned_bibno
-results_formmapping['is_confirmed'] = lambda dbrow: '<i class="fa-solid fa-file-circle-check"></i>' if dbrow.is_confirmed else ''
-results_formmapping['bibalert'] = lambda dbrow: '<i class="fa-solid fa-not-equal checkscanned"></i>' if dbrow.scannedbib and dbrow.scannedbib.bibno != dbrow.bibno else ''
+results_formmapping['is_confirmed'] = lambda dbrow: '<i class="fa-solid fa-file-circle-check"></i>' \
+    if dbrow.is_confirmed else ''
+results_formmapping['bibalert'] = lambda dbrow: '<i class="fa-solid fa-not-equal checkscanned"></i>' \
+    if dbrow.scannedbib and dbrow.scannedbib.bibno != dbrow.bibno and dbrow.scannedbib.bibno != '0000' else ''
 
 def get_results_filters():
     prehtml = div()
