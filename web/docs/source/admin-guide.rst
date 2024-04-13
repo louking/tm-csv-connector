@@ -33,14 +33,71 @@ Follow instructions in https://docs.docker.com/get-docker/
     the application is a Linux container, so ignore all the stuff about windows containers on the webpage
 
 
+Time Machine Connection
+-----------------------------
+
+Before using the app, the Time Machine needs to be connected to the laptop's
+bluetooth. These instructions are for Windows 11.
+
+Make sure the Time Machine has the Wireless Interface connected, and is
+powered on. The Wireless Interface LED should be blinking red.
+
+In the taskbar's search bar, search for bluetooth. Click on **Bluetooth and other
+devices settings**. Set **Bluetooth devices discovery** to Advanced, then click
+**Add Device**. 
+
+.. figure:: images/win11-bluetooth-settings.*
+    :align: center
+
+|
+
+Then click **Bluetooth**
+
+.. figure:: images/win11-add-device.*
+    :align: center
+
+|
+
+Select **TM Wireless IF**
+
+.. figure:: images/win11-add-device-select-tm.*
+    :align: center
+
+|
+
+Click **Connect**
+
+Select **TM Wireless IF**
+
+.. figure:: images/win11-add-device-connect.*
+    :align: center
+
+|
+
+To verify the bluetooth connection worked properly, in **Bluetooth and other
+devices settings**, under **Related settings** click **More Bluetooth settings**.
+
+.. figure:: images/win11-add-device-more-settings.*
+    :align: center
+
+|
+
+Under the COM Ports tab, you should see the Outgoing and Incoming ports for the
+Time Machine. In the **tmtility** Results view, **Connect** to the Outgoing
+port.
+
+.. figure:: images/win11-bluetooth-settings-more.*
+    :align: center
+
+|
+
 App Installation
 ---------------------
 * download https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
 
     .. note:: your browser may want to scan the file for malware/virus. let it
     
-* extract files from the downloaded file you want the app to run from
-* navigate to this directory
+* extract files from the downloaded file into the directory you want the app to run from
 * start powershell **Run as Administrator**, and navigate to this directory
 
     .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
@@ -50,6 +107,7 @@ App Installation
   .. code-block:: shell
 
     edit `c:\Windows\System32\Drivers\etc\hosts`, add 127.0.0.1 tm.localhost
+    # you'll need to restart the laptop for this to be available to browser
     Set-ExecutionPolicy Bypass [<ExecutionPolicyScope>] # type y to accept
     # for details see https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy 
     docker login # then enter your credentials
@@ -72,13 +130,13 @@ App Installation
   * enter directory names for the output csv file, and for the logging files (full path)
   * enter passwords for root and app database users -- accepting the defaults are fine
 
-  .. note:: you can see the values of these later by navigating to config/db in the installation directory
+  .. note:: you can see the values of these later by navigating to ``config/db`` in the installation directory
 
 * the first time it's run, it takes a bit of time for the app to create the database, etc
 * with your browser, navigate to http://tm.localhost:8080/ 
 * navigate to Settings view (this only has to be done once)
 
-  * add New setting, Setting=output-file, Value=tm-data.dsv # or whatever filename you want the output put in
+  * add New setting, Setting=output-file, Value=tm-data.csv # or whatever filename you want the output put in
 
 
 App Upgrade
