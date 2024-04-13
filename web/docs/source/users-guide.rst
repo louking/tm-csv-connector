@@ -325,6 +325,7 @@ Example
 
 .. figure:: images/results-no-select.*
     :align: center
+
 |
 
 Correction
@@ -338,6 +339,7 @@ Example
 
 .. figure:: images/results-bad-select.*
     :align: center
+
 |
 
 Correction
@@ -355,6 +357,7 @@ Example
 
 .. figure:: images/results-extra-result.*
     :align: center
+
 |
 
 Correction
@@ -370,6 +373,7 @@ Example
 
 .. figure:: images/results-missed-result.*
     :align: center
+
 |
 
 Correction
@@ -390,6 +394,7 @@ Example
 
 .. figure:: images/results-missed-scan.*
     :align: center
+
 |
 
 Correction
@@ -403,11 +408,35 @@ Example
 
 .. figure:: images/results-double-scan.*
     :align: center
+
 |
 
 Correction
 
 * on the yellow (:fas:`not-equal`) row with the duplicate scanned bib, click **Del** button to delete the extra scanned bib
+
+Bib Barcode Scanner Operation
+--------------------------------
+
+In general, each bib should be scanned **in order** as the participant arrives
+in the finish chute. Having said that, a couple of situations can occur.
+
+scanner lights go out
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Simply depress the scanner's trigger to wake up the scanner.
+
+.. note:: the scanner plays an audio alert as it's going to sleep
+
+bandit crosses finish line
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+If a result is recorded at the time machine when there's no associated bib, the
+0000 barcode can be scanned. This is equivalent to putting a blank tag on a
+spindle.
+
+.. figure:: images/0000.*
+    :align: center
+
+|
 
 RaceDay Scoring Operation
 -----------------------------
