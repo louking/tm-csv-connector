@@ -11,7 +11,7 @@ from flask_sqlalchemy import SQLAlchemy
 # home grown
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import mapped_column
-from sqlalchemy import text
+from sqlalchemy import text, func
 from sqlalchemy.schema import FetchedValue
 
 # set up database - SQLAlchemy() must be done after app.config SQLALCHEMY_* assignments
@@ -23,6 +23,7 @@ Integer = db.Integer
 Float = db.Float
 Double = db.Double
 Boolean = db.Boolean
+Decimal = db.DECIMAL
 String = db.String
 Text = db.Text
 Date = db.Date
@@ -82,6 +83,53 @@ class Result(Base):
                          server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
                          server_onupdate=FetchedValue()
                          )
+
+class ChipRead(Base):
+    __tablename__ = 'chipread'
+    id          = Column(Integer(), primary_key=True)
+    reader_id   = Column(String(1))
+    receiver_id = Column(String(1))
+    tag_id      = Column(String(12))
+    bib         = Column(Integer)
+    contig_ctr  = Column(Integer)
+    date        = Column(Date)
+    time        = Column(Decimal(7,2)) # max 86400.00 = 24*60*60 seconds
+    rssi        = Column(Integer)
+    types       = Column(Text)
+    
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
+    # lookups by date/tag and date/tag/time need to be fast
+    __tableargs__ = (
+        Index('rdr_date_tag_idx', reader_id, date, tag_id),
+        Index('rdr_date_bib_idx', reader_id, date, bib),
+        Index('rdr_date_tag_time_idx', reader_id, date, tag_id, time),
+    )
+
+    @hybrid_property
+    def display_date(self):
+        return func.date_format(self.date, '%Y-%m-%d')
+    
+class ChipBib(Base):
+    __tablename__ = 'chipbib'
+    id          = Column(Integer(), primary_key=True)
+    tag_id      = Column(String(12))
+    bib         = Column(Integer)
+    
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
+    # lookups by tag need to be fast
+    __tableargs__ = (
+        Index('tag_idx', tag_id),
+    )
 
 class Setting(Base):
     __tablename__ = 'setting'

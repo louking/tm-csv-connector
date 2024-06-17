@@ -3,6 +3,17 @@ function afterdatatables() {
 
     let pathname = location.pathname;
 
+    // show spinner when ajax is sent (hidden in .on('draw.dt'))
+    _dt_table.on('preXhr.dt', function(e, settings, json) {
+        $('#spinner').show();
+    });
+
+    // when the page has been drawn, need to do some housekeeping
+    _dt_table.on( 'draw.dt', function () {
+        // hide spinner if shown
+        $('#spinner').hide();
+    });
+    
     if (pathname == '/results') {
         // indicate last draw time for editor submissions, then update
         last_draw = moment().format();
@@ -57,5 +68,23 @@ function afterdatatables() {
             });
         });
 
+    } else if (pathname == '/chipreads') {
+        // initialize import button handling
+        chipreads_import_saeditor.init();
+
+        chipreads_import_saeditor.saeditor.on('submitComplete', function(e, json, data, action) {
+            // draw will retrieve data from server because it's server side
+            _dt_table.draw();
+        });
+
+    } else if (pathname == '/chip2bib') {
+        // initialize import button handling
+        chip2bib_import_saeditor.init();
+
+        chip2bib_import_saeditor.saeditor.on('submitComplete', function(e, json, data, action) {
+            // draw will retrieve data from server because it's server side
+            _dt_table.draw();
+        });
     }
+
 }

@@ -23,3 +23,21 @@ function results_confirm( e, dt, node, config ) {
         .submit();
     dt.rows({selected: true}).deselect();
 }
+
+// https://stackoverflow.com/a/62737413/799921
+function numberRoundDecimal(num, decimals) {
+    return Math.round(num*Math.pow(10,decimals))/Math.pow(10,decimals)
+}
+
+function render_secs2time(data, type, row, meta) {
+    if (data) {
+        let time = new Date(null);
+        let itime = parseInt(data);
+        let ftime = parseFloat(data);
+        time.setSeconds(itime);
+        time.setMilliseconds(1000*numberRoundDecimal(ftime-itime,2));
+        return time.toISOString().slice(11,22);
+    } else {
+        return data
+    }
+}

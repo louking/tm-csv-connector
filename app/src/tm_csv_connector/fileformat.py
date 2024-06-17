@@ -1,4 +1,4 @@
-"""file management, including transformation from database formatting
+"""results csv output file management, including transformation from database formatting
 """
 # standard
 from threading import Lock

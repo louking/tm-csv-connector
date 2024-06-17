@@ -72,7 +72,7 @@ asset_bundles = {
 
         Bundle('afterdatatables.js', filters='jsmin'),
 
-        # Bundle('js/yadcf-{ver}/jquery.dataTables.yadcf.js'.format(ver=yadcf_ver), filters='jsmin'),
+        Bundle('js/yadcf-{ver}/jquery.dataTables.yadcf.js'.format(ver=yadcf_ver), filters='jsmin'),
 
         # # select2 is required for use by Editor forms
         Bundle(f'js/select2-{s2_ver}/js/select2.full.js', filters='jsmin'),
@@ -140,7 +140,7 @@ asset_bundles = {
         Bundle(f'js/DateTime-{dt_datetime_ver}/css/dataTables.dateTime.css', filters=['cssrewrite', 'cssmin']),
         
         Bundle(f'js/select2-{s2_ver}/css/select2.css', filters=['cssrewrite', 'cssmin']),
-        # Bundle('js/yadcf-{ver}/jquery.dataTables.yadcf.css'.format(ver=yadcf_ver), filters=['cssrewrite', 'cssmin']),
+        Bundle('js/yadcf-{ver}/jquery.dataTables.yadcf.css'.format(ver=yadcf_ver), filters=['cssrewrite', 'cssmin']),
 
         Bundle(f'js/fontawesome-{fa_ver}/css/fontawesome.css', filters=['cssrewrite', 'cssmin']),
         Bundle(f'js/fontawesome-{fa_ver}/css/solid.css', filters=['cssrewrite', 'cssmin']),

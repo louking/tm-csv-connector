@@ -6,6 +6,9 @@ api - results api
 # standard
 from traceback import format_exception_only, format_exc
 from os.path import join
+from os import remove
+from uuid import uuid4
+from csv import DictReader
 
 # pypi
 from flask import session, request, current_app, jsonify
@@ -15,8 +18,11 @@ from loutilities.timeu import timesecs
 
 # homegrown
 from . import bp
-from ...model import db, Result, Setting, ScannedBib, Race
+from ...model import db, Result, Setting, ScannedBib, Race, ChipRead, ChipBib
 from ...fileformat import filelock, refreshfile, lock, unlock
+from ...trident import tridentread2obj, tridentmarker2obj
+
+class ParameterError(Exception): pass
 
 class PostResultApi(MethodView):
     def post(self):
@@ -167,6 +173,265 @@ class PostBibApi(MethodView):
         
 postbib_api = PostBibApi.as_view('_postbib')
 bp.add_url_rule('/_postbib', view_func=postbib_api, methods=['POST',])
+
+
+class ChipReadsApi(MethodView):
+    ALLOWED_EXTENSIONS = ['log']
+    
+    def get(self):
+        # this returns initial values for the form, should be empty because the
+        # input form doesn't have any initial values
+        return jsonify({})
+    
+    def allowed_filename(self, filename):
+        return '.' in filename and \
+            filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
+    
+    def post(self):
+        try:
+            options = request.form
+            action = options['action']
+            if action == 'upload':
+                if 'upload' not in request.files:
+                    return jsonify(status='fail', error='no upload')
+                thisfile = request.files['upload']
+                fname = thisfile.filename
+                # if the user does not select a file, the browser submits an empty file without a filename
+                if fname == '':
+                    return jsonify(status='fail', error='no selected file')
+                if not self.allowed_filename(fname):
+                    return jsonify(status='fail', error=f'must have extension in {self.ALLOWED_EXTENSIONS}')
+                
+                # save file for later processing (adapted from loutilities.tablefiles.FieldUpload)
+                fid = uuid4().hex
+                ext = fname.rsplit('.', 1)[1].lower()
+                fidfname = f'{fid}.{ext}'
+                filepath = join('/tmp', fidfname)
+                thisfile.save(filepath)
+                
+                returndata = {
+                    'upload' : {'id': fidfname },
+                    'files' : {
+                        'data' : {
+                            fidfname : {'filename': thisfile.filename}
+                        },
+                    },
+                }
+                return jsonify(**returndata)
+            
+            elif action == 'edit':
+                filepath = join('/tmp', request.form['data[keyless][file]'])
+                with open(filepath, 'r') as stream:
+                    # read to end of file
+                    for line in stream:
+                        # only process chip reads (aa) or guntime (ab)
+                        if line[0:2] not in ['aa', 'ab']: continue
+                        
+                        # process read https://www.manula.com/manuals/tridentrfid/timemachine/1/en/topic/tag-data-message-format
+                        if line[0:2] == 'aa':
+                            tridentread = tridentread2obj(line.strip())
+                            reader_id = tridentread.reader_id
+                            receiver_id = tridentread.receiver_id
+                            tag_id = tridentread.tag_id
+                            counter = tridentread.counter
+                            date = tridentread.date
+                            time = tridentread.time
+                            rtype = tridentread.rtype
+                            rssi = tridentread.rssi
+                            bib = tridentread.bib
+
+                            # we might already have this record, if we're reading both filtered and raw chip files
+                            chipread = db.session.execute(
+                                sqlselect(ChipRead)
+                                    .where(and_(
+                                        ChipRead.reader_id == reader_id,
+                                        ChipRead.date == date,
+                                        ChipRead.tag_id == tag_id,
+                                        ChipRead.time == time,
+                                        )
+                                    )
+                            ).one_or_none()
+                            
+                            # read not found, add row
+                            if not chipread:
+                                chipread = ChipRead(
+                                    reader_id=reader_id,
+                                    receiver_id=receiver_id,
+                                    tag_id=tag_id,
+                                    contig_ctr=counter,
+                                    date=date,
+                                    time=time,
+                                    rssi=rssi,
+                                    bib=bib,
+                                    types=rtype,
+                                )
+                                db.session.add(chipread)
+                                db.session.flush()
+                            
+                            # read found, update types, possibly rssi, and bib
+                            else:
+                                chipread = chipread[0]
+                                types = chipread.types.split(',')
+                                if rtype not in types:
+                                    types.append(rtype)
+                                    types.sort()
+                                chipread.types = ','.join(types)
+                                
+                                if not chipread.rssi:
+                                    chipread.rssi = rssi
+                                
+                                # this really shouldn't change, but if the
+                                # chipbib table was added after the fact this
+                                # will be used
+                                chipread.bib = bib
+                                    
+                        # handle marker / start trigger
+                        elif line[0:2] == 'ab':
+                            tridentmarker = tridentmarker2obj(line.strip())
+                            reader_id = tridentmarker.reader_id
+                            date = tridentmarker.date
+                            time = tridentmarker.time
+                            rtype = tridentmarker.rtype
+
+                            # we might already have this record, if we're reading both filtered and raw chip files
+                            chipread = db.session.execute(
+                                sqlselect(ChipRead)
+                                    .where(and_(
+                                        ChipRead.reader_id == reader_id,
+                                        ChipRead.date == date,
+                                        ChipRead.time == time,
+                                        ChipRead.types == rtype,
+                                        )
+                                    )
+                            ).one_or_none()
+                            
+                            # add if not there already; ignore if already there
+                            if not chipread:
+                                chipread = ChipRead(
+                                    reader_id=reader_id,
+                                    date=date,
+                                    time=time,
+                                    types=rtype,
+                                )
+                                db.session.add(chipread)
+                                db.session.flush()
+                
+                # delete temporary file, commit changes to database and declare success
+                db.session.commit()
+                remove(filepath)
+                return jsonify(status='success')
+            
+            else:
+                raise ParameterError('invalid action')
+
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+chipreads_api = ChipReadsApi.as_view('_chipreads')
+bp.add_url_rule('/_chipreads/rest', view_func=chipreads_api, methods=['POST','GET'])
+
+
+class Chip2BibApi(MethodView):
+    ALLOWED_EXTENSIONS = ['csv']
+    
+    def get(self):
+        # this returns initial values for the form, should be empty because the
+        # input form doesn't have any initial values
+        return jsonify({})
+    
+    def allowed_filename(self, filename):
+        return '.' in filename and \
+            filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
+    
+    def post(self):
+        try:
+            options = request.form
+            action = options['action']
+            if action == 'upload':
+                if 'upload' not in request.files:
+                    return jsonify(status='fail', error='no upload')
+                thisfile = request.files['upload']
+                fname = thisfile.filename
+                # if the user does not select a file, the browser submits an empty file without a filename
+                if fname == '':
+                    return jsonify(status='fail', error='no selected file')
+                if not self.allowed_filename(fname):
+                    return jsonify(status='fail', error=f'must have extension in {self.ALLOWED_EXTENSIONS}')
+                
+                # save file for later processing (adapted from loutilities.tablefiles.FieldUpload)
+                fid = uuid4().hex
+                ext = fname.rsplit('.', 1)[1].lower()
+                fidfname = f'{fid}.{ext}'
+                filepath = join('/tmp', fidfname)
+                thisfile.save(filepath)
+                
+                returndata = {
+                    'upload' : {'id': fidfname },
+                    'files' : {
+                        'data' : {
+                            fidfname : {'filename': thisfile.filename}
+                        },
+                    },
+                }
+                return jsonify(**returndata)
+            
+            elif action == 'edit':
+                filepath = join('/tmp', request.form['data[keyless][file]'])
+                with open(filepath, 'r') as csvfile:
+                    csv = DictReader(csvfile)
+                    # read to end of file
+                    for row in csv:
+                        chip = row['chip']
+                        bib  = row['bib']
+                        chipbib = db.session.execute(
+                            sqlselect(ChipBib)
+                                .where(and_(
+                                    ChipBib.tag_id == chip,
+                                    )
+                                )
+                        ).one_or_none()
+                        
+                        if not chipbib:
+                            chipbib = ChipBib(
+                                tag_id = chip,
+                                bib    = bib,
+                            )
+                            db.session.add(chipbib)
+                            db.session.flush()
+                            
+                        # this could happen a) if file reloaded, or b) if a new
+                        # set of chips is used with overlapping chip numbers
+                        else:
+                            chipbib = chipbib[0]
+                            chipbib.bib = bib
+                    
+                # delete temporary file, commit changes to database and declare success
+                db.session.commit()
+                remove(filepath)
+                return jsonify(status='success')
+            
+            else:
+                raise ParameterError('invalid action')
+
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+chip2bib_api = Chip2BibApi.as_view('_chip2bib')
+bp.add_url_rule('/_chip2bib/rest', view_func=chip2bib_api, methods=['POST','GET'])
 
 
 class SetParamsApi(MethodView):

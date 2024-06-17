@@ -9,19 +9,20 @@ from csv import DictWriter
 from copy import copy
 
 # pypi
-from flask import render_template, session, current_app
+from flask import render_template, session, current_app, url_for
 from flask.views import MethodView
-from loutilities.tables import DbCrudApi
-from loutilities.timeu import asctime, timesecs
-from dominate.tags import div, button, span, select, option, p
+from dominate.tags import div, button, span, select, option, p, i
 from dominate.tags import table, thead, tbody, tr, th, td
 from dominate.util import text
-from loutilities.filters import filtercontainerdiv
-from sqlalchemy import update, and_, select as sqlselect
+from sqlalchemy import update, and_, select as sqlselect, func
+from loutilities.tables import DbCrudApi
+from loutilities.tables import rest_url_for
+from loutilities.timeu import asctime, timesecs
+from loutilities.filters import filtercontainerdiv, filterdiv, yadcfoption
 
 # homegrown
 from . import bp
-from ...model import db, Race, Result, Setting
+from ...model import db, Race, Result, ChipRead, ChipBib, Setting
 from ...fileformat import filecolumns, db2file, filelock, refreshfile, lock, unlock
 
 class ParameterError(Exception): pass
@@ -521,6 +522,174 @@ races_view = RacesView(
     },
 )
 races_view.register()
+
+chipreads_dbattrs = 'id,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types'.split(',')
+chipreads_formfields = 'rowid,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types'.split(',')
+chipreads_dbmapping = dict(zip(chipreads_dbattrs, chipreads_formfields))
+chipreads_formmapping = dict(zip(chipreads_formfields, chipreads_dbattrs))
+
+def chipreads_filters():
+    pretablehtml = filtercontainerdiv()
+    with pretablehtml:
+        with span(id='spinner', style='display:none;'):
+                  i(cls='fa-solid fa-spinner fa-spin')
+        filterdiv('chipreads-external-filter-display_date', 'Date')
+        filterdiv('chipreads-external-filter-tag_id', 'Tag ID')
+        filterdiv('chipreads-external-filter-bib', 'Bib Num')
+    return pretablehtml.render()
+
+chipreads_yadcf_options = [
+    yadcfoption('display_date:name', 'chipreads-external-filter-display_date', 'date'),
+    yadcfoption('tag_id:name', 'chipreads-external-filter-tag_id', 'multi_select', placeholder='Select', width='200px'),
+    yadcfoption('bib:name', 'chipreads-external-filter-bib', 'multi_select', placeholder='Select', width='200px'),
+]
+
+# need set_yadcf_data param to tables class to pull possible filters
+def chipreads_set_yadcf_data():
+    getcol = lambda colname: [col.mData for col in chipreads_view.servercolumns].index(colname)
+
+    # add filters for date, tag_id, bib
+    yadcf_data = []
+    
+    matches = [str(row[0]) for row in db.session.query(ChipRead.date).distinct().all()]
+    yadcf_data.append(('yadcf_data_{}'.format(getcol('display_date')), matches))
+    
+    matches = [row[0] for row in db.session.query(ChipRead.tag_id).distinct().all()]
+    yadcf_data.append(('yadcf_data_{}'.format(getcol('tag_id')), matches))
+    
+    matches = [row[0] for row in db.session.query(ChipRead.bib).distinct().all()]
+    yadcf_data.append(('yadcf_data_{}'.format(getcol('bib')), matches))
+
+    return yadcf_data
+
+class ChipreadsView(TmConnectorView):
+    pass
+
+chipreads_view = ChipreadsView(
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=ChipRead,
+    template='chipreads.jinja2',
+    pretablehtml=chipreads_filters(),
+    yadcfoptions=chipreads_yadcf_options,
+    set_yadcf_data=chipreads_set_yadcf_data,
+    pagename='Chip Reads',
+    endpoint='public.chipreads',
+    rule='/chipreads',
+    dbmapping=chipreads_dbmapping,
+    formmapping=chipreads_formmapping,
+    serverside=True,
+    idSrc='rowid',
+    buttons=lambda: [
+        {
+            'extend': 'create',
+            'text': 'Import',
+            'name': 'import-chip-log',
+            'editor': {'eval': 'chipreads_import_saeditor.saeditor'},
+            'url': url_for('public._chipreads'),
+            'action': {
+                'eval': 'chipreads_import("{}")'.format(rest_url_for('public._chipreads'))
+            }
+        },
+        'csv'
+    ],
+    clientcolumns = [
+        {'data': 'reader_id', 'name': 'reader_id', 'label': 'Reader ID',
+         'type': 'readonly',
+         },
+        {'data': 'receiver_id', 'name': 'receiver_id', 'label': 'Receiver ID',
+         'type': 'readonly',
+         },
+        {'data': 'tag_id', 'name': 'tag_id', 'label': 'Tag ID',
+         'type': 'readonly',
+         '_ColumnDT_args' :
+             {'sqla_expr': ChipRead.tag_id, 'search_method': 'yadcf_multi_select'},
+         },
+        {'data': 'bib', 'name': 'bib', 'label': 'Bib Num',
+         'type': 'readonly',
+         '_ColumnDT_args' :
+             {'sqla_expr': ChipRead.bib, 'search_method': 'yadcf_multi_select'},
+         },
+        {'data': 'contig_ctr', 'name': 'contig_ctr', 'label': 'Counter',
+         'type': 'readonly',
+         },
+        {'data': 'display_date', 'name': 'display_date', 'label': 'Date',
+         'type': 'readonly',
+        #  '_ColumnDT_args' :
+        #      {'sqla_expr': ChipRead.display_date, 'search_method': 'yadcf_range_date'},
+        },
+        {'data': 'time', 'name': 'time', 'label': 'Time',
+         'type': 'readonly',
+         'render': {'eval': 'render_secs2time'},
+        },
+        {'data': 'rssi', 'name': 'rssi', 'label': 'RSSI',
+         'type': 'readonly',
+        },
+        {'data': 'types', 'name': 'types', 'label': 'Types',
+         'type': 'readonly',
+        },
+    ],
+    dtoptions={
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+        'lengthMenu': [ [10, 25, 50, 100, 500], [10, 25, 50, 100, 500] ],
+        'order': [['display_date:name','desc'],['time:name','desc']],
+    },
+)
+chipreads_view.register()
+
+chip2bib_dbattrs = 'id,tag_id,bib'.split(',')
+chip2bib_formfields = 'rowid,tag_id,bib'.split(',')
+chip2bib_dbmapping = dict(zip(chip2bib_dbattrs, chip2bib_formfields))
+chip2bib_formmapping = dict(zip(chip2bib_formfields, chip2bib_dbattrs))
+
+class ChipBibView(TmConnectorView):
+    pass
+
+chip2bib_view = ChipBibView(
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=ChipBib,
+    template='chip2bib.jinja2',
+    pagename='Chip/Bib Map',
+    endpoint='public.chip2bib',
+    rule='/chip2bib',
+    dbmapping=chip2bib_dbmapping,
+    formmapping=chip2bib_formmapping,
+    serverside=True,
+    idSrc='rowid',
+    buttons=lambda: [
+        {
+            'extend': 'create',
+            'text': 'Import',
+            'name': 'import-chip-log',
+            'editor': {'eval': 'chip2bib_import_saeditor.saeditor'},
+            'url': url_for('public._chip2bib'),
+            'action': {
+                'eval': 'chip2bib_import("{}")'.format(rest_url_for('public._chip2bib'))
+            }
+        },
+        'csv'
+    ],
+    clientcolumns = [
+        {'data': 'tag_id', 'name': 'tag_id', 'label': 'Tag ID',
+         'type': 'readonly',
+         },
+        {'data': 'bib', 'name': 'bib', 'label': 'Bib Num',
+         'type': 'readonly',
+         },
+    ],
+    dtoptions={
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+        'lengthMenu': [ [10, 25, 50, 100, -1], [10, 25, 50, 100, 'All'] ],
+    },
+)
+chip2bib_view.register()
 
 settings_dbattrs = 'id,name,value'.split(',')
 settings_formfields = 'rowid,name,value'.split(',')

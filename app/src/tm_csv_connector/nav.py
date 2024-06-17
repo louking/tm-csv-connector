@@ -70,6 +70,10 @@ def nav_menu():
     navbar.items.append(View('Home', 'public.home'))
     navbar.items.append(View('Races', 'public.races'))
     navbar.items.append(View('Results', 'public.results'))
+    chips = Subgroup('Chips')
+    navbar.items.append(chips)
+    chips.items.append(View('Chip Reads', 'public.chipreads'))
+    chips.items.append(View('Chip/Bib Map', 'public.chip2bib'))
     navbar.items.append(View('Settings', 'public.settings'))
     navbar.items.append(Link('Admin Guide', '/docs/index.html#'))
 
