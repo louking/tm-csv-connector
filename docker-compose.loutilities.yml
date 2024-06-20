@@ -1,5 +1,3 @@
-version: '3.8'
-
 # use editable loutilities
 services:
   app:

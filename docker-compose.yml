@@ -1,5 +1,3 @@
-version: "3.8"
-
 # see .env for image version env variables
 # see repo/settings/environments for image version env variables for github actions
 services:
