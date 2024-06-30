@@ -534,8 +534,8 @@ def chipreads_filters():
         with span(id='spinner', style='display:none;'):
                   i(cls='fa-solid fa-spinner fa-spin')
         filterdiv('chipreads-external-filter-display_date', 'Date')
-        filterdiv('chipreads-external-filter-tag_id', 'Tag ID')
-        filterdiv('chipreads-external-filter-bib', 'Bib Num')
+        filterdiv('chipreads-external-filter-tag_id', 'Chips')
+        filterdiv('chipreads-external-filter-bib', 'Bibs')
     return pretablehtml.render()
 
 chipreads_yadcf_options = [
@@ -600,12 +600,12 @@ chipreads_view = ChipreadsView(
         {'data': 'receiver_id', 'name': 'receiver_id', 'label': 'Receiver ID',
          'type': 'readonly',
          },
-        {'data': 'tag_id', 'name': 'tag_id', 'label': 'Tag ID',
+        {'data': 'tag_id', 'name': 'tag_id', 'label': 'Chip',
          'type': 'readonly',
          '_ColumnDT_args' :
              {'sqla_expr': ChipRead.tag_id, 'search_method': 'yadcf_multi_select'},
          },
-        {'data': 'bib', 'name': 'bib', 'label': 'Bib Num',
+        {'data': 'bib', 'name': 'bib', 'label': 'Bib',
          'type': 'readonly',
          '_ColumnDT_args' :
              {'sqla_expr': ChipRead.bib, 'search_method': 'yadcf_multi_select'},
@@ -634,7 +634,7 @@ chipreads_view = ChipreadsView(
         'scrollX': True,
         'scrollXInner': "100%",
         'scrollY': True,
-        'lengthMenu': [ [10, 25, 50, 100, 500], [10, 25, 50, 100, 500] ],
+        'lengthMenu': [ [10, 25, 50, 100, 500, -1], [10, 25, 50, 100, 500, 'All'] ],
         'order': [['display_date:name','desc'],['time:name','desc']],
     },
 )
@@ -674,10 +674,10 @@ chip2bib_view = ChipBibView(
         'csv'
     ],
     clientcolumns = [
-        {'data': 'tag_id', 'name': 'tag_id', 'label': 'Tag ID',
+        {'data': 'tag_id', 'name': 'tag_id', 'label': 'chip',
          'type': 'readonly',
          },
-        {'data': 'bib', 'name': 'bib', 'label': 'Bib Num',
+        {'data': 'bib', 'name': 'bib', 'label': 'bib',
          'type': 'readonly',
          },
     ],

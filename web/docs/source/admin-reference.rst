@@ -11,7 +11,94 @@ and the release version at the top of the view. **Admin Guide** can be clicked t
     View heading
 
 
-.. _Races view:
+Chip/Bib Map view
+======================
+
+**Navigation:** Chips > Chip/Bib Map
+
+The :ref:`Chip Reads view` displays bib numbers based on this table. The csv file to import must contain columns chip and bib.
+
+    :chip:
+        tag id for chip
+    
+    :bib:
+        bib number associated with tag id
+
+The view has the following controls:
+
+    :Import:
+        import a file with chip to bib mapping
+
+        .. note:: RaceDay Scoring will only accept two chips per bib
+
+    :CSV:
+        create a CSV file from the records which are **shown only**
+
+.. figure:: images/chip-bib-map-view.*
+    :align: center
+
+    Chip/Bib Map view
+
+
+Chip Reads view
+=====================
+
+**Navigation:** Chips > Chip Reads
+
+Decode chip reads from Trident log file.
+
+    :Reader ID:
+        identifies reader
+    
+    :Receiver ID:
+        corresponds to the receiver/mat that detected the tag. 1=RX1, 2=RX2 etc.
+
+    :Chip:
+        the unique serial number programmed into each tag
+
+    :Bib:
+        the bib number associated with the Chip, based on :ref:`Chip/Bib Map view`
+    
+    :Counter:
+        the number of times this tag was read at this Receiver since the last tag timeout
+    
+    :Date:
+        the date the tag was seen
+    
+    :Time:
+        the time the tag was seen
+    
+    :RSSI:
+        the signal level received from the tag
+    
+    :Types:
+        FS=FirstSeen, LS=LastSeen, BS=BestSeen, RR=RawRecord
+
+The view has the following controls:
+
+    :Import:
+        import a log file from Trident equipment with records of `Tag Data
+        Message Format
+        <https://www.manula.com/manuals/tridentrfid/timemachine/1/en/topic/tag-data-message-format>`_
+    
+    :CSV:
+        create a CSV file from the records which are **shown only**
+
+The view has the following filters:
+
+    :Date:
+        date of interest
+
+    :Chips:
+        one or more chip tag ids of interest
+
+    :Bibs:
+        one or more bib numbers of interest
+
+.. figure:: images/chip-reads-view.*
+    :align: center
+
+    Chip Reads view
 
 Races view
 ======================
@@ -33,8 +120,6 @@ Results are collected by race. The Races view is used to configure the races in 
 
     Create new race (click New)
 
-
-.. _Results view:
 
 Results view
 ======================
@@ -108,8 +193,6 @@ the **Confirm** button.
 
 If a bib barcode scanner is connected, the Scanned Bib No and ≠ columns are shown.
 
-
-.. _Settings view:
 
 Settings view
 ======================

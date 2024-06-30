@@ -5,6 +5,7 @@ var chip2bib_import_saeditor = new SaEditor({
                  display: function(data) {
                     return chip2bib_import_saeditor.saeditor.file('data', data).filename
                  },
+                 fieldInfo: 'csv file must have two columns with headings of chip, bib',
                  className: 'field_req full block'},
             ],
     buttons: [

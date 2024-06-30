@@ -5,6 +5,7 @@ var chipreads_import_saeditor = new SaEditor({
                  display: function(data) {
                     return chipreads_import_saeditor.saeditor.file('data', data).filename
                  },
+                 fieldInfo: 'log file must be raw or filtered <a href=https://www.manula.com/manuals/tridentrfid/timemachine/1/en/topic/tag-data-message-format target=_blank>Trident read file</a>',
                  className: 'field_req full block'},
             ],
     buttons: [
