@@ -70,7 +70,6 @@ services:
       - type: bind
         source: ${OUTPUT_DIR}
         target: /output_dir
-
     environment:
       - FLASK_DEBUG=True
       - APP_DATABASE=tm-csv-connector

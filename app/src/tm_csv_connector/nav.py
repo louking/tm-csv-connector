@@ -74,6 +74,7 @@ def nav_menu():
     navbar.items.append(chips)
     chips.items.append(View('Chip Reads', 'public.chipreads'))
     chips.items.append(View('Chip/Bib Map', 'public.chip2bib'))
+    chips.items.append(View('Chip Readers', 'public.chipreaders'))
     navbar.items.append(View('Settings', 'public.settings'))
     navbar.items.append(Link('Admin Guide', '/docs/index.html#'))
 

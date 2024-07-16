@@ -22,7 +22,7 @@ from loutilities.filters import filtercontainerdiv, filterdiv, yadcfoption
 
 # homegrown
 from . import bp
-from ...model import db, Race, Result, ChipRead, ChipBib, Setting
+from ...model import db, Race, Result, ChipRead, ChipBib, ChipReader, Setting
 from ...fileformat import filecolumns, db2file, filelock, refreshfile, lock, unlock
 
 class ParameterError(Exception): pass
@@ -120,6 +120,7 @@ def get_results_filters():
             th('')
             th('Time Machine', style='text-align: center;')
             th('Scanner', style='text-align: center;')
+            th('Chip Reader', style='text-align: center;')
         
         with tbody().add(tr()):
             with td().add(div(_class='filter-item')):
@@ -160,6 +161,25 @@ def get_results_filters():
                                 option(port)
         
                 div(button("placeholder", id="scanner-connect-disconnect", _class='filter-item ui-button'), _class='filter')
+        
+            with td().add(div(_class='filter-item')):
+                # Chip Readers
+                chipreaders = [c[0] for c in db.session.execute(sqlselect(ChipReader)).all()]
+                chipreaders.sort(key=lambda c: c.reader_id)
+                with table().add(tbody()):
+                    for chipreader in chipreaders:
+                        with tr():
+                            td(chipreader.name)                
+                            td(button(
+                                "placeholder", 
+                                id=f"chipreader{chipreader.reader_id}-connect-disconnect", 
+                                reader_id=chipreader.reader_id,
+                                ipaddr=chipreader.ipaddr,
+                                fport=chipreader.fport,
+                                _class='filter-item ui-button'
+                                ), 
+                               _class='filter'
+                            )
         
     return prehtml.render()
 
@@ -523,8 +543,8 @@ races_view = RacesView(
 )
 races_view.register()
 
-chipreads_dbattrs = 'id,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types'.split(',')
-chipreads_formfields = 'rowid,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types'.split(',')
+chipreads_dbattrs = 'id,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types,source'.split(',')
+chipreads_formfields = 'rowid,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types,source'.split(',')
 chipreads_dbmapping = dict(zip(chipreads_dbattrs, chipreads_formfields))
 chipreads_formmapping = dict(zip(chipreads_formfields, chipreads_dbattrs))
 
@@ -626,6 +646,9 @@ chipreads_view = ChipreadsView(
          'type': 'readonly',
         },
         {'data': 'types', 'name': 'types', 'label': 'Types',
+         'type': 'readonly',
+        },
+        {'data': 'source', 'name': 'source', 'label': 'Source',
          'type': 'readonly',
         },
     ],
@@ -738,4 +761,56 @@ settings_view = settingsView(
     },
 )
 settings_view.register()
+
+
+chipreaders_dbattrs = 'id,name,reader_id,ipaddr,fport'.split(',')
+chipreaders_formfields = 'rowid,name,reader_id,ipaddr,fport'.split(',')
+chipreaders_dbmapping = dict(zip(chipreaders_dbattrs, chipreaders_formfields))
+chipreaders_formmapping = dict(zip(chipreaders_formfields, chipreaders_dbattrs))
+
+def chipreaders_validate(action, formdata):
+    chipreaders = []
+
+    return chipreaders
+
+chipreaders_view = TmConnectorView(
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=ChipReader,
+    template='datatables.jinja2',
+    pagename='Chip Readers',
+    endpoint='public.chipreaders',
+    rule='/chipreaders',
+    dbmapping=chipreaders_dbmapping,
+    formmapping=chipreaders_formmapping,
+    validate=chipreaders_validate,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=[
+        'create',
+        'edit',
+        'remove',
+    ],
+    clientcolumns = [
+        {'data': 'name', 'name': 'name', 'label': 'Name',
+         'className': 'field_req',
+        },
+        {'data': 'reader_id', 'name': 'reader_id', 'label': 'Reader ID',
+         'className': 'field_req',
+         },
+        {'data': 'ipaddr', 'name': 'ipaddr', 'label': 'IP Addr',
+         'className': 'field_req',
+         },
+        {'data': 'fport', 'name': 'fport', 'label': 'Filtered Port',
+         'className': 'field_req',
+         },
+    ],
+    dtoptions={
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+chipreaders_view.register()
 

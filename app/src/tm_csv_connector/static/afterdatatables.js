@@ -85,6 +85,23 @@ function afterdatatables() {
             // draw will retrieve data from server because it's server side
             _dt_table.draw();
         });
+
+    } else if (pathname == '/chipreaders') {
+        // hide New if one or more chip readers defined
+        // remove after #82 implemented
+        function checklength() {
+            let rows = _dt_table.rows();
+            if (rows[0].length == 0) {
+                _dt_table.button('.buttons-create').enable();
+            } else {
+                _dt_table.button('.buttons-create').disable();
+            }
+        }
+        _dt_table.on( 'draw.dt', function () {
+            checklength();
+        });
+        checklength();
+        // end #82
     }
 
 }

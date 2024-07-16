@@ -13,14 +13,14 @@ from csv import DictReader
 # pypi
 from flask import session, request, current_app, jsonify
 from flask.views import MethodView
-from sqlalchemy import update, and_, select as sqlselect
+from sqlalchemy import and_, select as sqlselect
 from loutilities.timeu import timesecs
 
 # homegrown
 from . import bp
 from ...model import db, Result, Setting, ScannedBib, Race, ChipRead, ChipBib
 from ...fileformat import filelock, refreshfile, lock, unlock
-from ...trident import tridentread2obj, tridentmarker2obj
+from ...trident import trident2db
 
 class ParameterError(Exception): pass
 
@@ -224,98 +224,8 @@ class ChipReadsApi(MethodView):
                 with open(filepath, 'r') as stream:
                     # read to end of file
                     for line in stream:
-                        # only process chip reads (aa) or guntime (ab)
-                        if line[0:2] not in ['aa', 'ab']: continue
-                        
-                        # process read https://www.manula.com/manuals/tridentrfid/timemachine/1/en/topic/tag-data-message-format
-                        if line[0:2] == 'aa':
-                            tridentread = tridentread2obj(line.strip())
-                            reader_id = tridentread.reader_id
-                            receiver_id = tridentread.receiver_id
-                            tag_id = tridentread.tag_id
-                            counter = tridentread.counter
-                            date = tridentread.date
-                            time = tridentread.time
-                            rtype = tridentread.rtype
-                            rssi = tridentread.rssi
-                            bib = tridentread.bib
-
-                            # we might already have this record, if we're reading both filtered and raw chip files
-                            chipread = db.session.execute(
-                                sqlselect(ChipRead)
-                                    .where(and_(
-                                        ChipRead.reader_id == reader_id,
-                                        ChipRead.date == date,
-                                        ChipRead.tag_id == tag_id,
-                                        ChipRead.time == time,
-                                        )
-                                    )
-                            ).one_or_none()
-                            
-                            # read not found, add row
-                            if not chipread:
-                                chipread = ChipRead(
-                                    reader_id=reader_id,
-                                    receiver_id=receiver_id,
-                                    tag_id=tag_id,
-                                    contig_ctr=counter,
-                                    date=date,
-                                    time=time,
-                                    rssi=rssi,
-                                    bib=bib,
-                                    types=rtype,
-                                )
-                                db.session.add(chipread)
-                                db.session.flush()
-                            
-                            # read found, update types, possibly rssi, and bib
-                            else:
-                                chipread = chipread[0]
-                                types = chipread.types.split(',')
-                                if rtype not in types:
-                                    types.append(rtype)
-                                    types.sort()
-                                chipread.types = ','.join(types)
-                                
-                                if not chipread.rssi:
-                                    chipread.rssi = rssi
-                                
-                                # this really shouldn't change, but if the
-                                # chipbib table was added after the fact this
-                                # will be used
-                                chipread.bib = bib
-                                    
-                        # handle marker / start trigger
-                        elif line[0:2] == 'ab':
-                            tridentmarker = tridentmarker2obj(line.strip())
-                            reader_id = tridentmarker.reader_id
-                            date = tridentmarker.date
-                            time = tridentmarker.time
-                            rtype = tridentmarker.rtype
-
-                            # we might already have this record, if we're reading both filtered and raw chip files
-                            chipread = db.session.execute(
-                                sqlselect(ChipRead)
-                                    .where(and_(
-                                        ChipRead.reader_id == reader_id,
-                                        ChipRead.date == date,
-                                        ChipRead.time == time,
-                                        ChipRead.types == rtype,
-                                        )
-                                    )
-                            ).one_or_none()
-                            
-                            # add if not there already; ignore if already there
-                            if not chipread:
-                                chipread = ChipRead(
-                                    reader_id=reader_id,
-                                    date=date,
-                                    time=time,
-                                    types=rtype,
-                                )
-                                db.session.add(chipread)
-                                db.session.flush()
-                
+                        trident2db(line, 'file')
+                    
                 # delete temporary file, commit changes to database and declare success
                 db.session.commit()
                 remove(filepath)
@@ -336,6 +246,31 @@ class ChipReadsApi(MethodView):
         
 chipreads_api = ChipReadsApi.as_view('_chipreads')
 bp.add_url_rule('/_chipreads/rest', view_func=chipreads_api, methods=['POST','GET'])
+
+
+class LiveChipReadsApi(MethodView):
+    
+    def post(self):
+        try:
+            data = request.json['data']
+            lines = data.split('\r\n')
+            for line in lines:
+                trident2db(line, 'live')
+            db.session.commit()
+            return jsonify(status='success')
+                
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+livechipreads_api = LiveChipReadsApi.as_view('_livechipreads')
+bp.add_url_rule('/_livechipreads', view_func=livechipreads_api, methods=['POST'])
 
 
 class Chip2BibApi(MethodView):

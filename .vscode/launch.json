@@ -19,6 +19,13 @@
             "justMyCode": false
         },
         {
+            "name": "Python: trident-reader-client",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "trident-reader-client.app",
+            "justMyCode": false
+        },
+        {
             // from https://code.visualstudio.com/docs/containers/docker-compose#_python
             "name": "Python: Remote Attach",
             "type": "debugpy",

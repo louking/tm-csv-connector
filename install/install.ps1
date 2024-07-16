@@ -4,4 +4,5 @@
 ./initialize-config
 ./enable-tm-reader
 ./enable-barcode-scanner
+./enable-trident-reader
 ./enable-app

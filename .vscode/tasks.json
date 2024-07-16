@@ -16,6 +16,12 @@
             "problemMatcher": []
         },
         {
+            "label": "build trident reader",
+            "type": "shell",
+            "command": ".venv/scripts/activate; pyinstaller --noconfirm --distpath install trident-reader-client/app.py -n trident-reader",
+            "problemMatcher": []
+        },
+        {
             "label": "build docs",
             "type": "shell",
             "command": "../../.venv/scripts/activate; ./make html",
@@ -56,6 +62,7 @@
             "dependsOn": [
                 "build time machine reader",
                 "build barcode scanner reader",
+                "build trident reader",
                 "build, push app",
                 "release"
             ],

@@ -7,16 +7,19 @@ var scanner;   // process which interacts directly with scanner
 const serveruri = 'ws://tm.localhost:8080/tm_reader';
 const readeruri = 'ws://tm.localhost:8081/';
 const scanneruri = 'ws://tm.localhost:8082/';
+const tridenturi = 'ws://tm.localhost:8083/';
 // track checkConnected interval
-var ccinterval, scanner_ccinterval;
+var ccinterval, scanner_ccinterval, trident_ccinterval;
 
 // remember if connected, websockets open
-var connected, scanner_connected;
+var connected, scanner_connected, trident_connected;
 var tm_websocket_open = false;
 var scanner_websocket_open = false;
+var trident_websocket_open = false;
 
-// form parameters
-var raceid, port, scannerport, logdir;
+// form, port parameters
+var raceid, logdir;
+var port, scannerport;
 
 // constants
 const PING_INTERVAL = 30000;
@@ -35,6 +38,10 @@ $( function() {
 
     scd = $('#scanner-connect-disconnect');
     scd.on('click', scanner_cdbuttonclick);
+
+    // #82 requires work here, and elsewhere
+    tcd = $('#chipreaderA-connect-disconnect');
+    tcd.on('click', trident_cdbuttonclick);
 
     $('#race').select2({
         placeholder: 'select a race',
@@ -126,9 +133,27 @@ $( function() {
         }
     });
 
+    // determine text for connect/disconnect button by querying trident over websocket
+    trident = new StableWebSocket({
+        name: 'trident',
+        uri: tridenturi,
+        open_callback: function() {trident_websocket_open = true},
+        recv_msg_callback: function(msg) {
+            let rsp = JSON.parse(msg);
+            // console.log(`trident: received ${msg}`);
+            trident_connected = rsp.connected;
+            if (rsp.connected) {
+                tcd.text('Disconnect');
+            } else {
+                tcd.text('Connect');
+            }    
+        }
+    });
+
     // keep the connect/disconnect buttons updated
     ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, tm_reader);
     scanner_ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, scanner);
+    trident_ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, trident);
 
     // when websockets first open, setParams
     checkInitialized();
@@ -150,9 +175,9 @@ function checkConnected(asyncprocess) {
     }
 }
 
-// when both websockets first open at startup, setParams()
+// when all websockets first open at startup, setParams()
 function checkInitialized() {
-    if (tm_websocket_open && scanner_websocket_open) {
+    if (tm_websocket_open && scanner_websocket_open && trident_websocket_open) {
         setParams();
     } else {
         setTimeout(checkInitialized, CHECK_INITIALIZED_WAIT)
@@ -326,6 +351,18 @@ function scanner_cdbuttonclick() {
     }
 }
 
+// #82 needs work here and elsewhere
+function trident_cdbuttonclick() {
+    var msg;
+    if (!trident_connected) {
+        msg = JSON.stringify({opcode: 'open', ipaddr: $(this).attr('ipaddr'), fport: $(this).attr('fport'), loggingpath: ''});
+        trident.send(msg);
+    } else {
+        msg = JSON.stringify({opcode: 'close'});
+        trident.send(msg);
+    }
+}
+
 
 // setParams
 function setParams() {
@@ -370,6 +407,7 @@ function setParams() {
     }
 
     // send latest raceid to reader and scanner processes
+    // NOTE: trident process doesn't care about raceid
     msg = JSON.stringify({opcode: 'raceid', raceid: raceid});
     tm_reader.send(msg);
     scanner.send(msg);

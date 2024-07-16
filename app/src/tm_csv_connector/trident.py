@@ -5,11 +5,11 @@
 from decimal import Decimal
 
 # pypi
-from sqlalchemy import select as sqlselect
+from sqlalchemy import and_, select as sqlselect
 from loutilities.timeu import asctime
 
 # homegrown
-from .model import db, ChipBib
+from .model import db, ChipBib, ChipRead
 
 datefmt = asctime('%y%m%d')
 timefmt = asctime('%H%M%S')
@@ -56,3 +56,105 @@ def tridentmarker2obj(line):
     # trident.hundredths = int(line[22:24], 16)
     trident.rtype = 'GUNTIME'
     return trident
+
+def trident2db(line, source):
+    """Put line from trident reader into database. 
+    Caller needs to commit
+
+    Args:
+        line (raw): input line from Trident reader
+        source (str): 'file' or 'live'
+    """
+    # only process chip reads (aa) or guntime (ab)
+    if len(line) < 2 or line[0:2] not in ['aa', 'ab']: return
+    
+    # process read https://www.manula.com/manuals/tridentrfid/timemachine/1/en/topic/tag-data-message-format
+    if line[0:2] == 'aa':
+        tridentread = tridentread2obj(line.strip())
+        reader_id = tridentread.reader_id
+        receiver_id = tridentread.receiver_id
+        tag_id = tridentread.tag_id
+        counter = tridentread.counter
+        date = tridentread.date
+        time = tridentread.time
+        rtype = tridentread.rtype
+        rssi = tridentread.rssi
+        bib = tridentread.bib
+
+        # we might already have this record, if we're reading both filtered and raw chip files
+        chipread = db.session.execute(
+            sqlselect(ChipRead)
+                .where(and_(
+                    ChipRead.reader_id == reader_id,
+                    ChipRead.date == date,
+                    ChipRead.tag_id == tag_id,
+                    ChipRead.time == time,
+                    )
+                )
+        ).one_or_none()
+        
+        # read not found, add row
+        if not chipread:
+            chipread = ChipRead(
+                reader_id=reader_id,
+                receiver_id=receiver_id,
+                tag_id=tag_id,
+                contig_ctr=counter,
+                date=date,
+                time=time,
+                rssi=rssi,
+                bib=bib,
+                types=rtype,
+                source=source,
+            )
+            db.session.add(chipread)
+            db.session.flush()
+        
+        # read found, update types, possibly rssi, and bib
+        else:
+            chipread = chipread[0]
+            types = chipread.types.split(',')
+            if rtype not in types:
+                types.append(rtype)
+                types.sort()
+            chipread.types = ','.join(types)
+            
+            if not chipread.rssi:
+                chipread.rssi = rssi
+            
+            # this really shouldn't change, but if the
+            # chipbib table was added after the fact this
+            # will be used
+            chipread.bib = bib
+                
+    # handle marker / start trigger
+    elif line[0:2] == 'ab':
+        tridentmarker = tridentmarker2obj(line.strip())
+        reader_id = tridentmarker.reader_id
+        date = tridentmarker.date
+        time = tridentmarker.time
+        rtype = tridentmarker.rtype
+
+        # we might already have this record, if we're reading both filtered and raw chip files
+        chipread = db.session.execute(
+            sqlselect(ChipRead)
+                .where(and_(
+                    ChipRead.reader_id == reader_id,
+                    ChipRead.date == date,
+                    ChipRead.time == time,
+                    ChipRead.types == rtype,
+                    )
+                )
+        ).one_or_none()
+        
+        # add if not there already; ignore if already there
+        if not chipread:
+            chipread = ChipRead(
+                reader_id=reader_id,
+                date=date,
+                time=time,
+                types=rtype,
+                source=source,
+            )
+            db.session.add(chipread)
+            db.session.flush()

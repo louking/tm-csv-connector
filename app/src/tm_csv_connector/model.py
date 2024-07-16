@@ -96,6 +96,7 @@ class ChipRead(Base):
     time        = Column(Decimal(7,2)) # max 86400.00 = 24*60*60 seconds
     rssi        = Column(Integer)
     types       = Column(Text)
+    source      = Column(Text)  # file, live
     
     # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
     update_time = Column(DateTime,
@@ -130,6 +131,22 @@ class ChipBib(Base):
     __tableargs__ = (
         Index('tag_idx', tag_id),
     )
+
+
+class ChipReader(Base):
+    __tablename__ = 'chipreader'
+    id          = Column(Integer(), primary_key=True)
+    name        = Column(Text)
+    reader_id   = Column(String(1))
+    ipaddr      = Column(Text)
+    fport       = Column(Integer) # port to retrieve filtered reads
+    
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
 
 class Setting(Base):
     __tablename__ = 'setting'
