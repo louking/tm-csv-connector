@@ -14,21 +14,55 @@ from flask.views import MethodView
 from dominate.tags import div, button, span, select, option, p, i
 from dominate.tags import table, thead, tbody, tr, th, td
 from dominate.util import text
-from sqlalchemy import update, and_, select as sqlselect, func
+from sqlalchemy import update, and_, select as sqlselect
 from loutilities.tables import DbCrudApi
 from loutilities.tables import rest_url_for
 from loutilities.timeu import asctime, timesecs
 from loutilities.filters import filtercontainerdiv, filterdiv, yadcfoption
 
+# https://docs.python.org/3/library/datetime.html#datetime.tzinfo
+from datetime import tzinfo
+import time as _time
+
+STDOFFSET = timedelta(seconds = -_time.timezone)
+if _time.daylight:
+    DSTOFFSET = timedelta(seconds = -_time.altzone)
+else:
+    DSTOFFSET = STDOFFSET
+
+DSTDIFF = DSTOFFSET - STDOFFSET
+
+class LocalTimezone(tzinfo):
+
+    def utcoffset(self, dt):
+        if self._isdst(dt):
+            return DSTOFFSET
+        else:
+            return STDOFFSET
+
+    def tzname(self, dt):
+        return _time.tzname[self._isdst(dt)]
+
+    def _isdst(self, dt):
+        tt = (dt.year, dt.month, dt.day,
+              dt.hour, dt.minute, dt.second,
+              dt.weekday(), 0, 0)
+        stamp = _time.mktime(tt)
+        tt = _time.localtime(stamp)
+        return tt.tm_isdst > 0
+
+Local = LocalTimezone()
+
 # homegrown
 from . import bp
-from ...model import db, Race, Result, ChipRead, ChipBib, ChipReader, Setting
+from ...model import db, Race, Result, ChipRead, ChipBib, ChipReader, AppLog, Setting
 from ...fileformat import filecolumns, db2file, filelock, refreshfile, lock, unlock
 
 class ParameterError(Exception): pass
 
 dtrender = asctime('%Y-%m-%d')
 sincerender = asctime('%Y-%m-%dT%H:%M:%S%z')
+logrender = asctime('%Y-%m-%d %H:%M:%S')
 
 class TmConnectorView (DbCrudApi):
     def permission(self):
@@ -170,6 +204,7 @@ def get_results_filters():
                     for chipreader in chipreaders:
                         with tr():
                             td(chipreader.name)                
+                            td(i(id=f'chipreader-alert-{chipreader.reader_id}', _class="fa-solid fa-circle", style="color: lightgrey;"))
                             td(button(
                                 "placeholder", 
                                 id=f"chipreader{chipreader.reader_id}-connect-disconnect", 
@@ -180,6 +215,7 @@ def get_results_filters():
                                 ), 
                                _class='filter'
                             )
+                            
         
     return prehtml.render()
 
@@ -813,4 +849,40 @@ chipreaders_view = TmConnectorView(
     },
 )
 chipreaders_view.register()
+
+
+applog_dbattrs = 'id,time,info'.split(',')
+applog_formfields = 'rowid,time,info'.split(',')
+applog_dbmapping = dict(zip(applog_dbattrs, applog_formfields))
+applog_formmapping = dict(zip(applog_formfields, applog_dbattrs))
+applog_formmapping['time'] = lambda dbrow: logrender.dt2asc(dbrow.time + Local.utcoffset(dbrow.time))
+
+applog_view = TmConnectorView(
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=AppLog,
+    template='datatables.jinja2',
+    pagename='App Log',
+    endpoint='public.applog',
+    rule='/applog',
+    dbmapping=applog_dbmapping,
+    formmapping=applog_formmapping,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=[],
+    clientcolumns = [
+        {'data': 'time', 'name': 'time', 'label': 'Time',
+         },
+        {'data': 'info', 'name': 'info', 'label': 'Log Info',
+         },
+    ],
+    dtoptions={
+        'order': [['time:name', 'desc']],
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+applog_view.register()
 

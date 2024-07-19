@@ -147,7 +147,19 @@ class ChipReader(Base):
                          server_onupdate=FetchedValue()
                          )
 
+class AppLog(Base):
+    __tablename__ = 'applog'
+    id          = Column(Integer(), primary_key=True)
+    time        = Column(DateTime)
+    info        = Column(Text)
+    
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
 
+    
 class Setting(Base):
     __tablename__ = 'setting'
     id      = Column(Integer(), primary_key=True)

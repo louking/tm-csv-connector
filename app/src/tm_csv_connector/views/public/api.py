@@ -9,6 +9,7 @@ from os.path import join
 from os import remove
 from uuid import uuid4
 from csv import DictReader
+from datetime import datetime
 
 # pypi
 from flask import session, request, current_app, jsonify
@@ -18,7 +19,7 @@ from loutilities.timeu import timesecs
 
 # homegrown
 from . import bp
-from ...model import db, Result, Setting, ScannedBib, Race, ChipRead, ChipBib
+from ...model import db, Result, Setting, ScannedBib, Race, ChipBib, AppLog
 from ...fileformat import filelock, refreshfile, lock, unlock
 from ...trident import trident2db
 
@@ -566,4 +567,47 @@ class ScanActionApi(MethodView):
 
 scanaction_api = ScanActionApi.as_view('_scanaction')
 bp.add_url_rule('/_scanaction', view_func=scanaction_api, methods=['POST',])
+
+
+class ChipReaderStatusApi(MethodView):
+    
+    def post(self):
+        try:
+            readerstatus = request.json
+            status = readerstatus['status']
+            reader_id = readerstatus['reader_id']
+            
+            # NOTE: we should only be receiving status changes
+            # these cases must match those in results.js
+            match status:
+                case 'disconnected':
+                    statustxt = f'chip reader {reader_id} disconnected'
+                case 'connected':
+                    statustxt = f'chip reader {reader_id} connected'
+                case 'network-unreachable':
+                    statustxt = f'chip reader {reader_id} network unreachable'
+                case 'no-response':
+                    statustxt = f'chip reader {reader_id} not responding'
+                case '_':
+                    raise ParameterError(f'received invalid message for chip reader {reader_id}')
+            
+            current_app.logger.info(statustxt)
+            db.session.add(AppLog(time=datetime.now(), info=statustxt))
+            db.session.commit()
+            
+            return jsonify(status='success')
+                
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+chipreaderstatus_api = ChipReaderStatusApi.as_view('_chipreaderstatus')
+bp.add_url_rule('/_chipreaderstatus', view_func=chipreaderstatus_api, methods=['POST'])
+
 

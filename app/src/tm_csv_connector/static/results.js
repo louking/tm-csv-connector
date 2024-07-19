@@ -12,7 +12,7 @@ const tridenturi = 'ws://tm.localhost:8083/';
 var ccinterval, scanner_ccinterval, trident_ccinterval;
 
 // remember if connected, websockets open
-var connected, scanner_connected, trident_connected;
+var connected, scanner_connected, trident_connected, trident_status;
 var tm_websocket_open = false;
 var scanner_websocket_open = false;
 var trident_websocket_open = false;
@@ -146,7 +146,19 @@ $( function() {
                 tcd.text('Disconnect');
             } else {
                 tcd.text('Connect');
-            }    
+            }
+            
+            trident_status = rsp.detailedstatus;
+            tsi = $("#chipreader-alert-A")
+            if (trident_status == 'connected') {
+                tsi.attr('style', 'color: limegreen;');
+            } else if (trident_status == 'disconnected') {
+                tsi.attr('style', 'color: lightgrey;'); 
+            } else if (trident_status == 'no-response') {
+                tsi.attr('style', 'color: red;'); 
+            } else if (trident_status == 'network-unreachable') {
+                tsi.attr('style', 'color: yellow;'); 
+            }
         }
     });
 

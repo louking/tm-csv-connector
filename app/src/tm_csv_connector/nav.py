@@ -76,6 +76,7 @@ def nav_menu():
     chips.items.append(View('Chip/Bib Map', 'public.chip2bib'))
     chips.items.append(View('Chip Readers', 'public.chipreaders'))
     navbar.items.append(View('Settings', 'public.settings'))
+    navbar.items.append(View('App Log', 'public.applog'))
     navbar.items.append(Link('Admin Guide', '/docs/index.html#'))
 
     # common items
