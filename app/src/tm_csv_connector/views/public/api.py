@@ -26,6 +26,8 @@ from ...trident import trident2db
 class ParameterError(Exception): pass
 
 class PostResultApi(MethodView):
+    """receive a result from tm-reader-client
+    """
     def post(self):
         try:
             ## LOCK file access
@@ -105,6 +107,8 @@ bp.add_url_rule('/_postresult', view_func=postresult_api, methods=['POST',])
 
 
 class PostBibApi(MethodView):
+    """receive a scanned bibno from barcode-scanner-client
+    """
     def post(self):
         try:
             ## LOCK file access
@@ -177,6 +181,11 @@ bp.add_url_rule('/_postbib', view_func=postbib_api, methods=['POST',])
 
 
 class ChipReadsApi(MethodView):
+    """upload chip reads from file
+
+    Raises:
+        ParameterError: _description_
+    """
     ALLOWED_EXTENSIONS = ['log']
     
     def get(self):
@@ -250,6 +259,8 @@ bp.add_url_rule('/_chipreads/rest', view_func=chipreads_api, methods=['POST','GE
 
 
 class LiveChipReadsApi(MethodView):
+    """receive chip read from trident-reader-client
+    """
     
     def post(self):
         try:
@@ -275,6 +286,11 @@ bp.add_url_rule('/_livechipreads', view_func=livechipreads_api, methods=['POST']
 
 
 class Chip2BibApi(MethodView):
+    """import chip to bibno mapping from csv file
+
+    Raises:
+        ParameterError: invalid action -- logic error
+    """
     ALLOWED_EXTENSIONS = ['csv']
     
     def get(self):
@@ -426,6 +442,8 @@ bp.add_url_rule('/_setparams', view_func=params_api, methods=['POST',])
 
 
 class ScanActionApi(MethodView):
+    """update scan queue based on user action
+    """
     def post(self):
         try:
             # options from home.scanned_bibno()
