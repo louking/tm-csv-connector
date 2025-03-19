@@ -232,6 +232,20 @@ should already be paired with the dongle attached to it.
 
 |
 
+To keep scanner on all the time, scan the following barcode.
+
+.. figure:: images/scanner-no-timeout.*
+    :align: center
+
+|
+
+To shut down the scanner immediately, scan the following barcode.
+
+.. figure:: images/scanner-shut-down.*
+    :align: center
+
+|
+
 
 Jackery Working Time
 ======================
