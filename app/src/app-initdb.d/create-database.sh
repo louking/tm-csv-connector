@@ -59,7 +59,7 @@ _mysql_passfile() {
 #    ie: docker_process_sql <my-file.sql
 docker_process_sql() {
     # default mysql but caller can override
-	mysql --defaults-extra-file=<( _mysql_passfile) -uroot -hdb --comments --database=mysql "$@"
+	mariadb --defaults-extra-file=<( _mysql_passfile) -uroot -hdb --comments --database=mysql "$@"
 }
 
 # follow pattern for each application database (https://stackoverflow.com/a/68714439/799921)
