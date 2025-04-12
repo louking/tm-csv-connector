@@ -7,6 +7,7 @@ from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatte
 from logging.handlers import TimedRotatingFileHandler
 from requests import post
 from requests import codes
+from re import split as resplit
 
 # pypi
 from websockets import connect, ConnectionClosed
@@ -78,7 +79,7 @@ class InputChunkProtocol(Protocol):
     https://pyserial-asyncio.readthedocs.io/en/latest/shortintro.html#reading-data-in-chunks'''
     def connection_made(self, transport):
         self.transport = transport
-        self.residual = b''
+        self.residual = ''
         global connected
         connected = True
         # with connect(backenduri) as websocket:
@@ -93,13 +94,16 @@ class InputChunkProtocol(Protocol):
         return super().connection_lost(exc)
 
     def data_received(self, data):
+        data = data.decode()
         log.debug(f'barcode scanner data received: {data}')
         
         # update first part of data with residual
         data = self.residual + data
 
         # split into separate messages -- scanner default is to append two CR to end of scanned barcode, allow one  
-        msgs = data.split(b'\r')
+        # need to decode bytes type
+        # messages split on CR (e.g., Tera) or LF (e.g., Inateck)
+        msgs = resplit(r'\r|\n', data)
         
         # last part is saved for later, may be empty, don't send to back end
         # note the residual may be the only item in msgs
@@ -114,9 +118,8 @@ class InputChunkProtocol(Protocol):
             
             try:
                 log.debug(f'barcode scanner msg processed: {msg}')
-                # need to decode bytes type
-                bib = msg.decode()
-                queued_msgs.append({'opcode':'scannedbib', 'raceid': raceid, 'bibno': bib})
+                # each msg is a bib number
+                queued_msgs.append({'opcode':'scannedbib', 'raceid': raceid, 'bibno': msg})
 
             except ValueError:
                 log.error(f'could not decode message: {msg}')
