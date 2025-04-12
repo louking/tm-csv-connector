@@ -17,7 +17,7 @@ Ymdfmt = asctime('%Y-%m-%d')
 
 class Trident(object): pass
 
-def tridentread2obj(line):
+def tridentread2obj(raceid, line):
     # print(f'tridentread2obj({line})')
     trident = Trident()
     trident.reader_id = line[2]
@@ -39,7 +39,11 @@ def tridentread2obj(line):
     trident.bib = None
     chipbib = db.session.execute(
             sqlselect(ChipBib)
-                .where(ChipBib.tag_id == trident.tag_id)
+                .where(and_(
+                    ChipBib.race_id == raceid,
+                    ChipBib.tag_id == trident.tag_id,
+                    )
+                )
         ).one_or_none()
     if chipbib:
         chipbib = chipbib[0]
@@ -57,11 +61,12 @@ def tridentmarker2obj(line):
     trident.rtype = 'GUNTIME'
     return trident
 
-def trident2db(line, source):
+def trident2db(raceid, line, source):
     """Put line from trident reader into database. 
     Caller needs to commit
 
     Args:
+        raceid (int): raceid to associate with this read
         line (raw): input line from Trident reader
         source (str): 'file' or 'live'
     """
@@ -70,7 +75,7 @@ def trident2db(line, source):
     
     # process read https://www.manula.com/manuals/tridentrfid/timemachine/1/en/topic/tag-data-message-format
     if line[0:2] == 'aa':
-        tridentread = tridentread2obj(line.strip())
+        tridentread = tridentread2obj(raceid, line.strip())
         reader_id = tridentread.reader_id
         receiver_id = tridentread.receiver_id
         tag_id = tridentread.tag_id
@@ -85,6 +90,7 @@ def trident2db(line, source):
         chipread = db.session.execute(
             sqlselect(ChipRead)
                 .where(and_(
+                    ChipRead.race_id == raceid,
                     ChipRead.reader_id == reader_id,
                     ChipRead.date == date,
                     ChipRead.tag_id == tag_id,
@@ -96,6 +102,7 @@ def trident2db(line, source):
         # read not found, add row
         if not chipread:
             chipread = ChipRead(
+                race_id=raceid,
                 reader_id=reader_id,
                 receiver_id=receiver_id,
                 tag_id=tag_id,
@@ -139,6 +146,7 @@ def trident2db(line, source):
         chipread = db.session.execute(
             sqlselect(ChipRead)
                 .where(and_(
+                    ChipRead.race_id == raceid,
                     ChipRead.reader_id == reader_id,
                     ChipRead.date == date,
                     ChipRead.time == time,
@@ -150,6 +158,7 @@ def trident2db(line, source):
         # add if not there already; ignore if already there
         if not chipread:
             chipread = ChipRead(
+                race_id=raceid,
                 reader_id=reader_id,
                 date=date,
                 time=time,

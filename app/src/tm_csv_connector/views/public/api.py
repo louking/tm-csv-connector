@@ -229,12 +229,17 @@ class ChipReadsApi(MethodView):
                 }
                 return jsonify(**returndata)
             
+            # this handles Import button
             elif action == 'edit':
+                raceid = request.form['data[keyless][race]']
+                if not raceid:
+                    return jsonify(status='fail', error='please choose a race')
+            
                 filepath = join('/tmp', request.form['data[keyless][file]'])
                 with open(filepath, 'r') as stream:
                     # read to end of file
                     for line in stream:
-                        trident2db(line, 'file')
+                        trident2db(raceid, line, 'file')
                     
                 # delete temporary file, commit changes to database and declare success
                 db.session.commit()
@@ -264,10 +269,11 @@ class LiveChipReadsApi(MethodView):
     
     def post(self):
         try:
+            raceid = request.json['raceid']
             data = request.json['data']
             lines = data.split('\r\n')
             for line in lines:
-                trident2db(line, 'live')
+                trident2db(raceid, line, 'live')
             db.session.commit()
             return jsonify(status='success')
                 
@@ -335,6 +341,10 @@ class Chip2BibApi(MethodView):
                 return jsonify(**returndata)
             
             elif action == 'edit':
+                race_id = request.form['data[keyless][race]']
+                if not race_id:
+                    return jsonify(status='fail', error='please choose a race')
+                
                 filepath = join('/tmp', request.form['data[keyless][file]'])
                 with open(filepath, 'r') as csvfile:
                     csv = DictReader(csvfile)
@@ -345,6 +355,7 @@ class Chip2BibApi(MethodView):
                         chipbib = db.session.execute(
                             sqlselect(ChipBib)
                                 .where(and_(
+                                    ChipBib.race_id == race_id,
                                     ChipBib.tag_id == chip,
                                     )
                                 )
@@ -352,6 +363,7 @@ class Chip2BibApi(MethodView):
                         
                         if not chipbib:
                             chipbib = ChipBib(
+                                race_id = race_id,
                                 tag_id = chip,
                                 bib    = bib,
                             )
@@ -629,3 +641,18 @@ chipreaderstatus_api = ChipReaderStatusApi.as_view('_chipreaderstatus')
 bp.add_url_rule('/_chipreaderstatus', view_func=chipreaderstatus_api, methods=['POST'])
 
 
+class GetRacesApi(MethodView):
+    """get races for select field
+    """
+    def get(self):
+        options = []
+        # sort most recent race first
+        races = Race.query.order_by(Race.date.desc()).all()
+        for r in races:
+            option = {'value': r.id, 'label': r.raceyear}
+            options.append(option)
+        
+        return jsonify(options)
+
+getraces_api = GetRacesApi.as_view('_getraces')
+bp.add_url_rule('/_getraces', view_func=getraces_api, methods=['GET'])

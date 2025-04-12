@@ -48,45 +48,11 @@ class ScannedBib(Base):
     bibno        = Column(Text)
     result       = relationship("Result", uselist=False, back_populates="scannedbib")
     
-class Race(Base):
-    __tablename__ = 'race'
-    id          = Column(Integer(), primary_key=True)
-    name        = Column(Text)
-    date        = Column(Date)
-    start_time  = Column(Double) # seconds since midnight
-    results     = relationship('Result', back_populates='race', cascade='all, delete, delete-orphan')
-    scannedbibs = relationship('ScannedBib', back_populates='race', foreign_keys=[ScannedBib.race_id], cascade='all, delete, delete-orphan')
-    # next_scannedbib is set when there are more scanned bibs than there are results
-    next_scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
-    next_scannedbib    = relationship('ScannedBib', foreign_keys=[next_scannedbib_id])
-    
-    @hybrid_property
-    def raceyear(self):
-        return self.name + ' ' + self.date.strftime('%Y')
-    
-class Result(Base):
-    __tablename__ = 'result'
-    id           = Column(Integer(), primary_key=True)
-    race_id      = mapped_column(ForeignKey('race.id'))
-    race         = relationship('Race', back_populates='results')
-    tmpos        = Column(Integer)
-    place        = Column(Integer)
-    scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
-    scannedbib    = relationship('ScannedBib', back_populates='result')
-    had_scannedbib = Column(Boolean, default=False)
-    bibno        = Column(Text)
-    time         = Column(Float)
-    is_confirmed = Column(Boolean, default=False)
-    
-    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
-    update_time = Column(DateTime,
-                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
-                         server_onupdate=FetchedValue()
-                         )
-
 class ChipRead(Base):
     __tablename__ = 'chipread'
     id          = Column(Integer(), primary_key=True)
+    race_id      = mapped_column(ForeignKey('race.id'))
+    race         = relationship('Race', back_populates='chipreads')
     reader_id   = Column(String(1))
     receiver_id = Column(String(1))
     tag_id      = Column(String(12))
@@ -118,6 +84,8 @@ class ChipRead(Base):
 class ChipBib(Base):
     __tablename__ = 'chipbib'
     id          = Column(Integer(), primary_key=True)
+    race_id      = mapped_column(ForeignKey('race.id'))
+    race         = relationship('Race', back_populates='chipbibs')
     tag_id      = Column(String(12))
     bib         = Column(Integer)
     
@@ -127,11 +95,63 @@ class ChipBib(Base):
                          server_onupdate=FetchedValue()
                          )
 
-    # lookups by tag need to be fast
+    # lookups by race, tag need to be fast
     __tableargs__ = (
-        Index('tag_idx', tag_id),
+        Index('race_tag_idx', race_id, tag_id),
     )
 
+
+class Race(Base):
+    __tablename__ = 'race'
+    id          = Column(Integer(), primary_key=True)
+    name        = Column(Text)
+    date        = Column(Date)
+    start_time  = Column(Double) # seconds since midnight
+    results     = relationship('Result', back_populates='race', cascade='all, delete, delete-orphan')
+    scannedbibs = relationship('ScannedBib', back_populates='race', foreign_keys=[ScannedBib.race_id], cascade='all, delete, delete-orphan')
+    chipreads   = relationship('ChipRead', back_populates='race', foreign_keys=[ChipRead.race_id], cascade='all, delete, delete-orphan')
+    chipbibs    = relationship('ChipBib', back_populates='race', foreign_keys=[ChipBib.race_id], cascade='all, delete, delete-orphan')
+    # next_scannedbib is set when there are more scanned bibs than there are results
+    next_scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
+    next_scannedbib    = relationship('ScannedBib', foreign_keys=[next_scannedbib_id])
+    
+    @hybrid_property
+    def raceyear(self):
+        return self.name + ' ' + self.date.strftime('%Y') if self.date else ''
+    
+    @raceyear.inplace.expression
+    @classmethod
+    def _raceyear_expression(cls):
+        return cls.name + ' ' + func.year(cls.date) if cls.date else ''
+
+    # @hybrid_property
+    # def year(self):
+    #     return self.date.strftime('%Y') if self.date else ''
+    
+    # @year.inplace.expression
+    # @classmethod
+    # def _year_expression(cls):
+    #     return func.year(cls.date)
+    
+class Result(Base):
+    __tablename__ = 'result'
+    id           = Column(Integer(), primary_key=True)
+    race_id      = mapped_column(ForeignKey('race.id'))
+    race         = relationship('Race', back_populates='results')
+    tmpos        = Column(Integer)
+    place        = Column(Integer)
+    scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
+    scannedbib    = relationship('ScannedBib', back_populates='result')
+    had_scannedbib = Column(Boolean, default=False)
+    bibno        = Column(Text)
+    time         = Column(Float)
+    is_confirmed = Column(Boolean, default=False)
+    
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
 
 class ChipReader(Base):
     __tablename__ = 'chipreader'

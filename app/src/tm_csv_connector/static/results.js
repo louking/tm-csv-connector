@@ -4,6 +4,7 @@ var cd, scd;
 // global websockets
 var tm_reader; // process which interacts directly with time machine
 var scanner;   // process which interacts directly with scanner
+var trident;   // process which interacts directly with trident
 const serveruri = 'ws://tm.localhost:8080/tm_reader';
 const readeruri = 'ws://tm.localhost:8081/';
 const scanneruri = 'ws://tm.localhost:8082/';
@@ -418,11 +419,11 @@ function setParams() {
         }
     }
 
-    // send latest raceid to reader and scanner processes
-    // NOTE: trident process doesn't care about raceid
+    // send latest raceid to reader, scanner, and trident processes
     msg = JSON.stringify({opcode: 'raceid', raceid: raceid});
     tm_reader.send(msg);
     scanner.send(msg);
+    trident.send(msg);
 
     $.ajax( {
         url: '/_setparams',

@@ -38,6 +38,9 @@ detailedstatus = 'disconnected'
 # stop_reader flag
 stop_reader = False
 
+# save latest raceid
+raceid = 0
+
 class LoggerAdapter(LoggerAdapter):
     """Add connection ID and client IP address to websockets logs."""
     def process(self, msg, kwargs):
@@ -52,13 +55,13 @@ class LoggerAdapter(LoggerAdapter):
         return f"{websocket.id} {xff} {msg}", kwargs
 
 def save_reads_to_db(data):
-    """save relevant chip reads to the database
+    """save relevant chip reads to the database, uses current raceid
 
     Args:
         data (dict): dict to serialize and send
     """
-    log.debug(f'sending to backend: {data}')
-    rsp = post(backendpost, json={'data':data})
+    log.debug(f'sending to backend: raceid {raceid}, data {data}')
+    rsp = post(backendpost, json={'raceid': raceid, 'data': data})
     if rsp.status_code != codes.ok:
         log.error(f'error sending to backend: status = {rsp.status_code}')
     else:
@@ -181,7 +184,7 @@ async def controller(websocket):
         opcode = event['opcode']
         
         # just wanna know what's going on
-        if opcode in ['open', 'close']:
+        if opcode not in ['is_connected', 'ping']:
             log.debug(f'websocket received {event}')
         
         # backend opened the connection
@@ -196,6 +199,11 @@ async def controller(websocket):
         elif opcode == 'close':
             global stop_reader
             stop_reader = True
+        
+        # raceid updated from backend
+        elif opcode == 'raceid':
+            global raceid
+            raceid = event['raceid']
         
         # browser wants to know if we're connected to trident reader
         elif opcode == 'is_connected':

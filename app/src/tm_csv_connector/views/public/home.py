@@ -229,11 +229,11 @@ def results_validate(action, formdata):
     results = []
     from re import compile
     
-    timepattern = compile('^(\d{1,2}:)?([0-5]\d:)?[0-5]\d(\.\d{0,2})?$')
+    timepattern = compile(r'^(\d{1,2}:)?([0-5]\d:)?[0-5]\d(\.\d{0,2})?$')
     if not timepattern.fullmatch(formdata['time']):
         results.append({'name': 'time', 'status': 'must be formatted as [[hh:]mm:]ss[.dd]'})
         
-    bibpattern = compile('^\d{2,5}$')
+    bibpattern = compile(r'^\d{2,5}$')
     if not bibpattern.fullmatch(formdata['bibno']):
         results.append({'name': 'bibno', 'status': 'must be a number between 2 and 5 digits'})
         
@@ -579,8 +579,8 @@ races_view = RacesView(
 )
 races_view.register()
 
-chipreads_dbattrs = 'id,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types,source'.split(',')
-chipreads_formfields = 'rowid,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types,source'.split(',')
+chipreads_dbattrs = 'id,race.raceyear,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types,source'.split(',')
+chipreads_formfields = 'rowid,raceyear,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types,source'.split(',')
 chipreads_dbmapping = dict(zip(chipreads_dbattrs, chipreads_formfields))
 chipreads_formmapping = dict(zip(chipreads_formfields, chipreads_dbattrs))
 
@@ -589,12 +589,14 @@ def chipreads_filters():
     with pretablehtml:
         with span(id='spinner', style='display:none;'):
                   i(cls='fa-solid fa-spinner fa-spin')
+        filterdiv('chipreads-external-filter-raceyear', 'Race')
         filterdiv('chipreads-external-filter-display_date', 'Date')
         filterdiv('chipreads-external-filter-tag_id', 'Chips')
         filterdiv('chipreads-external-filter-bib', 'Bibs')
     return pretablehtml.render()
 
 chipreads_yadcf_options = [
+    yadcfoption('raceyear:name', 'chipreads-external-filter-raceyear', 'select', placeholder='Select races', width='300px', select_type='select2'),
     yadcfoption('display_date:name', 'chipreads-external-filter-display_date', 'date'),
     yadcfoption('tag_id:name', 'chipreads-external-filter-tag_id', 'multi_select', placeholder='Select', width='200px'),
     yadcfoption('bib:name', 'chipreads-external-filter-bib', 'multi_select', placeholder='Select', width='200px'),
@@ -607,14 +609,18 @@ def chipreads_set_yadcf_data():
     # add filters for date, tag_id, bib
     yadcf_data = []
     
+    # unfortunately the order_by clause is ignored by yadcf, which seems to sort alphabetically
+    matches = [str(row[0]) for row in db.session.query(Race.raceyear).order_by(Race.date.desc()).all()]
+    yadcf_data.append((f'yadcf_data_{getcol('raceyear')}', matches))
+
     matches = [str(row[0]) for row in db.session.query(ChipRead.date).distinct().all()]
-    yadcf_data.append(('yadcf_data_{}'.format(getcol('display_date')), matches))
+    yadcf_data.append((f'yadcf_data_{getcol('display_date')}', matches))
     
     matches = [row[0] for row in db.session.query(ChipRead.tag_id).distinct().all()]
-    yadcf_data.append(('yadcf_data_{}'.format(getcol('tag_id')), matches))
+    yadcf_data.append((f'yadcf_data_{getcol('tag_id')}', matches))
     
     matches = [row[0] for row in db.session.query(ChipRead.bib).distinct().all()]
-    yadcf_data.append(('yadcf_data_{}'.format(getcol('bib')), matches))
+    yadcf_data.append((f'yadcf_data_{getcol('bib')}', matches))
 
     return yadcf_data
 
@@ -650,6 +656,9 @@ chipreads_view = ChipreadsView(
         'csv'
     ],
     clientcolumns = [
+        {'data': 'raceyear', 'name': 'raceyear', 'label': 'race',
+         'type': 'readonly',
+         },
         {'data': 'reader_id', 'name': 'reader_id', 'label': 'Reader ID',
          'type': 'readonly',
          },
@@ -699,10 +708,35 @@ chipreads_view = ChipreadsView(
 )
 chipreads_view.register()
 
-chip2bib_dbattrs = 'id,tag_id,bib'.split(',')
-chip2bib_formfields = 'rowid,tag_id,bib'.split(',')
+chip2bib_dbattrs = 'id,race.raceyear,tag_id,bib'.split(',')
+chip2bib_formfields = 'rowid,raceyear,tag_id,bib'.split(',')
 chip2bib_dbmapping = dict(zip(chip2bib_dbattrs, chip2bib_formfields))
 chip2bib_formmapping = dict(zip(chip2bib_formfields, chip2bib_dbattrs))
+
+def get_chip2bib_filters():
+    pretablehtml = filtercontainerdiv()
+    with pretablehtml:
+        with span(id='spinner', style='display:none;'):
+                  i(cls='fa-solid fa-spinner fa-spin')
+        filterdiv('chip2bib-external-filter-raceyear', 'Race')
+    return pretablehtml.render()
+
+chip2bib_yadcf_options = [
+    yadcfoption('raceyear:name', 'chip2bib-external-filter-raceyear', 'select', placeholder='Select races', width='300px', select_type='select2'),
+]
+
+# need set_yadcf_data param to tables class to pull possible filters
+def chip2bib_set_yadcf_data():
+    getcol = lambda colname: [col.mData for col in chip2bib_view.servercolumns].index(colname)
+
+    # add filters for date, tag_id, bib
+    yadcf_data = []
+    
+    # unfortunately the order_by clause is ignored by yadcf, which seems to sort alphabetically
+    matches = [str(row[0]) for row in db.session.query(Race.raceyear).order_by(Race.date.desc()).all()]
+    yadcf_data.append((f'yadcf_data_{getcol('raceyear')}', matches))
+
+    return yadcf_data
 
 class ChipBibView(TmConnectorView):
     pass
@@ -712,6 +746,9 @@ chip2bib_view = ChipBibView(
     db=db,
     model=ChipBib,
     template='chip2bib.jinja2',
+    pretablehtml=get_chip2bib_filters,
+    yadcfoptions = chip2bib_yadcf_options,
+    set_yadcf_data = chip2bib_set_yadcf_data,
     pagename='Chip/Bib Map',
     endpoint='public.chip2bib',
     rule='/chip2bib',
@@ -733,6 +770,9 @@ chip2bib_view = ChipBibView(
         'csv'
     ],
     clientcolumns = [
+        {'data': 'raceyear', 'name': 'raceyear', 'label': 'race',
+         'type': 'readonly',
+         },
         {'data': 'tag_id', 'name': 'tag_id', 'label': 'chip',
          'type': 'readonly',
          },
