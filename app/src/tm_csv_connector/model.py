@@ -123,15 +123,6 @@ class Race(Base):
     @classmethod
     def _raceyear_expression(cls):
         return cls.name + ' ' + func.year(cls.date) if cls.date else ''
-
-    # @hybrid_property
-    # def year(self):
-    #     return self.date.strftime('%Y') if self.date else ''
-    
-    # @year.inplace.expression
-    # @classmethod
-    # def _year_expression(cls):
-    #     return func.year(cls.date)
     
 class Result(Base):
     __tablename__ = 'result'
@@ -146,6 +137,33 @@ class Result(Base):
     bibno        = Column(Text)
     time         = Column(Float)
     is_confirmed = Column(Boolean, default=False)
+    
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
+class BluetoothType(Base):
+    __tablename__ = 'bluetoothtype'
+    id          = Column(Integer(), primary_key=True)
+    type        = Column(Text)
+    description = Column(Text)
+    devices     = relationship('BluetoothDevice', back_populates='type', cascade='all, delete, delete-orphan')
+    
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
+class BluetoothDevice(Base):
+    __tablename__ = 'bluetoothdevice'
+    id          = Column(Integer(), primary_key=True)
+    name        = Column(Text)
+    type_id     = mapped_column(ForeignKey('bluetoothtype.id'))
+    type        = relationship('BluetoothType', back_populates='devices')
+    hwaddr      = Column(Text)
     
     # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
     update_time = Column(DateTime,

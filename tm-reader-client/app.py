@@ -241,13 +241,27 @@ async def controller(websocket):
 
         # browser wants to know available com ports
         elif opcode == 'get_comports':
+            # preprocess com devices
             cp = comports()
-            bt_desc = 'Standard Serial over Bluetooth link'
+            comdevices = {}
+            # note this loop will pick up some with hwaddr = 000000000000, which should be ignored as these are "incoming"
             for c in cp:
-                if len(c.description) >= len(bt_desc) and c.description[:len(bt_desc)]==bt_desc:
-                    c.description = f'Bluetooth ({c.device})'
-            the_comports = [{'id': c.device, 'text': c.description} for c in cp]
-            await websocket.send(dumps({'opcode': 'available_comports', 'comports': the_comports}))
+                hwidparts = c.hwid.split('\\')[2]
+                hwidfields = hwidparts.split('&')[3]
+                hwaddr = hwidfields.split('_')[0]
+                if hwaddr != '000000000000':
+                    comdevices[hwaddr] = c.device
+            
+            btdevices = event['bluetoothdevices']
+            the_devices = {}
+            for bttype in btdevices:
+                the_devices.setdefault(bttype, [])
+                devices = btdevices[bttype]
+                for device in devices:
+                    # check if device is in comports
+                    if device['hwaddr'] in comdevices:
+                        the_devices[bttype].append({'id': comdevices[device['hwaddr']], 'text': device['name']})
+            await websocket.send(dumps({'opcode': 'available_devices', 'devices': the_devices}))
 
 async def main():
     async with serve(controller, host="localhost", port=8081):

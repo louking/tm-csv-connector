@@ -19,7 +19,7 @@ from loutilities.timeu import timesecs
 
 # homegrown
 from . import bp
-from ...model import db, Result, Setting, ScannedBib, Race, ChipBib, AppLog
+from ...model import db, Result, Setting, ScannedBib, Race, ChipBib, AppLog, BluetoothDevice
 from ...fileformat import filelock, refreshfile, lock, unlock
 from ...trident import trident2db
 
@@ -656,3 +656,21 @@ class GetRacesApi(MethodView):
 
 getraces_api = GetRacesApi.as_view('_getraces')
 bp.add_url_rule('/_getraces', view_func=getraces_api, methods=['GET'])
+
+
+class GetBluetoothDevicesApi(MethodView):
+    """get bluetooth device hardware addrs
+    """
+    def get(self):
+        options = {}
+        bluetoothdevices = db.session.execute(sqlselect(BluetoothDevice)).all()
+        
+        for bd in bluetoothdevices:
+            bdtype = bd[0].type.type
+            options.setdefault(bdtype, [])
+            options[bdtype].append({'name': bd[0].name, 'hwaddr': bd[0].hwaddr})
+        
+        return jsonify(options)
+
+getbluetoothdevices_api = GetBluetoothDevicesApi.as_view('_getbluetoothdevices')
+bp.add_url_rule('/_getbluetoothdevices', view_func=getbluetoothdevices_api, methods=['GET'])

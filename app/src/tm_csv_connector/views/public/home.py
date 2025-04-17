@@ -55,7 +55,8 @@ Local = LocalTimezone()
 
 # homegrown
 from . import bp
-from ...model import db, Race, Result, ChipRead, ChipBib, ChipReader, AppLog, Setting
+from ...model import db, Race, Result, BluetoothDevice, BluetoothType
+from ...model import ChipRead, ChipBib, ChipReader, AppLog, Setting
 from ...fileformat import filecolumns, db2file, filelock, refreshfile, lock, unlock
 
 class ParameterError(Exception): pass
@@ -578,6 +579,123 @@ races_view = RacesView(
     },
 )
 races_view.register()
+
+# NOTE: while this table *seems* like it can be updated, the values in the type column are hard
+# coded in results.js. So if new values are added, results.js needs to be updated
+
+bluetoothtypes_dbattrs = 'id,type,description'.split(',')
+bluetoothtypes_formfields = 'rowid,type,description'.split(',')
+bluetoothtypes_dbmapping = dict(zip(bluetoothtypes_dbattrs, bluetoothtypes_formfields))
+bluetoothtypes_formmapping = dict(zip(bluetoothtypes_formfields, bluetoothtypes_dbattrs))
+
+def bluetoothtypes_filters():
+    pretablehtml = filtercontainerdiv()
+    with pretablehtml:
+        text('NOTE: updates to Type or new entries require a code change to results.js')
+    return pretablehtml.render()
+
+def bluetoothtypes_validate(action, formdata):
+    bluetoothtypes = []
+
+    return bluetoothtypes
+
+class bluetoothtypesView(TmConnectorView):
+    pass
+
+bluetoothtypes_view = bluetoothtypesView(
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=BluetoothType,
+    template='datatables.jinja2',
+    pretablehtml=bluetoothtypes_filters(),
+    pagename='Bluetooth Types',
+    endpoint='public.bluetoothtypes',
+    rule='/bluetoothtypes',
+    dbmapping=bluetoothtypes_dbmapping,
+    formmapping=bluetoothtypes_formmapping,
+    validate=bluetoothtypes_validate,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=[
+        'create',
+        'edit',
+        'remove',
+    ],
+    clientcolumns = [
+        {'data': 'type', 'name': 'type', 'label': 'Type',
+         'className': 'field_req',
+        },
+        {'data': 'description', 'name': 'description', 'label': 'Description',
+         'className': 'field_req',
+        },
+    ],
+    dtoptions={
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+bluetoothtypes_view.register()
+
+
+bluetoothdevices_dbattrs = 'id,name,type,hwaddr'.split(',')
+bluetoothdevices_formfields = 'rowid,name,type,hwaddr'.split(',')
+bluetoothdevices_dbmapping = dict(zip(bluetoothdevices_dbattrs, bluetoothdevices_formfields))
+bluetoothdevices_formmapping = dict(zip(bluetoothdevices_formfields, bluetoothdevices_dbattrs))
+
+def bluetoothdevices_validate(action, formdata):
+    bluetoothdevices = []
+
+    return bluetoothdevices
+
+class BluetoothDevicesView(TmConnectorView):
+    pass
+
+bluetoothdevices_view = BluetoothDevicesView(
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=BluetoothDevice,
+    template='datatables.jinja2',
+    pagename='Bluetooth Devices',
+    endpoint='public.bluetoothdevices',
+    rule='/bluetoothdevices',
+    dbmapping=bluetoothdevices_dbmapping,
+    formmapping=bluetoothdevices_formmapping,
+    validate=bluetoothdevices_validate,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=[
+        'create',
+        'edit',
+        'remove',
+    ],
+    clientcolumns = [
+        {'data': 'name', 'name': 'name', 'label': 'Name',
+         'className': 'field_req',
+         },
+        {'data': 'type', 'name': 'type', 'label': 'Type',
+         'className': 'field_req',
+         '_treatment': {
+             'relationship': {'fieldmodel': BluetoothType, 'labelfield': 'type',
+                             'formfield': 'type',
+                             'dbfield': 'type',
+                             'uselist': False,
+                             }}
+         },
+        {'data': 'hwaddr', 'name': 'hwaddr', 'label': 'HW Addr',
+         'className': 'field_req',
+         'fieldInfo': 'determine using Device Manager > Properties > Details > Bluetooth device address',
+        },
+    ],
+    dtoptions={
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+bluetoothdevices_view.register()
 
 chipreads_dbattrs = 'id,race.raceyear,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types,source'.split(',')
 chipreads_formfields = 'rowid,raceyear,reader_id,receiver_id,tag_id,bib,contig_ctr,display_date,time,rssi,types,source'.split(',')

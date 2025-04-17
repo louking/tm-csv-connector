@@ -30,6 +30,12 @@ const GET_COMPORTS_WAIT = 1000;
 const REOPEN_SOCKET_WAIT = 5000;
 const CHECK_TABLE_UPDATE = 1000;
 
+// bluetooth type mapping
+const bluetooth_select_id = {
+    scanner: 'scannerport',
+    tmwif:   'port',
+};
+
 // save last draw time
 var last_draw;
 
@@ -74,13 +80,11 @@ $( function() {
                     cd.text('Connect');
                 }    
             
-            // what are the current comports? this comes in when the view is initialized
-            } else if (rsp.opcode == 'available_comports') {
+            // what are the current devices? this comes in when the view is initialized
+            } else if (rsp.opcode == 'available_devices') {
                 // https://select2.org/programmatic-control/add-select-clear-items
-                let portselects = ['#port', '#scannerport'];
-                for (let i=0; i<portselects.length; i++) {
-                    // which select are we working with?
-                    let portselect = $(portselects[i]);
+                Object.keys(bluetooth_select_id).forEach(bttype => {
+                    let portselect = $(`#${bluetooth_select_id[bttype]}`);
 
                     // remember if any is selected
                     let portselected = portselect.val();
@@ -92,12 +96,13 @@ $( function() {
                     portselect.empty();
                     portselect.append(new Option('select port', null));
 
-                    // add the current comports
-                    for (let j=0;j<rsp.comports.length; j++) {
-                        comport = rsp.comports[j];
-                        option = new Option(comport.text, comport.id);
+                    // add the current devices
+                    let these_devices = rsp.devices[bttype];
+                    for (let j=0;j<these_devices.length; j++) {
+                        let device = these_devices[j];
+                        option = new Option(device.text, device.id);
                         portselect.append(option);
-                        if (portselected == comport.id) {
+                        if (portselected == device.id) {
                             portselected_reset = true;
                         }
                     }
@@ -109,8 +114,7 @@ $( function() {
 
                     // let select2 and others know of the changes
                     portselect.trigger('change');
-                }
-
+                });
             }
         }
     });
@@ -199,10 +203,14 @@ function checkInitialized() {
 
 function get_comports() {
     try {
-        tm_reader.send(JSON.stringify({opcode: 'get_comports'}));
-    }
-
-    catch(e) {
+        $.getJSON('/_getbluetoothdevices', function(data) {
+            try {
+                tm_reader.send(JSON.stringify({opcode: 'get_comports', 'bluetoothdevices': data}));
+            } catch(e) {
+                setTimeout(get_comports, GET_COMPORTS_WAIT);
+            }
+        });
+    } catch(e) {
         setTimeout(get_comports, GET_COMPORTS_WAIT);
     }
 }
