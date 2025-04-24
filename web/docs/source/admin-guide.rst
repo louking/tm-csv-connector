@@ -33,14 +33,19 @@ Follow instructions in https://docs.docker.com/get-docker/
     the application is a Linux container, so ignore all the stuff about windows containers on the webpage
 
 
-Time Machine Connection
+Bluetooth Pairing
 -----------------------------
 
-Before using the app, the Time Machine needs to be connected to the laptop's
-bluetooth. These instructions are for Windows 11.
+Before using the app, the Time Machine wireless interface or barcode scanner
+needs to be connected to the laptop's bluetooth. These instructions are for
+Windows 11.
 
-Make sure the Time Machine has the Wireless Interface connected, and is
-powered on. The Wireless Interface LED should be blinking red.
+For the Time Machine connection, make sure the Time Machine has the Wireless
+Interface connected, and is powered on. The Wireless Interface LED should be
+blinking red.
+
+For a barcode scanner, make sure the scanner is powered on and in SPP mode. The
+scanner should be in pairing mode. See the scanner's user's manual for details.
 
 In the taskbar's search bar, search for bluetooth. Click on **Bluetooth and other
 devices settings**. Set **Bluetooth devices discovery** to Advanced, then click
@@ -58,21 +63,15 @@ Then click **Bluetooth**
 
 |
 
-Select **TM Wireless IF**
+Select the device you're trying to pair with. In this case it's a barcode scanner **BarCode Scanner spp**. Make note of the name used for this connection as it will be needed when
+configuring the :ref:`Bluetooth Devices view`.
 
-.. figure:: images/win11-add-device-select-tm.*
+.. figure:: images/win11-add-device-select-scanner.*
     :align: center
 
 |
 
 Click **Connect**
-
-Select **TM Wireless IF**
-
-.. figure:: images/win11-add-device-connect.*
-    :align: center
-
-|
 
 To verify the bluetooth connection worked properly, in **Bluetooth and other
 devices settings**, under **Related settings** click **More Bluetooth settings**.
@@ -83,13 +82,55 @@ devices settings**, under **Related settings** click **More Bluetooth settings**
 |
 
 Under the COM Ports tab, you should see the Outgoing and Incoming ports for the
-Time Machine. In the **tmtility** Results view, **Connect** to the Outgoing
-port.
+device you just connected.
 
 .. figure:: images/win11-bluetooth-settings-more.*
     :align: center
 
 |
+
+Now you need to determine the device's Bluetooth Hardware address. 
+
+* bring up the Windows Device Manager (Windows-x > Device Manager)
+* expand the **Bluetooth** section
+
+
+.. figure:: images/win11-device-manager-view.*    
+    :align: center
+
+|
+
+.. figure:: images/win11-device-manager-bluetooth.*
+    :align: center  
+
+|
+
+* right-click on the device you just connected, and select **Properties** > **Details**
+* select **Bluetooth device address** from the **Property** dropdown
+
+.. figure:: images/win11-device-manager-bluetooth-properties-1.*
+    :align: center
+
+|
+
+* copy the value of the **Value** field. This is the Bluetooth Hardware address
+  for the device, and will be used in the :ref:`Bluetooth Devices view`
+
+.. figure:: images/win11-device-manager-bluetooth-properties-2.*
+    :align: center
+
+|
+
+* create the device using :ref:`Bluetooth Devices view`. The **Name** field
+  should be a suitable name of the device you just connected (label the device
+  with this), and the **Type** field should be set to the type of device you
+  just connected. The **HW Addr** field should be set to the Bluetooth Hardware
+  address you just copied.
+
+
+
+
+
 
 App Installation
 ---------------------
@@ -199,52 +240,34 @@ Set up RaceDay Scoring
   * Assign as a Backup Stream for these Timing Locations: Finish
 
 
+Bluetooth devices
+========================
+Bluetooth devices are used to connect the Time Machine and Barcode Scanner to
+the laptop. The Bluetooth device must be set to SPP mode, paired with the
+laptop, and configured in :ref:`Bluetooth Devices view` before starting the app.
+
+To configure a bluetooth device, 
+
+* set the device into pairing mode (see the device's user's manual)
+* use the laptop's bluetooth settings to pair the device with the laptop
+
+.. figure:: images/win11-bluetooth-settings.*
+    :align: center
+
+
+
 Bib Barcode Scanner
 =========================
 
 A bib barcode scanner can be used to automatically serialize bibs which cross
 the finish line, similar to the use of pull tags and a spindle. **tmtility** was
-tested with Tera Model D5100 Wireless 2D Barcode Scanner
-(https://www.amazon.com/dp/B07M68LS2N). The requirement is that the scanner
-connect via a USB port, and send the bib numbers followed by one or more CR (\\r)
+tested with Tera Model H00002 and inatech BCST-72 scanners. The requirement is that the scanner
+connect via a USB port, and send the bib numbers followed by one or more CR (\\r) or LF (\\n) 
 characters.
 
-The scanner needs to be set to use USB-COM mode after a factory reset. This
-needs to be done once, but the barcode commands are here just in case of a
-problem.
+The scanner needs to be set to use SPP mode after a factory reset. See the scanner user's 
+manual for details. The scanner should be paired with the laptop before starting.
 
-.. figure:: images/scanner-factory-default.*
-    :align: center
-
-|
-
-.. figure:: images/scanner-usb-com.*
-    :align: center
-
-|
-
-If there is any issue pairing with the scanner, this barcode can be used to put
-the scanner into pairing mode. Again this shouldn't be needed as the scanner
-should already be paired with the dongle attached to it.
-
-.. figure:: images/scanner-pairing.*
-    :align: center
-
-|
-
-To keep scanner on all the time, scan the following barcode.
-
-.. figure:: images/scanner-no-timeout.*
-    :align: center
-
-|
-
-To shut down the scanner immediately, scan the following barcode.
-
-.. figure:: images/scanner-shut-down.*
-    :align: center
-
-|
 
 
 Jackery Working Time

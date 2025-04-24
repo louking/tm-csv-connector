@@ -26,24 +26,50 @@ so TMKeyPad was abandoned by the vendor.
 Design
 ===============
 
-One process (reader) reads the wireless interface data and when it sees a result writes a row in a database table, and appends a row to the 
-file (open, append, close).
+There are several windows processes which are responsible for reading the serial
+lines offered by the Time Machine, barcode scanner, and Trident reader. These
+processes are responsible for reading data from external devices and posting the
+data to a web backend. The web backend is responsible for writing the data to a
+database, and provides the web server for the user interface.
 
-A web frontend displays a results table, and "redraws" it periodically (nominally 1/sec). The web backend will pull data from the database table 
-for the redraw. This is to pick up new reads. It's possible to optimize this to only pick up new reads since the last redraw, but this doesn't
-seem necessary to add this complexity.
+The TM reader process is responsible for reading the Time Machine wireless
+interface. When it sees a result it posts it to the web backend, which in turn
+writes a row in the *result* table.
 
-The web backend and frontend is local on the machine used with RaceDay Scoring.
+The barcode scanner reader process is responsible for reading the barcode
+scanner interface. When it sees a scan it posts it to the web backend, which in
+turn writes a row in the *scannedbib* table.
 
-The frontend has an edit capability using datatables' editor functions, allowing edits, inserts, deletes, which causes the backend 
-to update the database appropriately, then kicks off a file rewrite process which creates a temp file from the database, renames the old file, 
-renames the temp file to the expected name. 
+The Trident reader process is responsible for reading the Trident interface.
+When it sees a read it posts it to the web backend, which in turn writes a row
+in the *chipread* table. This process sets up a TCP connection to an IP
+address rather than reading from a COM port, so it could have been done from the
+Docker container. However, it seemed simplest to clone the behavior of the other
+windows processes. 
 
-There is locking between the reader process and the web backend to avoid the race where the former is adding a row just at the wrong time. 
+A web frontend displays *results* table merged with the *scannedbib* table, and
+"redraws" it periodically (nominally 1/sec). The web backend will pull data from
+the database tables for the redraw. This picks up and displays new results and
+scans.
 
-RDS maintains a pointer into the file to know where to look for new data, and is signaled by the operating system when the file is appended to. 
-In order for RDS to pick up edits, the operator needs to do "stream replay" after any edits. This causes RDS to clear its "raw reads" from the 
-stream, open, and read the file.
+The reader processes, web backend, and frontend are all on the same machine. The
+web backend saves the data file to a directory on the machine used by RaceDay
+Scoring.
+
+The frontend has a way to manage the scanned bib numbers, i.e., to merge these
+with the results from the Time Machine. There's also an edit capability using
+datatables' editor functions, allowing edits, inserts, deletes, which causes the
+backend to update the database appropriately. The operator can "confirm" the
+results, which kicks off a file rewrite process which creates a temp file from
+the database, renames the old file, renames the temp file to the expected name. 
+
+There is locking between the reader process and the web backend to avoid the
+race where the former is adding a row just at the wrong time. 
+
+RDS maintains a pointer into the file to know where to look for new data, and is
+signaled by the operating system when the file is appended to. The operator
+causes new results to be sent to the file by "confirming" them. RDS then reads
+the new data into as Time Machine raw reads.
 
 ..
    see https://www.graphviz.org/
@@ -60,38 +86,61 @@ stream, open, and read the file.
         spline = true;
 
         tm [label="Time\nMachine", shape="parallelogram"];
+        wtmrdr [label="TM reader (win)", shape="rectangle"];
+        bs [label="BarCode\nScanner", shape="parallelogram"];
+        wbsrdr [label="BS reader (win)", shape="rectangle"];
+        chip [label="Trident", shape="parallelogram"];
+        wchiprdr [label="Trident reader (win)", shape="rectangle"];
+
         rds [label="RaceDay\nScoring", shape="parallelogram"];
-        wrdr [label="reader (windows)", shape="rectangle"];
 
         subgraph cluster_0 {
             be [label="web backend", shape="rectangle"];
-            db [label="results table", shape="oval"];
+            dbres [label="result (db)", shape="oval"];
+            dbscan [label="scannedbib (db)", shape="oval"];
+            dbreads [label="chipread (db)", shape="oval"];
             label = "docker";
             color = "black";
 
-            be -> db [label="lock,\nresult"];
-            db -> be [label="results"];
+            be -> dbres [label="lock,\nresult"];
+            dbres -> be [label="results"];
 
+            be -> dbscan [label="scan"];
+            dbscan -> be [label="scans"];
+
+            be -> dbreads [label="read"];
+            dbreads -> be [label="reads"];
         }
 
         fe [label="browser", shape="rectangle"];
 
         file [label="csv file", shape="tab"];
 
-        tm -> wrdr [label="result"];
-        wrdr -> be [label="result"];
-        be -> wrdr [label="control"];
+        tm -> wtmrdr [label="result"];
+        wtmrdr -> be [label="result"];
+        be -> wtmrdr [label="control"];
+
+        bs -> wbsrdr [label="scan"];
+        wbsrdr -> be [label="scan"];
+        be -> wbsrdr [label="control"];
+
+        chip -> wchiprdr [label="reads"];
+        wchiprdr -> be [label="reads"];
+        be -> wchiprdr [label="control"];
 
         be -> file [label="result,\nunlock"];
 
         be -> file [label="lock,\nrewrite,\nunlock"];
 
         fe -> be [label="edit,\nnew,\ndelete"];
-        be -> fe [label="results"];
+        be -> fe [label="results\nscans\nreads"];
 
         file -> rds;
 
-        { rank=same; tm, wrdr };
+        // { rank=same; tm, wtmrdr };
+        // { rank=same; wbsrdr, bs };
+        // { rank=same; wchiprdr, chip };
+
         {
             rank=same;
             edge[style=invis];
@@ -103,8 +152,10 @@ stream, open, and read the file.
 Other Notes
 ==========================
 
-- The bulk of the application lives in a docker compose application, which reduces platform dependency to just docker. I.e., there are no requirements 
-  to install a database management system, web server, or python interpreter
-- However, Windows docker does not allow access to serial ports from the docker container. For this reason the reader process is native Windows
-  and runs outside of the container as a service. While this is a python process, the python interpreter is embedded in the exe file using
-  the pyinstaller package.
+- The bulk of the application lives in a docker compose application, which
+  reduces platform dependency to just docker. I.e., there are no requirements to
+  install a database management system, web server, or python interpreter
+- However, Windows docker does not allow access to serial ports from the docker
+  container. For this reason the reader processes are native Windows and run
+  outside of the container as a service. While these are python processes, the
+  python interpreter is embedded in the exe files using the pyinstaller package.

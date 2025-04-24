@@ -11,12 +11,58 @@ and the release version at the top of the view. **Admin Guide** can be clicked t
     View heading
 
 
+Bluetooth Devices view
+=========================
+**Navigation:** Bluetooth > Bluetooth Devices
+
+The Bluetooth Devices view is used to configure the Bluetooth devices that are supported by the system, and on which select control on the :ref:`Results view` the device is shown.
+
+    :Name:
+        name of Bluetooth device
+    
+    :Type:
+        type of Bluetooth device, configured in :ref:`Bluetooth Types view`
+    
+    :HW Addr:
+        MAC address of Bluetooth device
+
+.. figure:: images/bluetooth-devices-view.*
+    :align: center
+
+    Bluetooth Devices view
+
+
+Bluetooth Types view
+=========================
+**Navigation:** Bluetooth > Bluetooth Types
+
+The Bluetooth Types view is used to configure the types of Bluetooth devices that are supported by the system for use in the :ref:`Bluetooth Devices view`
+
+.. note::
+    Updates to Type or new entries require a code change to *results.js*
+
+The Bluetooth Types view is used to configure the types of Bluetooth devices that are supported by the system. 
+
+    :Type:
+        type of Bluetooth device, matches code in *results.js*
+    
+    :Description:
+        description of Bluetooth device
+
+.. figure:: images/bluetooth-types-view.*
+    :align: center
+
+    Bluetooth Types view
+
 Chip/Bib Map view
 ======================
 
 **Navigation:** Chips > Chip/Bib Map
 
 The :ref:`Chip Reads view` displays bib numbers based on this table. The csv file to import must contain columns chip and bib.
+
+    :race:
+        race/year the chip is associated with
 
     :chip:
         tag id for chip
@@ -27,12 +73,18 @@ The :ref:`Chip Reads view` displays bib numbers based on this table. The csv fil
 The view has the following controls:
 
     :Import:
-        import a file with chip to bib mapping
+        for a given race/year, import a file with chip to bib mapping
 
-        .. note:: RaceDay Scoring will only accept two chips per bib
+        .. note:: RaceDay Scoring will accept up to two chips per bib
 
     :CSV:
         create a CSV file from the records which are **shown only**
+
+The view has the following filters:
+
+    :Race:
+        race/year of interest
+
 
 .. figure:: images/chip-bib-map-view.*
     :align: center
@@ -46,6 +98,9 @@ Chip Reads view
 **Navigation:** Chips > Chip Reads
 
 Decode chip reads from Trident log file.
+
+    :race:
+        race/year the read is associated with
 
     :Reader ID:
         identifies reader
@@ -85,6 +140,9 @@ The view has the following controls:
         create a CSV file from the records which are **shown only**
 
 The view has the following filters:
+
+    :Race:
+        race/year of interest
 
     :Date:
         date of interest
