@@ -234,9 +234,9 @@ def results_validate(action, formdata):
     if not timepattern.fullmatch(formdata['time']):
         results.append({'name': 'time', 'status': 'must be formatted as [[hh:]mm:]ss[.dd]'})
         
-    bibpattern = compile(r'^\d{2,5}$')
+    bibpattern = compile(r'^\d{1,5}$')
     if not bibpattern.fullmatch(formdata['bibno']):
-        results.append({'name': 'bibno', 'status': 'must be a number between 2 and 5 digits'})
+        results.append({'name': 'bibno', 'status': 'must be a number between 1 and 5 digits'})
         
     return results
 

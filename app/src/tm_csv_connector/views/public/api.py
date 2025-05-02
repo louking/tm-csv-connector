@@ -131,6 +131,10 @@ class PostBibApi(MethodView):
                     
                 # write to database
                 bibno = msg['bibno']
+                # remove leading 0's if not 0000 ('0000' is "blank" bibno)
+                if bibno != '0000':
+                    bibno = bibno.lstrip('0')
+
                 race_id = msg['raceid']
                 scannedbib = ScannedBib()
                 scannedbib.bibno = bibno
