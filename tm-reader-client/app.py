@@ -245,6 +245,7 @@ async def controller(websocket):
             cp = comports()
             comdevices = {}
             # note this loop will pick up some with hwaddr = 000000000000, which should be ignored as these are "incoming"
+            # adapted from https://stackoverflow.com/a/71024996/799921, https://inthehand.com/2020/11/22/bluetooth-virtual-com-ports/
             for c in cp:
                 hwidparts = c.hwid.split('\\')[2]
                 hwidfields = hwidparts.split('&')[3]
