@@ -414,6 +414,7 @@ class ResultsView(TmConnectorView):
         for row in rows:
             row.place = place
             place += 1
+        db.session.flush()
 
         # set had_scannedbib depending on whether the next result had a scanned bib
         if self.action == 'create':
