@@ -414,6 +414,7 @@ class ResultsView(TmConnectorView):
         for row in rows:
             row.place = place
             place += 1
+        # need flush here else Result query below will not return updated rows
         db.session.flush()
 
         # set had_scannedbib depending on whether the next result had a scanned bib
