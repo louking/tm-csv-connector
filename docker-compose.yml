@@ -79,7 +79,9 @@ services:
       - TZ=${TZ}
     # access log is in web container
     # command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--access-logfile", "-", "--log-file", "-", "app:app"]
-    command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--log-file", "-", "app:app"]
+    command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--log-file", "-", 
+              "--workers=${GUNICORN_WORKERS}", "--threads=${GUNICORN_THREADS}",
+             "app:app"]
 
 volumes:
   db-data:

@@ -14,12 +14,34 @@
 {% endblock %}
 
 {% block metanav %}
+    {% if not config.SIMULATION_MODE %}
       {# used by layout.js, needs to be urlencoded else may look like tag #}
       <span id="metanav-url-rule" hidden>{{ request.url_rule | urlencode }}</span>
       {% if url_rule %}
         <span id="metanav-url-rule-filtered" hidden>{{ url_rule | urlencode }}</span>
       {% endif %}
-    </div>
+
+    {# else, show the metanav with login/logout #}
+    {% else %}
+        <div class=metanav>
+        {% if current_user.name %}
+            {{ current_user.name }} |
+        {% endif %}
+
+        {# used by layout.js, needs to be urlencoded else may look like tag #}
+        <span id="metanav-url-rule" hidden>{{ request.url_rule | urlencode }}</span>
+        {% if url_rule %}
+            <span id="metanav-url-rule-filtered" hidden>{{ url_rule | urlencode }}</span>
+        {% endif %}
+
+        {% if current_user.name %}
+            <a href="{{ url_for('security.logout') }}" class="ui-button">log out</a>
+        {% else %}
+            <a href="{{ url_for('security.login') }}" class="ui-button">log in</a>
+        {% endif %}
+        </div>
+    {% endif %}
+
 {% endblock %}
 
 {% block signin %}

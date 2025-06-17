@@ -7,6 +7,8 @@ models - database models for application
 
 # pypi
 from flask_sqlalchemy import SQLAlchemy
+from flask_security.models import fsqla_v3 as fsqla
+
 
 # home grown
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -39,11 +41,23 @@ backref = db.backref
 object_mapper = db.object_mapper
 Base = db.Model
 
+# flask security models
+fsqla.FsModels.set_db_info(db)
+class Role(Base, fsqla.FsRoleMixin):
+    pass
+class User(Base, fsqla.FsUserMixin):
+    name = Column(Text)
+    simruns = relationship('SimulationRun', back_populates='user', cascade='all, delete, delete-orphan')
+
 class ScannedBib(Base):
     __tablename__ = 'scannedbib'
     id           = Column(Integer(), primary_key=True)
+    # has race_id or simrun_id, but not both
     race_id      = mapped_column(ForeignKey('race.id'))
     race         = relationship('Race', back_populates='scannedbibs', foreign_keys=[race_id])
+    simulationrun_id = mapped_column(ForeignKey('simulationrun.id'))
+    simulationrun    = relationship('SimulationRun', back_populates='scannedbibs', foreign_keys=[simulationrun_id])
+
     order        = Column(Integer)
     bibno        = Column(Text)
     result       = relationship("Result", uselist=False, back_populates="scannedbib")
@@ -127,8 +141,11 @@ class Race(Base):
 class Result(Base):
     __tablename__ = 'result'
     id           = Column(Integer(), primary_key=True)
+    # has race_id or simrun_id, but not both
     race_id      = mapped_column(ForeignKey('race.id'))
     race         = relationship('Race', back_populates='results')
+    simulationrun_id = mapped_column(ForeignKey('simulationrun.id'))
+    simulationrun    = relationship('SimulationRun', back_populates='results')
     tmpos        = Column(Integer)
     place        = Column(Integer)
     scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
@@ -203,4 +220,113 @@ class Setting(Base):
     id      = Column(Integer(), primary_key=True)
     name    = Column(Text)
     value   = Column(Text)
+
+class Simulation(Base):
+    __tablename__ = 'simulation'
+    id      = Column(Integer(), primary_key=True)
+    name    = Column(Text)
+    events  = relationship('SimulationEvent', back_populates='simulation', cascade='all, delete, delete-orphan')
+    vectors = relationship('SimulationVector', back_populates='simulation', cascade='all, delete, delete-orphan')
+    runs = relationship('SimulationRun', back_populates='simulation', cascade='all, delete, delete-orphan')
     
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
+# simulation actions
+etype_type = ['timemachine', 'scan']
+# user initiated scan actions
+etype_type += ['insert', 'delete', 'use']
+# user initiated file actions
+etype_type += ['confirm', 'refresh']
+
+class SimulationEvent(Base):
+    __tablename__ = 'simulationevent'
+    id      = Column(Integer(), primary_key=True)
+    simulation_id = mapped_column(ForeignKey('simulation.id'))
+    simulation = relationship('Simulation', back_populates='events')
+    time    = Column(Float)
+    etype   = Column(Text, nullable=False)
+    bibno   = Column(Text)
+
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
+class SimulationVector(Base):
+    __tablename__ = 'simulationvector'
+    id      = Column(Integer(), primary_key=True)
+    simulation_id = mapped_column(ForeignKey('simulation.id'))
+    simulation = relationship('Simulation', back_populates='vectors')
+    order   = Column(Integer)
+    time    = Column(Float)
+    bibno   = Column(Text)
+
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
+class SimulationRun(Base):
+    __tablename__ = 'simulationrun'
+    id      = Column(Integer(), primary_key=True)
+    simulation_id = mapped_column(ForeignKey('simulation.id'))
+    simulation = relationship('Simulation', back_populates='runs')
+    user_id = mapped_column(ForeignKey('user.id'))
+    user = relationship('User', back_populates='simruns')
+    timestarted = Column(DateTime)
+    timeended = Column(DateTime)
+    score = Column(Float)
+
+    simresults  = relationship('SimulationResult', back_populates='simulationrun', cascade='all, delete, delete-orphan')
+    results     = relationship('Result', back_populates='simulationrun', cascade='all, delete, delete-orphan')
+    scannedbibs = relationship('ScannedBib', back_populates='simulationrun', foreign_keys=[ScannedBib.simulationrun_id], cascade='all, delete, delete-orphan')
+
+    # next_scannedbib is set when there are more scanned bibs than there are results
+    next_scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
+    next_scannedbib    = relationship('ScannedBib', foreign_keys=[next_scannedbib_id])
+
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+
+    @hybrid_property
+    def userstart(self):
+        return self.user.name + ' ' + self.timestarted.strftime('%Y-%m-%d %H:%M')
+    
+    @userstart.inplace.expression
+    @classmethod
+    def _userstart_expression(cls):
+        return cls.user.name + ' ' + cls.date
+
+    @hybrid_property
+    def usersimstart(self):
+        return self.user.name + ' ' + self.simulation.name + ' '  + self.timestarted.strftime('%Y-%m-%d %H:%M')
+    
+    @usersimstart.inplace.expression
+    @classmethod
+    def _usersimstart_expression(cls):
+        return cls.user.name + ' ' + cls.simulation.name + ' '  + cls.date
+
+class SimulationResult(Base):
+    __tablename__ = 'simulationresult'
+    id      = Column(Integer(), primary_key=True)
+    simulationrun_id = mapped_column(ForeignKey('simulationrun.id'))
+    simulationrun = relationship('SimulationRun', back_populates='simresults')
+    order   = Column(Integer)
+    bibno   = Column(Text)
+    time    = Column(Float)
+
+    # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
+    update_time = Column(DateTime,
+                         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+                         server_onupdate=FetchedValue()
+                         )
+

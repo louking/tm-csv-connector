@@ -41,3 +41,26 @@ function render_secs2time(data, type, row, meta) {
         return data
     }
 }
+
+function scan_action(e, options) {
+    e.stopPropagation();
+    console.log(`scanaction()`);
+
+    // set up for table redraw
+    let resturl = window.location.pathname + '/rest';
+
+    $.ajax( {
+        url: '/_scanaction',
+        type: 'post',
+        dataType: 'json',
+        data: options,
+        success: function ( json ) {
+            if (json.status == 'success') {
+                refresh_table_data(_dt_table, resturl);
+            }
+            else {
+                alert(json.error);
+            }
+        }
+    } );
+}

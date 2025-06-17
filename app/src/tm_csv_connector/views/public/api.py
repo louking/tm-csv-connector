@@ -411,6 +411,7 @@ class SetParamsApi(MethodView):
             for key in form:
                 if key == 'race_changed': continue
                 session[f'_results_{key}'] = form[key]
+                # current_app.logger.debug(f'setting session param _results_{key} to {form[key]}')
             
             # rewrite csv file if race changed
             if 'race_changed' in form:

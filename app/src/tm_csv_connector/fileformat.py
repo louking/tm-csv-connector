@@ -74,13 +74,21 @@ def db2file(result):
     Returns:
         dict: result row for file, with time as time of day, see db2filet Transform
     """
-    tod_offset = result.race.start_time
+    # if the result has a race, this is a normal result
+    if result.race:
+        tod_offset = result.race.start_time
     
-    db2filet = Transform({
+    # if no race, this is a simulation result
+    else:
+        tod_offset = 0
+    
+    transform = {
         'pos': 'tmpos',
         'time': lambda r: fulltime(r.time + tod_offset),
         'bibno': 'bibno'
-    }, sourceattr=True, targetattr=False)
+    }
+
+    db2filet = Transform(transform, sourceattr=True, targetattr=False)
 
     resultrow = {}
     db2filet.transform(result, resultrow)

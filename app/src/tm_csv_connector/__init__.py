@@ -7,16 +7,21 @@ app - package
 import os.path
 
 # pypi
-from flask import Flask, send_from_directory, g, session, request, render_template, current_app
+from flask import Flask, send_from_directory, g, current_app, render_template, url_for
+from flask_mail import Mail
 from jinja2 import ChoiceLoader, PackageLoader
+from flask_security import SQLAlchemyUserDatastore, Security, hash_password, current_user, login_user
 from sqlalchemy import text
 from sqlalchemy.exc import NoReferencedTableError, ProgrammingError
+from werkzeug.local import LocalProxy
 import loutilities
 from loutilities.configparser import getitems
+from loutilities.flask_helpers.mailer import sendmail
 
 # homegrown
-from .model import Race
 from .version import __version__
+from .model import User, Role
+from .roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_USER
 
 appname = 'tm-csv-connector'
 
@@ -49,7 +54,7 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
     app.jinja_env.globals['_productname'] = app.config['THISAPP_PRODUCTNAME']
     app.jinja_env.globals['_productname_text'] = app.config['THISAPP_PRODUCTNAME_TEXT']
     app.jinja_env.globals['_product_version'] = __version__
-
+    
     # initialize database
     from .model import db
     db.init_app(app)
@@ -68,6 +73,18 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
     def loutilities_static(filename):
         return send_from_directory(loutilitiespath, filename)
 
+    # check if default user needs to be automatically logged in
+    @app.before_request
+    def login_user_no_simulation():
+        if not app.config.get('SIMULATION_MODE', False):
+            default_user = security.datastore.find_user(email=app.config['USER_DEFAULT_EMAIL'])
+            if default_user and not current_user.is_authenticated:
+                # log in default user
+                # this is needed to set up the session for the user
+                current_app.logger.debug(f'Logging in default user: {default_user}')
+                login_user(default_user)
+                db.session.commit()
+    
     # bring in js, css assets here, because app needs to be created first
     from .assets import asset_env, asset_bundles
     with app.app_context():
@@ -79,7 +96,7 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
         except (NoReferencedTableError, ProgrammingError):
             database_available = False
     
-        # g.loutility needs to be set before update_local_tables called and before UserSecurity() instantiated (not done this app)
+        # # g.loutility needs to be set before update_local_tables called and before UserSecurity() instantiated
         # g.loutility = app.config['APP_LOUTILITY']
 
         # js/css files
@@ -103,7 +120,39 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
         # activate views
         from .views.public import bp as public
         app.register_blueprint(public)
+        
+        for configkey in ['SECURITY_EMAIL_SUBJECT_PASSWORD_RESET',
+                        'SECURITY_EMAIL_SUBJECT_PASSWORD_CHANGE_NOTICE',
+                        'SECURITY_EMAIL_SUBJECT_PASSWORD_NOTICE',
+                        ]:
+            app.config[configkey] = app.config[configkey].format(productname=app.config['THISAPP_PRODUCTNAME_TEXT'])
 
+        # Set up Flask-Mail [configuration in <application>.cfg] and security mailer
+        mail = Mail(app)
+
+        def security_send_mail(subject, recipient, template, **context):
+            # this may be called from view which doesn't reference interest
+            # if so pick up user's first interest to get from_email address
+            from_email = current_app.config['SECURITY_EMAIL_SENDER']
+            # copied from flask_security.utils.send_mail
+            if isinstance(from_email, LocalProxy):
+                from_email = from_email._get_current_object()
+            ctx = ('security/email', template)
+            html = render_template('%s/%s.html' % ctx, **context)
+            text = render_template('%s/%s.txt' % ctx, **context)
+            sendmail(subject, from_email, recipient, html=html, text=text)
+
+        # Set up Flask-Security
+        global user_datastore, security
+        user_datastore = SQLAlchemyUserDatastore(db, User, Role)
+        security = Security(app, user_datastore, send_mail=security_send_mail)
+
+        # admin views are only applicable if in simulation mode
+        if app.config.get('SIMULATION_MODE', False):
+            # initialize admin views
+            from .views.admin import bp as admin
+            app.register_blueprint(admin)
+        
     # need to force app context else get
     #    RuntimeError: Working outside of application context.
     #    RuntimeError: Attempted to generate a URL without the application context being pushed.
@@ -132,6 +181,26 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
                                                     ))
         db.query = db.session.query_property()
 
+        # set up super-admin user if in simulation mode
+        if database_available:
+            if app.config.get('SIMULATION_MODE', False):
+                if not security.datastore.find_user(email=app.config['USER_SUPERADMIN_EMAIL']):
+                    admin = security.datastore.create_user(email=app.config['USER_SUPERADMIN_EMAIL'], name=app.config['USER_SUPERADMIN_NAME'], password=hash_password(app.config['USER_SUPERADMIN_PW']))
+                    security.datastore.find_or_create_role(ROLE_SUPER_ADMIN)
+                    db.session.flush()
+                    security.datastore.add_role_to_user(admin, ROLE_SUPER_ADMIN)
+                    db.session.commit()
+
+            # set up and log in default user if not in simulation mode
+            else:
+                if not security.datastore.find_user(email=app.config['USER_DEFAULT_EMAIL']):
+                    default_user = security.datastore.create_user(email=app.config['USER_DEFAULT_EMAIL'])
+                    security.datastore.find_or_create_role(ROLE_TMSIM_USER)
+                    db.session.flush()
+                    security.datastore.add_role_to_user(default_user, ROLE_TMSIM_USER)
+                    db.session.commit()
+
+            
         # # handle favicon request for old browsers
         # app.add_url_rule('/favicon.ico', endpoint='favicon',
         #                 redirect_to=url_for('static', filename='favicon.ico'))

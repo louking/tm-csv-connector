@@ -17,7 +17,7 @@ from slugify import slugify
 
 # homegrown
 from .version import __docversion__
-from loutilities.user.roles import ROLE_SUPER_ADMIN
+from .roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_USER, ROLE_TMSIM_ADMIN
 
 thisnav = Nav()
 
@@ -68,19 +68,56 @@ def nav_menu():
     # connector_view = add_view('file:///docs/index.html#')
 
     navbar.items.append(View('Home', 'public.home'))
-    navbar.items.append(View('Races', 'public.races'))
-    navbar.items.append(View('Results', 'public.results'))
-    chips = Subgroup('Chips')
-    navbar.items.append(chips)
-    chips.items.append(View('Chip Reads', 'public.chipreads'))
-    chips.items.append(View('Chip/Bib Map', 'public.chip2bib'))
-    chips.items.append(View('Chip Readers', 'public.chipreaders'))
-    bluetooth = Subgroup('Bluetooth')
-    navbar.items.append(bluetooth)
-    bluetooth.items.append(View('Types', 'public.bluetoothtypes'))
-    bluetooth.items.append(View('Devices', 'public.bluetoothdevices'))
-    navbar.items.append(View('Settings', 'public.settings'))
-    navbar.items.append(View('App Log', 'public.applog'))
+    if (current_user.has_role(ROLE_TMSIM_USER)
+            or current_user.has_role(ROLE_TMSIM_ADMIN)
+            or current_user.has_role(ROLE_SUPER_ADMIN)):
+        navbar.items.append(View('Races', 'public.races'))
+        if not current_app.config.get('SIMULATION_MODE', False):
+            navbar.items.append(View('Results', 'public.results'))
+        else:
+            navbar.items.append(View('Results', 'admin.resultssim'))
+        chips = Subgroup('Chips')
+        navbar.items.append(chips)
+        chips.items.append(View('Chip Reads', 'public.chipreads'))
+        chips.items.append(View('Chip/Bib Map', 'public.chip2bib'))
+        chips.items.append(View('Chip Readers', 'public.chipreaders'))
+        bluetooth = Subgroup('Bluetooth')
+        navbar.items.append(bluetooth)
+        bluetooth.items.append(View('Types', 'public.bluetoothtypes'))
+        bluetooth.items.append(View('Devices', 'public.bluetoothdevices'))
+
+    if current_app.config.get('SIMULATION_MODE', False):
+        if current_user.is_authenticated:
+            if (current_user.has_role(ROLE_TMSIM_ADMIN)
+                    or current_user.has_role(ROLE_SUPER_ADMIN)):
+                simulation = Subgroup('Simulation')
+                navbar.items.append(simulation)
+                simulation.items.append(View('Simulations', 'admin.simulations'))
+                simulation.items.append(View('Events', 'admin.simulationevents'))
+                simulation.items.append(View('Vectors', 'admin.simulationvectors'))
+                simulation.items.append(View('Runs', 'admin.simulationruns'))
+                simulation.items.append(View('Results', 'admin.simulationresults'))
+                
+            if (current_user.has_role(ROLE_SUPER_ADMIN)):
+                super = Subgroup('Super')
+                navbar.items.append(super)
+                super.items.append(View('Users', 'admin.users'))
+                super.items.append(View('Roles', 'admin.roles'))
+            
+            # allow user to change password
+
+    # always show settings and app log, regardless of simulation mode
+    if (current_user.has_role(ROLE_TMSIM_USER)
+            or current_user.has_role(ROLE_TMSIM_ADMIN)
+            or current_user.has_role(ROLE_SUPER_ADMIN)):
+        navbar.items.append(View('Settings', 'public.settings'))
+        navbar.items.append(View('App Log', 'public.applog'))
+    
+    # password change allowed in simulation mode if logged in
+    if current_app.config.get('SIMULATION_MODE', False):
+        if current_user.is_authenticated:
+            navbar.items.append(View('My Account', 'security.change_password'))
+
     navbar.items.append(Link('Admin Guide', '/docs/index.html#'))
 
     # common items

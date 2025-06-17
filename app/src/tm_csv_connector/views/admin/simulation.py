@@ -1,0 +1,1158 @@
+'''
+simulation - simulation views
+=================================
+'''
+# standard
+from os.path import join
+from os import remove
+from uuid import uuid4
+from traceback import format_exception_only, format_exc
+from csv import DictReader, DictWriter
+from datetime import datetime
+from requests import post
+
+# pypi
+from dominate.tags import span, i
+from dominate.tags import div, button, span, select, option, p, i
+from flask import request, jsonify, current_app, url_for, session
+from flask_security import current_user
+from flask.views import MethodView
+from sqlalchemy import update, and_, select as sqlselect
+from loutilities.user.tables import DbCrudApiRolePermissions
+from loutilities.filters import filtercontainerdiv, filterdiv, yadcfoption
+from loutilities.tables import rest_url_for
+from loutilities.timeu import timesecs, asctime
+from loutilities.tables import DbCrudApi
+
+timedisplay = asctime('%Y-%m-%d %H:%M:%S')
+
+# homegrown
+from . import bp
+from ...model import User
+from ...model import db, Simulation, SimulationEvent, SimulationResult, SimulationRun, SimulationVector, Result
+from ...model import ScannedBib
+from ...model import Setting
+from ...model import etype_type
+from ...times import asc2time, time2asc
+from ..common import ResultsView, get_results_posttablehtml, results_dbmapping, results_formmapping, results_validate
+from ...fileformat import filecolumns, db2file, filelock, lock, unlock
+
+from ...roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN
+roles_accepted = [ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN]
+
+class ParameterError(Exception): pass
+
+class SimConnectorView (DbCrudApi):
+    def permission(self):
+        session.permanent = True
+        
+        simulationrun_id = session['_results_simulationrun_id'] if '_results_simulationrun_id' in session else None
+        self.simulationrun = SimulationRun.query.filter_by(id=simulationrun_id).one_or_none()
+        
+        return True
+
+
+def get_results_filters_sim():
+    prehtml = div(_class='simulation-mode')
+    
+    with prehtml:
+        with filtercontainerdiv():
+            with div(_class='filter-item'):
+                span('Simulation', _class='label')
+                with span(_class='filter'):
+                    results_filter_sim_select = select(id='sim', name="sim", _class="validate", required='true', aria_required="true", onchange="setParams()")
+                    sims = Simulation.query.order_by(Simulation.name).all()
+                    with results_filter_sim_select:
+                        for s in sims:
+                            option(s.name, value=s.id)
+            
+                span('Run', _class='label')
+                with span(_class='filter'):
+                    results_filter_simrun_select = select(id='simulation-run', name="simulation-run", url=rest_url_for('admin._setgetsimulationrun'))
+                    # TODO: do we want super-admin to be able to see all simulation runs?
+                    simruns = SimulationRun.query.filter_by(user=current_user).order_by(SimulationRun.timestarted.desc()).all()
+                    with results_filter_simrun_select:
+                        for sr in simruns:
+                            option(sr.usersimstart, value=sr.id)
+                
+                with span(_class='simulation-controls'):
+                    with button(id='start-pause-simulation', _class='filter-item ui-button', title="start simulation", onclick='startPauseSimulation()'):
+                        i(id="play-icon", _class="fa-solid fa-play")
+                        i(id="pause-icon", _class="fa-solid fa-pause", style="display: none;")
+                    with button(id='stop-simulation', _class='filter-item ui-button',  title="stop and record stats", onclick='stopSimulation()'):
+                        i(_class="fa-solid fa-stop")
+                    with button(id='slow-simulation', _class='filter-item ui-button',  title="run slower", onclick='slowSimulation()'):
+                        i(_class="fa-solid fa-backward-fast")
+                    with button(id='speed-simulation', _class='filter-item ui-button', title="run faster", onclick='speedSimulation()'):
+                        i(_class="fa-solid fa-forward-fast")
+                    
+                with div(style='display: inline-block; font-weight: bold'):
+                    span('1x', id='simulation-speed')
+                span('stopped', id='simulation-state', style='font-weight: bold;', _class='label')
+                
+    return prehtml.render()
+
+class ResultsViewSim(ResultsView, SimConnectorView):
+    def beforequery(self):
+        '''
+        filter on current race
+        :return:
+        '''
+        simulationrun_id = session['_results_simulationrun_id'] if '_results_simulationrun_id' in session else None
+        self.simulationrun = SimulationRun.query.filter_by(id=simulationrun_id).one_or_none()
+        self.queryparams['simulationrun_id'] = simulationrun_id
+        # current_app.logger.debug(f'queryparams: {self.queryparams}')
+
+    def createrow(self, formdata):
+        '''
+        creates row in database
+
+        :param formdata: data from create form
+        :rtype: returned row for rendering, e.g., from DataTablesEditor.get_response_data()
+        '''
+        # make sure we record the row's simulationrun id
+        formdata['simulationrun_id'] = self.simulationrun.id
+
+        # if edit for previously confirmed entry is done, this will cause the file to be rewritten
+        self.check_confirmed(0)
+
+        # remove scanned_bibno as this is readonly
+        formdata.pop('scanned_bibno')
+
+        return super().createrow(formdata)
+
+    def updaterow(self, thisid, formdata):
+        """if confirm is indicated, confirm all the rows prior to and including this one
+
+        Args:
+            thisid (int): id of row to be updated
+            formdata (unmutable dict): data from edit form
+
+        Returns:
+            row: eturned row for rendering, e.g., from DataTablesEditor.get_response_data()
+        
+        NOTE: other rows which have been modified will be retrieved in the next polling cycle
+        """
+        # if edit for previously confirmed entry is done, this will cause the file to be rewritten
+        # NOTE: this sets self.result
+        self.check_confirmed(thisid)
+        
+        # remove scanned_bibno as this is readonly
+        formdata.pop('scanned_bibno')
+
+        if 'confirm' in formdata and formdata['confirm'] == 'true':
+            # LOCK file access
+            lock(filelock)
+            
+            # don't rewrite file when confirming
+            self.rewritefile = False
+
+            # set is_confirmed for all rows in this race which have place <= the selected row
+            updated = db.session.execute(
+                sqlselect(Result)
+                .where(and_(
+                    Result.simulationrun_id == self.result.simulationrun_id,
+                    Result.place <= self.result.place,
+                    Result.is_confirmed == False)
+                )
+                .order_by(Result.place)
+            ).all()
+            
+            # not sure why there is a need to for r[0] -- is this new in sqlalchemy 2.0?
+            updated = [r[0] for r in updated]
+            
+            db.session.execute(
+                update(Result)
+                .where(Result.id.in_([r.id for r in updated]))
+                .values(is_confirmed=True)
+            )
+            db.session.flush()
+
+            # write the updated results to table
+            lastresult = db.session.execute(
+                sqlselect(SimulationResult)
+                .where(SimulationResult.simulationrun_id == self.simulationrun.id)
+                .order_by(SimulationResult.order.desc())
+            ).one_or_none()
+            if lastresult:
+                order = lastresult[0].order + 1
+            else:
+                order = 1
+            
+            for result in updated:
+                simulationresult = SimulationResult(
+                    simulationrun_id = self.simulationrun.id,
+                    bibno = result.bibno,
+                    time = result.time,
+                    order = order,
+                )
+                db.session.add(simulationresult)
+                order += 1
+            db.session.flush()
+                
+            # if the simulation is configured to save results to csv file, write the updated results to file
+            if current_app.config['SIMULATION_SAVE_CSV']:
+                # get output file pathname and write updated results to file
+                filesetting = Setting.query.filter_by(name='output-file').one_or_none()
+                if filesetting:
+                    filepath = join('/output_dir', filesetting.value)
+
+                    # write to the file
+                    with open(filepath, mode='a') as f:
+                        for result in updated:
+                            filedata = db2file(result)
+                            current_app.logger.debug(f'appending to {filesetting.value}: {filedata["pos"],filedata["bibno"],filedata["time"]}')
+                            csvf = DictWriter(f, fieldnames=filecolumns, extrasaction='ignore')
+                            csvf.writerow(filedata)
+            
+            # UNLOCK file access
+            unlock(filelock)
+            
+            thisrow = self.dte.get_response_data(self.result)
+            return thisrow
+            
+        else:
+            return super().updaterow(thisid, formdata)
+    
+
+results_view = ResultsViewSim(
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=Result,
+    template='resultssim.jinja2',
+    pagename='results',
+    endpoint='admin.resultssim',
+    rule='/resultssim',
+    pretablehtml=get_results_filters_sim,
+    posttablehtml=get_results_posttablehtml,
+    dbmapping=results_dbmapping,
+    formmapping=results_formmapping,
+    validate=results_validate,
+    idSrc='rowid',
+    buttons=lambda: [
+        'edit',
+        'create',
+        'remove',
+        'spacer',
+        {
+            'extend': 'edit',
+            'text': 'Confirm',
+            'attr': {'id': 'confirm-button'},
+            'action': {'eval': 'results_confirm'},
+        },
+        'spacer',
+        'csv', 
+    ],
+    clientcolumns = [
+        {
+            'data': 'is_confirmed', 
+            'name': 'is_confirmed', 
+            'label': '<i class="fa-solid fa-file-circle-check"></i>', 
+            'type': 'readonly', 
+            'orderable': False,
+            'className': 'is_confirmed_field',
+            'ed': {'type': 'hidden'},
+        },
+        {'data': 'placepos', 'name': 'placepos', 'label': 'Place', 'type': 'readonly', 'className': 'placepos_field', 'fieldInfo': 'calculated by the system'},
+        {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos', 'orderable': False, 'fieldInfo': 'received from time machine'},
+        {
+            'data': 'scanned_bibno', 
+            'name': 'scanned_bibno', 
+            'label': 'Scanned Bib No', 
+            'type': 'readonly', 
+            'orderable': False,
+            'className': 'scanned_bibno_field',
+            'ed': {'type': 'hidden'},
+        },
+        {
+            'data': 'bibalert', 
+            'name': 'bibalert', 
+            'label': '<i class="fa-solid fa-not-equal"></i>', 
+            'type': 'readonly', 
+            'orderable': False,
+            'className': 'bibalert_field',
+            'ed': {'type': 'hidden'},
+        },
+        {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No', 'orderable': False, 'className': 'bibno_field'},
+        {'data': 'time', 'name': 'time', 'label': 'Time', 'orderable': False, 'className': 'time_field'},
+        
+        # for testing only
+        # {'data': 'update_time', 'name': 'update_time', 'label': 'Update Time', 'type': 'readonly'},
+    ],
+    dtoptions={
+        'order': [['placepos:name', 'desc']],
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+results_view.register()
+
+
+simulation_dbattrs = 'id,name'.split(',')
+simulation_formfields = 'rowid,name'.split(',')
+simulation_dbmapping = dict(zip(simulation_dbattrs, simulation_formfields))
+simulation_formmapping = dict(zip(simulation_formfields, simulation_dbattrs))
+
+simulation_view = DbCrudApiRolePermissions(
+    roles_accepted=roles_accepted,
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=Simulation,
+    template='datatables.jinja2',
+    pagename='Simulations',
+    endpoint='admin.simulations',
+    rule='/simulations',
+    dbmapping=simulation_dbmapping,
+    formmapping=simulation_formmapping,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=['create', 'editRefresh', 'remove', 'csv'],
+    clientcolumns = [
+        {'data': 'name', 'name': 'name', 'label': 'Name',
+         },
+    ],
+    dtoptions={
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+simulation_view.register()
+
+simulationevent_dbattrs = 'id,simulation,time,etype,bibno'.split(',')
+simulationevent_formfields = 'rowid,simulation,time,etype,bibno'.split(',')
+simulationevent_dbmapping = dict(zip(simulationevent_dbattrs, simulationevent_formfields))
+simulationevent_formmapping = dict(zip(simulationevent_formfields, simulationevent_dbattrs))
+simulationevent_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
+simulationevent_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
+
+def simulationevent_filters():
+    pretablehtml = filtercontainerdiv()
+    with pretablehtml:
+        with span(id='spinner', style='display:none;'):
+            i(cls='fa-solid fa-spinner fa-spin')
+        filterdiv('simulationevent-external-filter-simulation', 'Simulation')
+    return pretablehtml.render()
+
+simulationevent_yadcf_options = [
+    yadcfoption('simulation.name:name', 'simulationevent-external-filter-simulation', 'select', placeholder='Select simulation', width='300px', select_type='select2'),
+]
+
+simulationevent_view = DbCrudApiRolePermissions(
+    roles_accepted=roles_accepted,
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=SimulationEvent,
+    template='datatables.jinja2',
+    pretablehtml=simulationevent_filters,
+    yadcfoptions=simulationevent_yadcf_options,
+    pagename='Simulation Events',
+    endpoint='admin.simulationevents',
+    rule='/simulationevents',
+    dbmapping=simulationevent_dbmapping,
+    formmapping=simulationevent_formmapping,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=lambda: ['create', 'editRefresh', 'remove', 'csv',
+        {
+            'extend': 'create',
+            'text': 'Import',
+            'name': 'import-simulationevents',
+            'editor': {'eval': 'simulationevents_import_saeditor.saeditor'},
+            'url': url_for('admin._simulationevents'),
+            'action': {
+                'eval': f'simulationevents_import("{rest_url_for('admin._simulationevents')}")'
+            }
+        },
+    ],
+    clientcolumns = [
+        {'data': 'simulation', 'name': 'simulation', 'label': 'Simulation',
+         'className': 'field_req',
+         '_treatment': {
+             'relationship': {'fieldmodel': Simulation, 'labelfield': 'name',
+                             'formfield': 'simulation',
+                             'dbfield': 'simulation',
+                             'uselist': False,
+                             }}
+         },
+        {'data': 'time', 'name': 'time', 
+         'className': 'field_req',
+         'label': 'Time'},
+        {'data': 'etype', 'name': 'etype', 'label': 'Type',
+         'className': 'field_req',
+         'type': 'select2',
+         'options': etype_type,
+        },
+        {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No'},
+    ],
+    dtoptions={
+        'order': [['simulation.name:name', 'asc'], ['time:name', 'asc']],
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+simulationevent_view.register()
+
+class SimulationEventsApi(MethodView):
+    """upload simulation events from file
+
+    Raises:
+        ParameterError: error if action is not 'upload' or 'edit', or if bad file format detected
+    """
+    ALLOWED_EXTENSIONS = ['csv']
+    
+    def get(self):
+        # this returns initial values for the form, should be empty because the
+        # input form doesn't have any initial values
+        return jsonify({})
+    
+    def allowed_filename(self, filename):
+        return '.' in filename and \
+            filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
+    
+    def post(self):
+        try:
+            options = request.form
+            action = options['action']
+            if action == 'upload':
+                if 'upload' not in request.files:
+                    return jsonify(status='fail', error='no upload')
+                thisfile = request.files['upload']
+                fname = thisfile.filename
+                # if the user does not select a file, the browser submits an empty file without a filename
+                if fname == '':
+                    return jsonify(status='fail', error='no selected file')
+                if not self.allowed_filename(fname):
+                    return jsonify(status='fail', error=f'must have extension in {self.ALLOWED_EXTENSIONS}')
+                
+                # save file for later processing (adapted from loutilities.tablefiles.FieldUpload)
+                fid = uuid4().hex
+                ext = fname.rsplit('.', 1)[1].lower()
+                fidfname = f'{fid}.{ext}'
+                filepath = join('/tmp', fidfname)
+                thisfile.save(filepath)
+                
+                returndata = {
+                    'upload' : {'id': fidfname },
+                    'files' : {
+                        'data' : {
+                            fidfname : {'filename': thisfile.filename}
+                        },
+                    },
+                }
+                return jsonify(**returndata)
+            
+            # this handles Import button
+            elif action == 'edit':
+                simid = request.form['data[keyless][simulation]']
+                if not simid:
+                    return jsonify(status='fail', error='please choose a simulation')
+            
+                filepath = join('/tmp', request.form['data[keyless][file]'])
+                with open(filepath, newline='') as stream:
+                    csvfile = DictReader(stream)
+                    header = csvfile.fieldnames
+                    # check for required fields
+                    if 'time' not in header or 'etype' not in header or 'bibno' not in header:
+                        raise ParameterError('missing required field')
+                    
+                    # delete all existing events for this simulation
+                    db.session.query(SimulationEvent).filter(SimulationEvent.simulation_id == simid).delete()
+                    
+                    # read to end of file
+                    lineno = 1  # skip header
+                    for line in csvfile:
+                        lineno += 1
+                        # check for valid etype
+                        if line['etype'] not in etype_type:
+                            raise ParameterError(f"line {lineno}: invalid etype '{line['etype']}'")
+                        if line['etype'] == 'scan':
+                            # check for bibno
+                            if not line['bibno']:
+                                raise ParameterError(f"line {lineno}: etype 'scan' requires bibno")
+                        
+                        # create new SimulationEvent object
+                        simevent = SimulationEvent(
+                            simulation_id = simid,
+                            time = timesecs(line['time']),
+                            etype = line['etype'],
+                            bibno = line['bibno'],
+                        )
+                        db.session.add(simevent)
+                        
+                # commit changes to database, delete temporary file, and declare success
+                db.session.commit()
+                remove(filepath)
+                return jsonify(status='success')
+            
+            else:
+                raise ParameterError('invalid action')
+
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+simulationevents_api = SimulationEventsApi.as_view('_simulationevents')
+bp.add_url_rule('/_simulationevents/rest', view_func=simulationevents_api, methods=['POST','GET'])
+
+
+simulationvector_dbattrs = 'id,simulation,order,time,bibno'.split(',')
+simulationvector_formfields = 'rowid,simulation,order,time,bibno'.split(',')
+simulationvector_dbmapping = dict(zip(simulationvector_dbattrs, simulationvector_formfields))
+simulationvector_formmapping = dict(zip(simulationvector_formfields, simulationvector_dbattrs))
+simulationvector_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
+simulationvector_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
+
+def simulationvector_filters():
+    pretablehtml = filtercontainerdiv()
+    with pretablehtml:
+        with span(id='spinner', style='display:none;'):
+            i(cls='fa-solid fa-spinner fa-spin')
+        filterdiv('simulationvector-external-filter-simulation', 'Simulation')
+    return pretablehtml.render()
+
+simulationvector_yadcf_options = [
+    yadcfoption('simulation.name:name', 'simulationvector-external-filter-simulation', 'select', placeholder='Select simulation', width='300px', select_type='select2'),
+]
+
+
+simulationvector_view = DbCrudApiRolePermissions(
+    roles_accepted=roles_accepted,
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=SimulationVector,
+    template='datatables.jinja2',
+    pretablehtml=simulationvector_filters(),
+    yadcfoptions=simulationvector_yadcf_options,
+    pagename='Simulation Vectors',
+    endpoint='admin.simulationvectors',
+    rule='/simulationvectors',
+    dbmapping=simulationvector_dbmapping,
+    formmapping=simulationvector_formmapping,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=lambda: ['create', 'editRefresh', 'remove', 'csv',
+        {
+            'extend': 'create',
+            'text': 'Import',
+            'name': 'import-simulationvector',
+            'editor': {'eval': 'simulationvector_import_saeditor.saeditor'},
+            'url': url_for('admin._simulationvector'),
+            'action': {
+                'eval': f'simulationvector_import("{rest_url_for('admin._simulationvector')}")'
+            }
+        },
+    ],
+    clientcolumns = [
+        {'data': 'simulation', 'name': 'simulation', 'label': 'Simulation',
+         'className': 'field_req',
+         '_treatment': {
+             'relationship': {'fieldmodel': Simulation, 'labelfield': 'name',
+                             'formfield': 'simulation',
+                             'dbfield': 'simulation',
+                             'uselist': False,
+                             }}
+         },
+        {'data': 'order', 'name': 'order', 'label': 'Order'},
+        {'data': 'time', 'name': 'time', 
+         'className': 'field_req',
+         'label': 'Time'},
+        {'data': 'bibno', 
+         'className': 'field_req',
+         'name': 'bibno', 
+         'label': 'Bib No'},
+    ],
+    dtoptions={
+        'order': [['simulation.name:name', 'asc'],['order:name', 'asc']],
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+simulationvector_view.register()
+
+class SimulationVectorApi(MethodView):
+    """upload simulation vector from file
+
+    Raises:
+        ParameterError: error if action is not 'upload' or 'edit', or if bad file format detected
+    """
+    ALLOWED_EXTENSIONS = ['csv']
+    
+    def get(self):
+        # this returns initial values for the form, should be empty because the
+        # input form doesn't have any initial values
+        return jsonify({})
+    
+    def allowed_filename(self, filename):
+        return '.' in filename and \
+            filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
+    
+    def post(self):
+        try:
+            options = request.form
+            action = options['action']
+            if action == 'upload':
+                if 'upload' not in request.files:
+                    return jsonify(status='fail', error='no upload')
+                thisfile = request.files['upload']
+                fname = thisfile.filename
+                # if the user does not select a file, the browser submits an empty file without a filename
+                if fname == '':
+                    return jsonify(status='fail', error='no selected file')
+                if not self.allowed_filename(fname):
+                    return jsonify(status='fail', error=f'must have extension in {self.ALLOWED_EXTENSIONS}')
+                
+                # save file for later processing (adapted from loutilities.tablefiles.FieldUpload)
+                fid = uuid4().hex
+                ext = fname.rsplit('.', 1)[1].lower()
+                fidfname = f'{fid}.{ext}'
+                filepath = join('/tmp', fidfname)
+                thisfile.save(filepath)
+                
+                returndata = {
+                    'upload' : {'id': fidfname },
+                    'files' : {
+                        'data' : {
+                            fidfname : {'filename': thisfile.filename}
+                        },
+                    },
+                }
+                return jsonify(**returndata)
+            
+            # this handles Import button
+            elif action == 'edit':
+                simid = request.form['data[keyless][simulation]']
+                if not simid:
+                    return jsonify(status='fail', error='please choose a simulation')
+            
+                filepath = join('/tmp', request.form['data[keyless][file]'])
+                with open(filepath, newline='') as stream:
+                    csvfile = DictReader(stream)
+                    header = csvfile.fieldnames
+                    # check for required fields
+                    if 'order' not in header or 'time' not in header or 'bibno' not in header:
+                        raise ParameterError('missing required field')
+                    
+                    # delete all existing vector entries for this simulation
+                    db.session.query(SimulationVector).filter(SimulationVector.simulation_id == simid).delete()
+                    
+                    # read to end of file
+                    lineno = 1  # skip header
+                    for line in csvfile:
+                        lineno += 1
+                        
+                        # create new SimulationVector object
+                        simvector = SimulationVector(
+                            simulation_id = simid,
+                            order = line['order'],
+                            time = timesecs(line['time']),
+                            bibno = line['bibno'],
+                        )
+                        db.session.add(simvector)
+                        
+                # commit changes to database, delete temporary file, and declare success
+                db.session.commit()
+                remove(filepath)
+                return jsonify(status='success')
+            
+            else:
+                raise ParameterError('invalid action')
+
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+simulationvector_api = SimulationVectorApi.as_view('_simulationvector')
+bp.add_url_rule('/_simulationvector/rest', view_func=simulationvector_api, methods=['POST','GET'])
+
+
+# note user.name and simulation.name are used rather than _treatment/relationship as this is a read only view
+simulationrun_dbattrs = 'id,user.name,simulation.name,timestarted,timeended,score'.split(',')
+simulationrun_formfields = 'rowid,user,simulation,timestarted,timeended,score'.split(',')
+simulationrun_dbmapping = dict(zip(simulationrun_dbattrs, simulationrun_formfields))
+simulationrun_formmapping = dict(zip(simulationrun_formfields, simulationrun_dbattrs))
+simulationrun_dbmapping['timestarted'] = lambda formrow: timedisplay.asc2dt(formrow['timestarted'])
+simulationrun_formmapping['timestarted'] = lambda dbrow: timedisplay.dt2asc(dbrow.timestarted)
+simulationrun_dbmapping['timeended'] = lambda formrow: timedisplay.asc2dt(formrow['timeended']) if formrow['timeended'] else None
+simulationrun_formmapping['timeended'] = lambda dbrow: timedisplay.dt2asc(dbrow.timeended) if dbrow.timeended else None
+
+def simulationrun_filters():
+    pretablehtml = filtercontainerdiv()
+    with pretablehtml:
+        with span(id='spinner', style='display:none;'):
+            i(cls='fa-solid fa-spinner fa-spin')
+        filterdiv('simulationrun-external-filter-user', 'User')
+        filterdiv('simulationrun-external-filter-simulation', 'Simulation')
+    return pretablehtml.render()
+
+simulationrun_yadcf_options = [
+    yadcfoption('user:name', 'simulationrun-external-filter-user', 'select', placeholder='Select user', width='300px', select_type='select2'),
+    yadcfoption('simulation:name', 'simulationrun-external-filter-simulation', 'select', placeholder='Select simulation', width='300px', select_type='select2'),
+]
+
+simulationrun_view = DbCrudApiRolePermissions(
+    roles_accepted=roles_accepted,
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=SimulationRun,
+    template='datatables.jinja2',
+    pretablehtml=simulationrun_filters(),
+    yadcfoptions=simulationrun_yadcf_options,
+    pagename='Simulation Run',
+    endpoint='admin.simulationruns',
+    rule='/simulationruns',
+    dbmapping=simulationrun_dbmapping,
+    formmapping=simulationrun_formmapping,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=['csv'],
+    clientcolumns = [
+        {'data': 'user', 'name': 'user', 'label': 'User'},
+        {'data': 'simulation', 'name': 'simulation', 'label': 'Simulation'},
+        {'data': 'timestarted', 'name': 'timestarted', 'label': 'Time Started'},
+        {'data': 'timeended', 'name': 'timeended', 'label': 'Time Ended'},
+        {'data': 'score', 'name': 'score', 'label': 'Score'},
+    ],
+    dtoptions={
+        'order': [['user:name', 'asc'],['simulation:name', 'asc']],
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+simulationrun_view.register()
+
+class CreateGetSimulationRunApi(MethodView):
+    """create simulation run and return select option and next step
+    This is used by the simulation run start button in the simulation view.
+
+    """
+    def permission(self):
+        session.permanent = True
+        
+        # check if user is authenticated
+        if not current_user.is_authenticated:
+            return False
+        
+        # check if user has role
+        if not current_user.has_role(ROLE_TMSIM_ADMIN) and not current_user.has_role(ROLE_SUPER_ADMIN):
+            current_app.logger.warning(f'User {current_user.id} tried to access simulation run creation without permission')
+            return False
+        
+        # check if simulation exists
+        sim_id = request.form.get('simulation_id', None)
+        if not sim_id:
+            current_app.logger.warning(f'Logic error: simulation_id is not provided in request form')
+            return False
+        
+        sim = Simulation.query.filter_by(id=sim_id).one_or_none()
+        if not sim:
+            current_app.logger.warning(f'Logic error: simulation {sim_id} not found in simuation table')
+            return False
+        
+        return True
+    
+    def post(self):
+        # this creates a new simulation run and returns the select option
+        try:
+            if not self.permission():
+                raise ParameterError('permission denied')
+            
+            sim_id = request.form.get('simulation_id', None)
+            if not sim_id:
+                return jsonify({'status': 'fail', 'error': 'simulation_id is required'})
+            sim = Simulation.query.get(sim_id)
+            if not sim:
+                return jsonify({'status': 'fail', 'error': f'simulation {sim_id} not found'})
+            user_id = current_user.id
+            simrun = SimulationRun(
+                user_id = user_id,
+                simulation_id = sim_id,
+                timestarted = datetime.now(),
+                timeended = None,   # this will be set when the run is completed
+                score = 0,          # this will be set when the run is completed
+            )
+            db.session.add(simrun)
+            db.session.flush()
+            
+            options = [{'value': sr.id, 'label': sr.usersimstart} 
+                       for sr in db.session.query(SimulationRun).filter(SimulationRun.user_id == user_id).order_by(SimulationRun.timestarted.desc()).all()]
+            
+            # initialize simulation run next step
+            # this is the first simulation event, which is the start of the simulation
+            simstepsdb = db.session.query(SimulationEvent).filter(SimulationEvent.simulation_id == sim_id).order_by(SimulationEvent.time).all()
+            
+            simsteps = []
+            tmpos = 1
+            for s in simstepsdb:
+                # create a dictionary for each simulation step
+                step = {
+                    'id': s.id,
+                    'time': s.time,
+                    'etype': s.etype,
+                    'bibno': s.bibno
+                }
+                if s.etype == 'timemachine':
+                    # add tmpos to step
+                    step['tmpos'] = tmpos
+                    tmpos += 1
+                simsteps.append(step)
+            
+            returns = {'status': 'success',
+                       'simsteps': simsteps,
+                       'options': options}
+            
+            db.session.commit()
+            return jsonify(returns)
+    
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+creategetsimulationrun_api = CreateGetSimulationRunApi.as_view('_setgetsimulationrun')
+bp.add_url_rule('/_creategetsimulationrun/rest', view_func=creategetsimulationrun_api, methods=['POST'])
+
+class SimStepApi(MethodView):
+    """execute simulation step
+
+    """
+    def permission(self):
+        session.permanent = True
+        
+        # check if user is authenticated
+        if not current_user.is_authenticated:
+            return False
+        
+        # check if user has role
+        if not current_user.has_role(ROLE_TMSIM_ADMIN) and not current_user.has_role(ROLE_SUPER_ADMIN):
+            current_app.logger.warning(f'User {current_user.id} tried to access simulation run creation without permission')
+            return False
+        
+        self.simrun_id = request.form.get('simulationrun_id', None)
+        if not self.simrun_id:
+            current_app.logger.warning('simulationrun_id is required')
+            return False
+        
+        simrun = db.session.query(SimulationRun).filter_by(id=self.simrun_id).one_or_none()
+        if not simrun:
+            current_app.logger.warning(f'simulation run {self.simrun_id} not found')
+            return False
+        
+        return True
+    
+    def post(self):
+        # this executes a simulation step
+        try:
+            if not self.permission():
+                raise ParameterError('permission denied')
+            
+            # execute simulation step
+            
+            etype = request.form.get('step[etype]', None)
+            if not etype:
+                return jsonify({'status': 'fail', 'error': 'etype is required'})
+            
+            time = request.form.get('step[time]', None)
+            if not time:
+                return jsonify({'status': 'fail', 'error': 'time is required'})
+                
+            # bibno is optional, but required for etype 'scan'
+            bibno = request.form.get('step[bibno]', None)
+            
+            # tmpos is optional, but required for etype 'timemachine'
+            tmpos = request.form.get('step[tmpos]', None)
+    
+            if etype not in etype_type:
+                return jsonify({'status': 'fail', 'error': f'etype {etype} is not valid'})
+            
+            
+            # headers are needed for flask to see the correct server URL
+            headers = dict(request.headers)
+            headers.pop('Content-Type', None)
+            headers.pop('Content-Length', None)
+
+            # need to go back out to the docker host to call the admin endpoints
+            if etype == 'scan':
+                url = f'http://host.docker.internal:{request.headers['X-Forwarded-Port']}{url_for('admin._simpostbib')}'
+                if not bibno:
+                    return jsonify({'status': 'fail', 'error': 'bibno is required for etype scan'})
+                rsp = post(url, headers=headers, json={'opcode': 'scannedbib', 'bibno': bibno, 'simulationrun_id': self.simrun_id})
+            
+            elif etype == 'timemachine':
+                url = f'http://host.docker.internal:{request.headers['X-Forwarded-Port']}{url_for('admin._simpostresult')}'
+                if not tmpos:
+                    return jsonify({'status': 'fail', 'error': 'tmpos is required for etype timemachine'})
+                if not bibno:
+                    rsp = post(url, headers=headers, json={'opcode': 'primary', 'simulationrun_id': self.simrun_id, 'time': time, 'pos': tmpos})
+                else:
+                    rsp = post(url, headers=headers, json={'opcode': 'select',  'simulationrun_id': self.simrun_id, 'time': time, 'pos': tmpos, 'bibno': bibno})
+            
+            return jsonify({'status': 'success'})
+    
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+simstep_api = SimStepApi.as_view('_simstep')
+bp.add_url_rule('/_simstep/rest', view_func=simstep_api, methods=['POST'])
+
+class SimPostResultApi(MethodView):
+    """simulate a result from tm-reader-client
+    """
+    def post(self):
+        try:
+            ## LOCK file access
+            lock(filelock)
+            
+            # receive message
+            msg = request.json
+            current_app.logger.debug(f'received data {msg}')
+            
+            # get output file pathname
+            filesetting = Setting.query.filter_by(name='output-file').one_or_none()
+            if filesetting:
+                filepath = join('/output_dir', filesetting.value)
+
+            # handle messages from tm-reader-client
+            opcode = msg.pop('opcode', None)
+            if opcode in ['primary', 'select']:
+                
+                # determine place. if no records yet, create the output file
+                lastrow = Result.query.filter_by(simulationrun_id=msg['simulationrun_id']).order_by(Result.place.desc()).first()
+                if lastrow:
+                    place = lastrow.place + 1
+                else:
+                    place = 1
+                    # create file
+                    if filesetting:
+                        with open(filepath, mode='w') as f:
+                            current_app.logger.info(f'creating {filesetting.value}')
+                    
+                # write to database
+                bibno = msg['bibno'] if 'bibno' in msg else None
+                simrun_id = msg['simulationrun_id']
+                result = Result()
+                result.bibno = bibno
+                result.tmpos = msg['pos']
+                # simulated result time comes in float format, different from time machine formatting
+                result.time = float(msg['time'])
+                result.simulationrun_id = simrun_id
+                result.place = place
+                result.is_confirmed = False
+                
+                # check to see if a scanned bib is queued
+                simrun = SimulationRun.query.filter_by(id=simrun_id).one()
+                if simrun.next_scannedbib:
+                    result.scannedbib = simrun.next_scannedbib
+                    result.had_scannedbib = True
+                    # check strictly greater than to find the next in the queue
+                    next_scannedbib = ScannedBib.query.filter_by(simulationrun_id=simrun_id).filter(ScannedBib.order>simrun.next_scannedbib.order).order_by(ScannedBib.order.desc()).first()
+                    # if None returned, this should work properly
+                    simrun.next_scannedbib = next_scannedbib
+                
+                db.session.add(result)
+                db.session.commit()
+                
+            # how did this happen?
+            else:
+                current_app.logger.error(f'unknown opcode received: {opcode}')
+
+            ## UNLOCK file access and return
+            unlock(filelock)
+            return jsonify(status='success')
+
+        except Exception as e:
+            ## UNLOCK file access
+            unlock(filelock)
+            
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+simpostresult_api = SimPostResultApi.as_view('_simpostresult')
+bp.add_url_rule('/_simpostresult', view_func=simpostresult_api, methods=['POST',])
+
+
+class SimPostBibApi(MethodView):
+    """simulate a scanned bibno from barcode-scanner-client
+    """
+    def post(self):
+        try:
+            ## LOCK file access
+            lock(filelock)
+            
+            # receive message
+            msg = request.json
+            current_app.logger.debug(f'received data {msg}')
+            
+            # handle messages from barcode-scanner-client
+            opcode = msg.pop('opcode', None)
+            if opcode in ['scannedbib']:
+                
+                # determine place. if no records yet, create the output file
+                lastrow = ScannedBib.query.filter_by(simulationrun_id=msg['simulationrun_id']).order_by(ScannedBib.order.desc()).first()
+                if lastrow:
+                    order = lastrow.order + 1
+                else:
+                    order = 1
+                    
+                # write to database
+                bibno = msg['bibno']
+                # remove leading 0's if not 0000 ('0000' is "blank" bibno)
+                if bibno != '0000':
+                    bibno = bibno.lstrip('0')
+
+                simrun_id = msg['simulationrun_id']
+                scannedbib = ScannedBib()
+                scannedbib.bibno = bibno
+                scannedbib.simulationrun_id = simrun_id
+                scannedbib.order = order
+                db.session.add(scannedbib)
+                db.session.flush()
+                
+                # update next result to use this scanned bib
+                result = Result.query.filter_by(simulationrun_id=simrun_id, had_scannedbib=False).order_by(Result.place.asc()).first()
+                if result:
+                    result.scannedbib = scannedbib
+                    result.had_scannedbib = True
+                
+                else:
+                    # no result available to assign this scanned bib
+                    simrun = SimulationRun.query.filter_by(id=simrun_id).one()
+                    
+                    # next_scannedbib is the next one to use; update if not set already
+                    if not simrun.next_scannedbib:
+                        simrun.next_scannedbib = scannedbib
+                
+                db.session.commit()
+                
+            # how did this happen?
+            else:
+                current_app.logger.error(f'unknown opcode received: {opcode}')
+
+            ## UNLOCK file access and return
+            unlock(filelock)
+            return jsonify(status='success')
+
+        except Exception as e:
+            ## UNLOCK file access
+            unlock(filelock)
+            
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+simpostbib_api = SimPostBibApi.as_view('_simpostbib')
+bp.add_url_rule('/_simpostbib', view_func=simpostbib_api, methods=['POST',])
+
+
+simulationresult_dbattrs = 'id,time,bibno,order,simulationrun.usersimstart'.split(',')
+simulationresult_formfields = 'rowid,time,bibno,order,usersimstart'.split(',')
+simulationresult_dbmapping = dict(zip(simulationresult_dbattrs, simulationresult_formfields))
+simulationresult_formmapping = dict(zip(simulationresult_formfields, simulationresult_dbattrs))
+simulationresult_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
+simulationresult_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
+
+def simulationresult_filters():
+    pretablehtml = filtercontainerdiv()
+    with pretablehtml:
+        with span(id='spinner', style='display:none;'):
+            i(cls='fa-solid fa-spinner fa-spin')
+        filterdiv('simulationresult-external-filter-simulationrun', 'Run')
+    return pretablehtml.render()
+
+simulationresult_yadcf_options = [
+    yadcfoption('usersimstart:name', 'simulationresult-external-filter-simulationrun', 'select', placeholder='Select run', width='300px', select_type='select2'),
+]
+
+simulationresult_view = DbCrudApiRolePermissions(
+    roles_accepted=roles_accepted,
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=SimulationResult,
+    template='datatables.jinja2',
+    pretablehtml=simulationresult_filters(),
+    yadcfoptions=simulationresult_yadcf_options,
+    pagename='Simulation Results',
+    endpoint='admin.simulationresults',
+    rule='/simulationresults',
+    dbmapping=simulationresult_dbmapping,
+    formmapping=simulationresult_formmapping,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=['csv'],
+    clientcolumns = [
+        {'data': 'usersimstart', 'name': 'usersimstart', 'label': 'User Sim Start'},
+        {'data': 'order', 'name': 'order', 'label': 'Order'},
+        {'data': 'time', 'name': 'time', 'label': 'Time'},
+        {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No'},
+    ],
+    dtoptions={
+        'order': [['usersimstart:name', 'asc'],['order:name', 'asc']],
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+simulationresult_view.register()
+
+
+class GetSimulationsApi(MethodView):
+    """get simulations for select field
+    """
+    def get(self):
+        options = []
+        # sort most recent race first
+        simulations = Simulation.query.order_by(Simulation.name.asc()).all()
+        for s in simulations:
+            option = {'value': s.id, 'label': s.name}
+            options.append(option)
+        
+        return jsonify(options)
+
+getsimulations_api = GetSimulationsApi.as_view('_getsimulations')
+bp.add_url_rule('/_getsimulations', view_func=getsimulations_api, methods=['GET'])
+
