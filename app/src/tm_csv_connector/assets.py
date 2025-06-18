@@ -91,6 +91,7 @@ asset_bundles = {
         Bundle('layout.js', filters='jsmin'),
 
         # must be before datatables
+        Bundle('mutex-promise.js', filters='jsmin'),                     # from loutilities
         Bundle('editor-saeditor.js', filters='jsmin'),                   # from loutilities
         # Bundle('js/nunjucks-{ver}/nunjucks.js'.format(ver=nunjucks_ver), filters='jsmin'),
         # Bundle('admin/nunjucks/templates.js', filters='jsmin'),
