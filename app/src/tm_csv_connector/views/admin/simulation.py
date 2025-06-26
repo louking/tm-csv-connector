@@ -35,6 +35,7 @@ from ...model import Setting
 from ...model import etype_type
 from ...times import asc2time, time2asc
 from ..common import ResultsView, get_results_posttablehtml, results_dbmapping, results_formmapping, results_validate
+from ..common import PostResultApi, PostBibApi, ScanActionApi
 from ...fileformat import filecolumns, db2file, filelock, lock, unlock
 
 from ...roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN
@@ -58,14 +59,6 @@ def get_results_filters_sim():
     with prehtml:
         with filtercontainerdiv():
             with div(_class='filter-item'):
-                span('Simulation', _class='label')
-                with span(_class='filter'):
-                    results_filter_sim_select = select(id='sim', name="sim", _class="validate", required='true', aria_required="true", onchange="setParams()")
-                    sims = Simulation.query.order_by(Simulation.name).all()
-                    with results_filter_sim_select:
-                        for s in sims:
-                            option(s.name, value=s.id)
-            
                 span('Run', _class='label')
                 with span(_class='filter'):
                     results_filter_simrun_select = select(id='simulation-run', name="simulation-run", url=rest_url_for('admin._setgetsimulationrun'))
@@ -75,6 +68,14 @@ def get_results_filters_sim():
                         for sr in simruns:
                             option(sr.usersimstart, value=sr.id)
                 
+                span('Simulation', _class='label')
+                with span(_class='filter'):
+                    results_filter_sim_select = select(id='sim', name="sim", _class="validate", required='true', aria_required="true", onchange="setParams()")
+                    sims = Simulation.query.order_by(Simulation.name).all()
+                    with results_filter_sim_select:
+                        for s in sims:
+                            option(s.name, value=s.id)
+            
                 with span(_class='simulation-controls'):
                     with button(id='start-pause-simulation', _class='filter-item ui-button', title="start simulation", onclick='startPauseSimulation()'):
                         i(id="play-icon", _class="fa-solid fa-play")
@@ -102,6 +103,24 @@ class ResultsViewSim(ResultsView, SimConnectorView):
         self.simulationrun = SimulationRun.query.filter_by(id=simulationrun_id).one_or_none()
         self.queryparams['simulationrun_id'] = simulationrun_id
         # current_app.logger.debug(f'queryparams: {self.queryparams}')
+
+    def set_queue_filters(self):
+        """sets queue filters
+
+        Returns:
+            boolean: True if caller should update the queued scanned results
+        """
+        simulationrun_id = session['_results_simulationrun_id'] if '_results_simulationrun_id' in session else None
+        simulationrun = SimulationRun.query.filter_by(id=simulationrun_id).one_or_none()
+        if simulationrun:
+            process_queue = True
+            self.result_queue_filter = [Result.simulationrun_id == simulationrun_id]
+            self.scannedbib_queue_filter = [ScannedBib.simulationrun_id == simulationrun_id]
+
+        else:
+            process_queue = False
+            
+        return process_queue
 
     def createrow(self, formdata):
         '''
@@ -928,162 +947,63 @@ class SimStepApi(MethodView):
 simstep_api = SimStepApi.as_view('_simstep')
 bp.add_url_rule('/_simstep/rest', view_func=simstep_api, methods=['POST'])
 
-class SimPostResultApi(MethodView):
-    """simulate a result from tm-reader-client
-    """
-    def post(self):
-        try:
-            ## LOCK file access
-            lock(filelock)
-            
-            # receive message
-            msg = request.json
-            current_app.logger.debug(f'received data {msg}')
-            
-            # get output file pathname
-            filesetting = Setting.query.filter_by(name='output-file').one_or_none()
-            if filesetting:
-                filepath = join('/output_dir', filesetting.value)
 
-            # handle messages from tm-reader-client
-            opcode = msg.pop('opcode', None)
-            if opcode in ['primary', 'select']:
-                
-                # determine place. if no records yet, create the output file
-                lastrow = Result.query.filter_by(simulationrun_id=msg['simulationrun_id']).order_by(Result.place.desc()).first()
-                if lastrow:
-                    place = lastrow.place + 1
-                else:
-                    place = 1
-                    # create file
-                    if filesetting:
-                        with open(filepath, mode='w') as f:
-                            current_app.logger.info(f'creating {filesetting.value}')
-                    
-                # write to database
-                bibno = msg['bibno'] if 'bibno' in msg else None
-                simrun_id = msg['simulationrun_id']
-                result = Result()
-                result.bibno = bibno
-                result.tmpos = msg['pos']
-                # simulated result time comes in float format, different from time machine formatting
-                result.time = float(msg['time'])
-                result.simulationrun_id = simrun_id
-                result.place = place
-                result.is_confirmed = False
-                
-                # check to see if a scanned bib is queued
-                simrun = SimulationRun.query.filter_by(id=simrun_id).one()
-                if simrun.next_scannedbib:
-                    result.scannedbib = simrun.next_scannedbib
-                    result.had_scannedbib = True
-                    # check strictly greater than to find the next in the queue
-                    next_scannedbib = ScannedBib.query.filter_by(simulationrun_id=simrun_id).filter(ScannedBib.order>simrun.next_scannedbib.order).order_by(ScannedBib.order.desc()).first()
-                    # if None returned, this should work properly
-                    simrun.next_scannedbib = next_scannedbib
-                
-                db.session.add(result)
-                db.session.commit()
-                
-            # how did this happen?
-            else:
-                current_app.logger.error(f'unknown opcode received: {opcode}')
-
-            ## UNLOCK file access and return
-            unlock(filelock)
-            return jsonify(status='success')
-
-        except Exception as e:
-            ## UNLOCK file access
-            unlock(filelock)
-            
-            # report exception
-            exc = ''.join(format_exception_only(type(e), e))
-            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
-            
-            # roll back database updates and close transaction
-            db.session.rollback()
-            current_app.logger.error(format_exc())
-            return jsonify(output_result)
+class SimPostResultApi(PostResultApi):
+    def set_query(self):
+        """initializes query parameters to retrieve Result records
         
+        Returns:
+            [filter list], suitable for .filter(*self.set_query())
+
+        """
+        msg = request.json
+        
+        return ([Result.simulationrun_id == msg['simulationrun_id']])
+    
+    def new_result(self):
+        """format a Result record, setting time, simulationrun_id
+        other fields are set by the PostResultApi post method
+
+        Returns:
+            Result()
+        """
+        msg = request.json
+
+        result = Result()
+        # simulated result time comes in float format, different from time machine formatting
+        result.time = float(msg['time'])
+        result.simulationrun_id = msg['simulationrun_id']
+        return result
+
 simpostresult_api = SimPostResultApi.as_view('_simpostresult')
 bp.add_url_rule('/_simpostresult', view_func=simpostresult_api, methods=['POST',])
 
 
-class SimPostBibApi(MethodView):
-    """simulate a scanned bibno from barcode-scanner-client
-    """
-    def post(self):
-        try:
-            ## LOCK file access
-            lock(filelock)
-            
-            # receive message
-            msg = request.json
-            current_app.logger.debug(f'received data {msg}')
-            
-            # handle messages from barcode-scanner-client
-            opcode = msg.pop('opcode', None)
-            if opcode in ['scannedbib']:
-                
-                # determine place. if no records yet, create the output file
-                lastrow = ScannedBib.query.filter_by(simulationrun_id=msg['simulationrun_id']).order_by(ScannedBib.order.desc()).first()
-                if lastrow:
-                    order = lastrow.order + 1
-                else:
-                    order = 1
-                    
-                # write to database
-                bibno = msg['bibno']
-                # remove leading 0's if not 0000 ('0000' is "blank" bibno)
-                if bibno != '0000':
-                    bibno = bibno.lstrip('0')
-
-                simrun_id = msg['simulationrun_id']
-                scannedbib = ScannedBib()
-                scannedbib.bibno = bibno
-                scannedbib.simulationrun_id = simrun_id
-                scannedbib.order = order
-                db.session.add(scannedbib)
-                db.session.flush()
-                
-                # update next result to use this scanned bib
-                result = Result.query.filter_by(simulationrun_id=simrun_id, had_scannedbib=False).order_by(Result.place.asc()).first()
-                if result:
-                    result.scannedbib = scannedbib
-                    result.had_scannedbib = True
-                
-                else:
-                    # no result available to assign this scanned bib
-                    simrun = SimulationRun.query.filter_by(id=simrun_id).one()
-                    
-                    # next_scannedbib is the next one to use; update if not set already
-                    if not simrun.next_scannedbib:
-                        simrun.next_scannedbib = scannedbib
-                
-                db.session.commit()
-                
-            # how did this happen?
-            else:
-                current_app.logger.error(f'unknown opcode received: {opcode}')
-
-            ## UNLOCK file access and return
-            unlock(filelock)
-            return jsonify(status='success')
-
-        except Exception as e:
-            ## UNLOCK file access
-            unlock(filelock)
-            
-            # report exception
-            exc = ''.join(format_exception_only(type(e), e))
-            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
-            
-            # roll back database updates and close transaction
-            db.session.rollback()
-            current_app.logger.error(format_exc())
-            return jsonify(output_result)
+class SimPostBibApi(PostBibApi):
+    def set_query(self):
+        """initializes query parameters to retrieve ScannedBib records
         
+        Returns:
+            [filter list], suitable for .filter(*self.set_query())
+
+        """
+        msg = request.json
+        
+        return ([ScannedBib.simulationrun_id == msg['simulationrun_id']])
+    
+    def new_scannedbib(self):
+        """format a ScannedBib record
+
+        Returns:
+            ScannedBib()
+        """
+        msg = request.json
+
+        scannedbib = ScannedBib()
+        scannedbib.simulationrun_id = msg['simulationrun_id']
+
+        return scannedbib
+    
 simpostbib_api = SimPostBibApi.as_view('_simpostbib')
 bp.add_url_rule('/_simpostbib', view_func=simpostbib_api, methods=['POST',])
 
@@ -1156,3 +1076,30 @@ class GetSimulationsApi(MethodView):
 getsimulations_api = GetSimulationsApi.as_view('_getsimulations')
 bp.add_url_rule('/_getsimulations', view_func=getsimulations_api, methods=['GET'])
 
+class SimScanActionApi(ScanActionApi):
+    def get_source(self, result):
+        """initialize source item to use for filtering
+        
+        Arts:
+            result (object): result item to use for filtering
+            
+        Returns:
+            source item, suitable for .filter(source==source)
+
+        """
+        return result.simulationrun
+    
+    def get_source_dict(self, source):
+        """initializes source dictionary
+        
+        Args:
+            source (object): source item to use for filtering
+            
+        Returns:
+            {source dict}, suitable for .filter_by(**self.get_source_dict()) or 
+
+        """
+        return {'simulationrun': source}
+
+scanaction_api = SimScanActionApi.as_view('_simscanaction')
+bp.add_url_rule('/_simscanaction', view_func=scanaction_api, methods=['POST',])

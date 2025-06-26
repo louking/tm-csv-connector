@@ -20,7 +20,7 @@ let sim_interval = null;
 
 // constants
 const CHECK_TABLE_UPDATE = 1000;
-const SIMULATION_UPDATE = 1000; // milliseconds, how often to update the simulation
+const SIMULATION_UPDATE = 250; // milliseconds, how often to update the simulation
 
 // simulation mode: executed when play/pause button is clicked
 function startPauseSimulation() {
@@ -65,6 +65,8 @@ function startPauseSimulation() {
         $('#start-pause-simulation').attr('title', 'resume simulation');
 
         startSimulationUI();
+    } else if (simulation_state == 'finished') {
+        alert('Simulation is finished, please stop it before starting again.');
     }
 }
 
@@ -106,8 +108,14 @@ function startSimulation() {
         }
         if (simsteps.length == 0) {
             // no steps, nothing to do
-            clearInterval(sim_interval);
             console.log(`step_simulation: no more steps for simulationrun_id ${simulationrun_id}`);
+
+            clearInterval(sim_interval);
+            $('#simulation-state').text('finished');
+            $('#start-pause-simulation').prop('disabled', true).addClass('ui-state-disabled');
+
+            // TODO: indicate that the running simulation has finished
+            // NOTE: not calling stopSimulation() here because we don't want to automatically tally the results
         }
     }, SIMULATION_UPDATE );
 
@@ -132,10 +140,11 @@ function stopSimulationUI() {
 function stopSimulation() {
     $('#simulation-state').text('stopped');
     $('#start-pause-simulation').attr('title', 'start simulation');
+    $('#start-pause-simulation').prop('disabled', false).removeClass('ui-state-disabled');
 
     stopSimulationUI();
 
-    // tally statistics for the simulation run
+    // tally results for the simulation run
     // TODO: this should be done in the backend
 }
 
@@ -253,4 +262,29 @@ function setParams() {
         }
     } );
 
+}
+
+// careful, this is specific to simulation mode, the function for normal mode is in results.js
+// the only difference is the ajax url
+function scan_action(e, options) {
+    e.stopPropagation();
+    console.log(`scanaction()`);
+
+    // set up for table redraw
+    let resturl = window.location.pathname + '/rest';
+
+    $.ajax( {
+        url: '/admin/_simscanaction',
+        type: 'post',
+        dataType: 'json',
+        data: options,
+        success: function ( json ) {
+            if (json.status == 'success') {
+                refresh_table_data(_dt_table, resturl);
+            }
+            else {
+                alert(json.error);
+            }
+        }
+    } );
 }

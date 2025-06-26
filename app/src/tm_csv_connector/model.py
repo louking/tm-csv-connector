@@ -125,7 +125,9 @@ class Race(Base):
     scannedbibs = relationship('ScannedBib', back_populates='race', foreign_keys=[ScannedBib.race_id], cascade='all, delete, delete-orphan')
     chipreads   = relationship('ChipRead', back_populates='race', foreign_keys=[ChipRead.race_id], cascade='all, delete, delete-orphan')
     chipbibs    = relationship('ChipBib', back_populates='race', foreign_keys=[ChipBib.race_id], cascade='all, delete, delete-orphan')
+    
     # next_scannedbib is set when there are more scanned bibs than there are results
+    # OBSOLETE
     next_scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
     next_scannedbib    = relationship('ScannedBib', foreign_keys=[next_scannedbib_id])
     
@@ -288,6 +290,7 @@ class SimulationRun(Base):
     scannedbibs = relationship('ScannedBib', back_populates='simulationrun', foreign_keys=[ScannedBib.simulationrun_id], cascade='all, delete, delete-orphan')
 
     # next_scannedbib is set when there are more scanned bibs than there are results
+    # OBSOLETE
     next_scannedbib_id = mapped_column(ForeignKey('scannedbib.id'))
     next_scannedbib    = relationship('ScannedBib', foreign_keys=[next_scannedbib_id])
 

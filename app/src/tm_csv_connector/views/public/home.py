@@ -21,7 +21,7 @@ from loutilities.filters import filtercontainerdiv, filterdiv, yadcfoption
 
 # homegrown
 from . import bp
-from ...model import db, Race, Result, BluetoothDevice, BluetoothType
+from ...model import db, Race, Result, ScannedBib, BluetoothDevice, BluetoothType
 from ...model import ChipRead, ChipBib, ChipReader, AppLog, Setting
 from ...times import asc2time, time2asc
 from ..common import ResultsView, get_results_posttablehtml, results_validate, results_dbmapping, results_formmapping
@@ -176,7 +176,26 @@ class ResultsViewNormal(ResultsView, TmConnectorView):
         race_id = session['_results_raceid'] if '_results_raceid' in session else None
         self.race = Race.query.filter_by(id=race_id).one_or_none()
         self.queryparams['race_id'] = race_id
-        
+        # current_app.logger.debug(f'queryparams: {self.queryparams}')
+
+    def set_queue_filters(self):
+        """sets queue filters
+
+        Returns:
+            boolean: True if caller should update the queued scanned results
+        """
+        race_id = session['_results_raceid'] if '_results_raceid' in session else None
+        race = Race.query.filter_by(id=race_id).one_or_none()
+        if race:
+            process_queue = True
+            self.result_queue_filter = [Result.race_id == race_id]
+            self.scannedbib_queue_filter = [ScannedBib.race_id == race_id]
+
+        else:
+            process_queue = False
+            
+        return process_queue
+
     def createrow(self, formdata):
         '''
         creates row in database
@@ -263,7 +282,6 @@ class ResultsViewNormal(ResultsView, TmConnectorView):
             
         else:
             return super().updaterow(thisid, formdata)
-    
 
 results_view = ResultsViewNormal(
     app=bp,  # use blueprint instead of app

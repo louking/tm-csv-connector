@@ -450,3 +450,27 @@ function setParams() {
 
 }
 
+// careful, this is specific to normal mode, the function for simulation mode is in resultssim.js
+// the only difference is the ajax url
+function scan_action(e, options) {
+    e.stopPropagation();
+    console.log(`scanaction()`);
+
+    // set up for table redraw
+    let resturl = window.location.pathname + '/rest';
+
+    $.ajax( {
+        url: '/_scanaction',
+        type: 'post',
+        dataType: 'json',
+        data: options,
+        success: function ( json ) {
+            if (json.status == 'success') {
+                refresh_table_data(_dt_table, resturl);
+            }
+            else {
+                alert(json.error);
+            }
+        }
+    } );
+}
