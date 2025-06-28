@@ -58,7 +58,7 @@
             "problemMatcher": []
         },
         {
-            "label": "Build",
+            "label": "Build/Push/Release",
             "dependsOn": [
                 "build time machine reader",
                 "build barcode scanner reader",
