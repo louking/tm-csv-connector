@@ -1,7 +1,7 @@
 # https://www.reddit.com/r/PowerShell/comments/afztl1/comment/ee4dkws/?utm_source=share&utm_medium=web2x&context=3
 Install-PackageProvider NuGet -ForceBootstrap
 Set-PSRepository PSGallery -InstallationPolicy Trusted
-Install-Module -Name PsIni
+Install-Module -Name PsIni -Force
 
 function Set-Path ($path, $prompt) {
     if (-not $path) {

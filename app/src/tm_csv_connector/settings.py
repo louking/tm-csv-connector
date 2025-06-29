@@ -87,6 +87,21 @@ class RealDb(Config):
             self.SQLALCHEMY_BINDS = {
                 'users': usersdb_uri
             }
+        
+        # set passwords required for simulation mode
+        appconfig = {}
+        for configfile in configfiles:
+            appconfig.update(getitems(configfile, 'app'))
+        if appconfig.get('SIMULATION_MODE', False):
+            with open(f'/run/secrets/mail-password') as pw:
+                mailpw = pw.readline().strip()
+                self.MAIL_PASSWORD = mailpw
+            with open(f'/run/secrets/super-admin-user-password') as pw:
+                sauserpw = pw.readline().strip()
+                self.USER_SUPERADMIN_PW = sauserpw
+            with open(f'/run/secrets/security-password-salt') as pw:
+                securitysaltpw = pw.readline().strip()
+                self.SECURITY_PASSWORD_SALT = securitysaltpw
 
 class Development(RealDb):
     DEBUG = True

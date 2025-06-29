@@ -57,6 +57,9 @@ services:
     secrets:
       - db-password
       - tm-csv-connector-password
+      - mail-password
+      - security-password-salt
+      - super-admin-user-password
     networks:
       - backend-network
       - frontend-network
@@ -81,7 +84,7 @@ services:
     # command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--access-logfile", "-", "--log-file", "-", "app:app"]
     command: ["./dbupgrade_and_run.sh", "gunicorn", "--reload", "--bind", "0.0.0.0:5000", "--log-file", "-", 
               "--workers=${GUNICORN_WORKERS}", "--threads=${GUNICORN_THREADS}",
-             "app:app"]
+              "run:app"]
 
 volumes:
   db-data:
@@ -91,6 +94,12 @@ secrets:
     file: config/db/root-password.txt
   tm-csv-connector-password:
     file: config/db/tm-csv-connector-password.txt
+  mail-password:
+    file: config/db/mail-password.txt
+  security-password-salt:
+    file: config/db/security-password-salt.txt
+  super-admin-user-password:
+    file: config/db/super-admin-user-password.txt
 
 networks:
   backend-network:

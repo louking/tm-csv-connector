@@ -182,7 +182,8 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
         db.query = db.session.query_property()
 
         # set up super-admin user if in simulation mode
-        if database_available:
+        # init for operation False allows the database to be upgraded
+        if database_available and init_for_operation:
             if app.config.get('SIMULATION_MODE', False):
                 if not security.datastore.find_user(email=app.config['USER_SUPERADMIN_EMAIL']):
                     admin = security.datastore.create_user(email=app.config['USER_SUPERADMIN_EMAIL'], name=app.config['USER_SUPERADMIN_NAME'], password=hash_password(app.config['USER_SUPERADMIN_PW']))
