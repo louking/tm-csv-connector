@@ -63,8 +63,8 @@ function startPauseSimulation() {
     } else if (simulation_state == 'running') {
         $('#simulation-state').text('paused');
         $('#start-pause-simulation').attr('title', 'resume simulation');
-
-        startSimulationUI();
+        stopSimulationUI();
+        
     } else if (simulation_state == 'finished') {
         alert('Simulation is finished, please stop it before starting again.');
     }
