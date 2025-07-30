@@ -469,8 +469,19 @@ class SimulationEventsApi(MethodView):
             # this handles Import button
             elif action == 'edit':
                 simid = request.form['data[keyless][simulation]']
+                force = request.form['data[keyless][force]']
+
                 if not simid:
                     return jsonify(status='fail', error='please choose a simulation')
+            
+                # if there are already simulation events exist, verify user wants to overwrite
+                thesesimevents = SimulationEvent.query.filter_by(simulation_id=simid).all()
+                if thesesimevents and not force=='true':
+                    db.session.rollback()
+                    return jsonify(status='fail', cause='Overwrite series for this year?', confirm=True)
+
+                # user has confirmed overwrite, so delete existing events for this simulation
+                SimulationEvent.query.filter_by(simulation_id=simid).delete()
             
                 filepath = join('/tmp', request.form['data[keyless][file]'])
                 with open(filepath, newline='') as stream:
