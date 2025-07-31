@@ -497,6 +497,8 @@ class ScanActionApi(MethodView):
                 thissource = self.get_source(thisresult)
                 thisplace = thisresult.place
 
+                # TODO: is there any way to log this action so it can be imported into a simulation, i.e., without scan or result id?
+
                 # handle cases 
                 match action:
                     # use the scanned bibno as bibno

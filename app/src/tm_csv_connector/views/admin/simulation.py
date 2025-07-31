@@ -10,10 +10,11 @@ from traceback import format_exception_only, format_exc
 from csv import DictReader, DictWriter
 from datetime import datetime
 from requests import post
+from re import compile
+from json import loads
 
 # pypi
-from dominate.tags import span, i
-from dominate.tags import div, button, span, select, option, p, i
+from dominate.tags import div, button, span, select, option, i, input_
 from flask import request, jsonify, current_app, url_for, session
 from flask_security import current_user
 from flask.views import MethodView
@@ -76,6 +77,10 @@ def get_results_filters_sim():
                         for s in sims:
                             option(s.name, value=s.id)
             
+                span('Start Time', _class='label')
+                with span(_class='filter'):
+                    input_(id='start-time', name='start-time', type='time', step=.01)
+                    
                 with span(_class='simulation-controls'):
                     with button(id='start-pause-simulation', _class='filter-item ui-button', title="start simulation", onclick='startPauseSimulation()'):
                         i(id="play-icon", _class="fa-solid fa-play")
@@ -423,7 +428,7 @@ class SimulationEventsApi(MethodView):
     Raises:
         ParameterError: error if action is not 'upload' or 'edit', or if bad file format detected
     """
-    ALLOWED_EXTENSIONS = ['csv']
+    ALLOWED_EXTENSIONS = ['csv', 'txt']
     
     def get(self):
         # this returns initial values for the form, should be empty because the
@@ -434,6 +439,104 @@ class SimulationEventsApi(MethodView):
         return '.' in filename and \
             filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
     
+    def import_csv_file(self, filepath, simid):
+        """import csv file and save list of SimulationEvent objects
+
+        Args:
+            filepath (str): path to the csv file
+            simid (int): simulation id to associate with the events
+        """
+        with open(filepath, newline='') as stream:
+            csvfile = DictReader(stream)
+            header = csvfile.fieldnames
+            # check for required fields
+            if 'time' not in header or 'etype' not in header or 'bibno' not in header:
+                raise ParameterError('missing required field')
+            
+            # delete all existing events for this simulation
+            db.session.query(SimulationEvent).filter(SimulationEvent.simulation_id == simid).delete()
+            
+            # read to end of file
+            lineno = 1  # skip header
+            for line in csvfile:
+                lineno += 1
+                # check for valid etype
+                if line['etype'] not in etype_type:
+                    raise ParameterError(f"line {lineno}: invalid etype '{line['etype']}'")
+                if line['etype'] == 'scan':
+                    # check for bibno
+                    if not line['bibno']:
+                        raise ParameterError(f"line {lineno}: etype 'scan' requires bibno")
+                
+                # create new SimulationEvent object
+                simevent = SimulationEvent(
+                    simulation_id = simid,
+                    time = timesecs(line['time']),
+                    etype = line['etype'],
+                    bibno = line['bibno'],
+                )
+                db.session.add(simevent)
+
+    def import_log_file(self, filepath, simid):
+        """import tmtility log file and save list of SimulationEvent objects
+
+        Args:
+            filepath (str): log file path with txt extension
+            simid (int): Simulation id to associate with the events
+        """
+        
+        recdata = compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[\d{4}-\d{2}-\d{2} (?P<time>\d{2}:\d{2}:\d{2},\d{3})\].*received data (?P<cmd>\{.*\})")
+        
+        with open(filepath) as stream:
+            lineno = 0
+            for line in stream:
+                lineno += 1
+                
+                recdata_match = recdata.match(line) # received data
+                
+                if recdata_match:
+                    timestamp_a = recdata_match.group('time')
+                    timestamp_a = timestamp_a.replace(',', '.')  # replace comma with dot for float conversion
+                    timestamp = timesecs(timestamp_a)  # convert to seconds
+                    
+                    # skip logs before race start
+                    if timestamp < self.start_time:
+                        continue
+                    
+                    # parse the command
+                    cmd_a = recdata_match.group('cmd')
+                    cmd_a = cmd_a.replace("'", '"')  # replace single quotes with double quotes for json conversion
+                    cmd = loads(cmd_a)  # parse as json
+                    
+                    match cmd['opcode']:
+                        # time machine result with select
+                        case 'select':
+                            etype = 'timemachine'
+                            bibno = cmd['bibno']
+                            time = timesecs(cmd['time'])
+                        
+                        # time machine result without select
+                        case 'primary':
+                            etype = 'timemachine'
+                            bibno = None
+                            time = timesecs(cmd['time'])
+                        
+                        # bib number from scanner
+                        case 'scannedbib':
+                            etype = 'scan'
+                            bibno = cmd['bibno']
+                            time = timestamp - self.start_time
+                            
+                    # create new SimulationEvent object
+                    simevent = SimulationEvent(
+                        simulation_id = simid,
+                        time = time,
+                        etype = etype,
+                        bibno = bibno,
+                    )
+                    db.session.add(simevent)
+                    
+
     def post(self):
         try:
             options = request.form
@@ -470,6 +573,11 @@ class SimulationEventsApi(MethodView):
             elif action == 'edit':
                 simid = request.form['data[keyless][simulation]']
                 force = request.form['data[keyless][force]']
+                
+                # start time only used for log file import
+                self.start_time = (timesecs(request.form['data[keyless][start_time]']) 
+                                   if 'data[keyless][start_time]' in request.form and request.form['data[keyless][start_time]'] 
+                                   else 0)
 
                 if not simid:
                     return jsonify(status='fail', error='please choose a simulation')
@@ -482,39 +590,21 @@ class SimulationEventsApi(MethodView):
 
                 # user has confirmed overwrite, so delete existing events for this simulation
                 SimulationEvent.query.filter_by(simulation_id=simid).delete()
-            
+                
                 filepath = join('/tmp', request.form['data[keyless][file]'])
-                with open(filepath, newline='') as stream:
-                    csvfile = DictReader(stream)
-                    header = csvfile.fieldnames
-                    # check for required fields
-                    if 'time' not in header or 'etype' not in header or 'bibno' not in header:
-                        raise ParameterError('missing required field')
+                ext = filepath.rsplit('.', 1)[1].lower()
+                
+                if ext == 'csv':
+                    # import csv file
+                    self.import_csv_file(filepath, simid)
+                
+                elif ext == 'txt':
+                    # import tmtility log (txt) file
+                    self.import_log_file(filepath, simid)
                     
-                    # delete all existing events for this simulation
-                    db.session.query(SimulationEvent).filter(SimulationEvent.simulation_id == simid).delete()
-                    
-                    # read to end of file
-                    lineno = 1  # skip header
-                    for line in csvfile:
-                        lineno += 1
-                        # check for valid etype
-                        if line['etype'] not in etype_type:
-                            raise ParameterError(f"line {lineno}: invalid etype '{line['etype']}'")
-                        if line['etype'] == 'scan':
-                            # check for bibno
-                            if not line['bibno']:
-                                raise ParameterError(f"line {lineno}: etype 'scan' requires bibno")
-                        
-                        # create new SimulationEvent object
-                        simevent = SimulationEvent(
-                            simulation_id = simid,
-                            time = timesecs(line['time']),
-                            etype = line['etype'],
-                            bibno = line['bibno'],
-                        )
-                        db.session.add(simevent)
-                        
+                else:
+                    raise ParameterError(f"unsupported file extension '{ext}'")
+
                 # commit changes to database, delete temporary file, and declare success
                 db.session.commit()
                 remove(filepath)
@@ -716,10 +806,12 @@ bp.add_url_rule('/_simulationvector/rest', view_func=simulationvector_api, metho
 
 
 # note user.name and simulation.name are used rather than _treatment/relationship as this is a read only view
-simulationrun_dbattrs = 'id,user.name,simulation.name,timestarted,timeended,score'.split(',')
-simulationrun_formfields = 'rowid,user,simulation,timestarted,timeended,score'.split(',')
+simulationrun_dbattrs = 'id,user.name,simulation.name,start_time,timestarted,timeended,score'.split(',')
+simulationrun_formfields = 'rowid,user,simulation,timestarted,start_time,timeended,score'.split(',')
 simulationrun_dbmapping = dict(zip(simulationrun_dbattrs, simulationrun_formfields))
 simulationrun_formmapping = dict(zip(simulationrun_formfields, simulationrun_dbattrs))
+simulationrun_dbmapping['start_time'] = lambda formrow: timedisplay.asc2dt(formrow['start_time'])
+simulationrun_formmapping['start_time'] = lambda dbrow: timedisplay.dt2asc(dbrow.start_time)
 simulationrun_dbmapping['timestarted'] = lambda formrow: timedisplay.asc2dt(formrow['timestarted'])
 simulationrun_formmapping['timestarted'] = lambda dbrow: timedisplay.dt2asc(dbrow.timestarted)
 simulationrun_dbmapping['timeended'] = lambda formrow: timedisplay.asc2dt(formrow['timeended']) if formrow['timeended'] else None
@@ -758,6 +850,7 @@ simulationrun_view = DbCrudApiRolePermissions(
     clientcolumns = [
         {'data': 'user', 'name': 'user', 'label': 'User'},
         {'data': 'simulation', 'name': 'simulation', 'label': 'Simulation'},
+        {'data': 'start_time', 'name': 'start_time', 'label': 'Race Start Time'},
         {'data': 'timestarted', 'name': 'timestarted', 'label': 'Time Started'},
         {'data': 'timeended', 'name': 'timeended', 'label': 'Time Ended'},
         {'data': 'score', 'name': 'score', 'label': 'Score'},
@@ -815,9 +908,14 @@ class CreateGetSimulationRunApi(MethodView):
             if not sim:
                 return jsonify({'status': 'fail', 'error': f'simulation {sim_id} not found'})
             user_id = current_user.id
+            a_start_time = request.form.get('start_time', None)
+            if not a_start_time:
+                return jsonify({'status': 'fail', 'error': 'Start Time is required'})
+            start_time = timesecs(a_start_time) if a_start_time else 0
             simrun = SimulationRun(
                 user_id = user_id,
                 simulation_id = sim_id,
+                start_time = start_time,
                 timestarted = datetime.now(),
                 timeended = None,   # this will be set when the run is completed
                 score = 0,          # this will be set when the run is completed

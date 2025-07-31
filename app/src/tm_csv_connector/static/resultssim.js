@@ -29,7 +29,7 @@ function startPauseSimulation() {
         // create simulationrun row; get the label and value; get the simulation steps
         $.ajax( $('#simulation-run').attr('url'), {
             method: 'post',
-            data: {simulation_id: $('#sim').val() },
+            data: {simulation_id: $('#sim').val(), start_time: $('#start-time').val()},
             dataType: 'json',
             success: function ( json ) {
                 if (json.status == 'success') {
@@ -64,7 +64,7 @@ function startPauseSimulation() {
         $('#simulation-state').text('paused');
         $('#start-pause-simulation').attr('title', 'resume simulation');
         stopSimulationUI();
-        
+
     } else if (simulation_state == 'finished') {
         alert('Simulation is finished, please stop it before starting again.');
     }
@@ -79,6 +79,7 @@ function startSimulation() {
     $('#stop-simulation').button('enable').removeClass('ui-state-disabled');
     $('#sim').prop('disabled', true).addClass('ui-state-disabled');
     $('#simulation-run').prop('disabled', true).addClass('ui-state-disabled');
+    $('#start-time').prop('disabled', true).addClass('ui-state-disabled');
 
     sim_interval = setInterval( function() {
         let simulationrun_id = $('#simulation-run').val();
@@ -129,6 +130,7 @@ function stopSimulationUI() {
     $('#stop-simulation').button('disable').addClass('ui-state-disabled');
     $('#sim').prop('disabled', false).removeClass('ui-state-disabled');
     $('#simulation-run').prop('disabled', false).removeClass('ui-state-disabled');
+    $('#start-time').prop('disabled', false).removeClass('ui-state-disabled');
 
     if (sim_interval) {
         clearInterval(sim_interval);
@@ -141,6 +143,7 @@ function stopSimulation() {
     $('#simulation-state').text('stopped');
     $('#start-pause-simulation').attr('title', 'start simulation');
     $('#start-pause-simulation').prop('disabled', false).removeClass('ui-state-disabled');
+    $('#start-time').prop('disabled', false).removeClass('ui-state-disabled');
 
     stopSimulationUI();
 
@@ -216,11 +219,11 @@ function setParams() {
     */
 
     // we'll be sending these to the server
-    simulationrun_id = $('#simulation-run').val();
+    let simulationrun_id = $('#simulation-run').val();
     let logdir = $('#logdir').val();
     let data = {
         simulationrun_id: simulationrun_id, 
-        logdir: logdir
+        logdir: logdir,
     }
 
     /*

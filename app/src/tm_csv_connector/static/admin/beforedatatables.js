@@ -5,11 +5,15 @@ var simulationevents_import_saeditor = new SaEditor({
              {name: 'simulation', data: 'simulation', label: 'Simulation', type: 'select2', className: 'field_req full block',
                  fieldInfo: 'simulation events are stored by simulation',
              },
+             {name: 'start_time', data: 'start_time', label: 'Start Time', type: 'datetime', className: 'field_req full block',
+                format: 'HH:mm:ss.SSS',
+                fieldInfo: 'required for log file input, time race started',
+             },
              {name: 'file', data: 'file', label: 'Import File', type: 'upload',
                  display: function(data) {
                      return simulationevents_import_saeditor.saeditor.file('data', data).filename
                  },
-                 fieldInfo: 'csv file must contain columns time, etype, and bibno',
+                 fieldInfo: 'csv file must contain columns time, etype, and bibno; txt file for tmtility log file',
                  className: 'field_req full block'},
              {name: 'force', data: 'force', 'type': 'hidden'},
             ],

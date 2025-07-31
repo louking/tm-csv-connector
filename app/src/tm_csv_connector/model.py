@@ -281,7 +281,8 @@ class SimulationRun(Base):
     simulation = relationship('Simulation', back_populates='runs')
     user_id = mapped_column(ForeignKey('user.id'))
     user = relationship('User', back_populates='simruns')
-    timestarted = Column(DateTime)
+    start_time  = Column(Double) # seconds since midnight ("race" start time)
+    timestarted = Column(DateTime) # actual time simulation started and ended
     timeended = Column(DateTime)
     score = Column(Float)
 
