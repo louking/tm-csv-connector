@@ -227,6 +227,7 @@ class Simulation(Base):
     __tablename__ = 'simulation'
     id      = Column(Integer(), primary_key=True)
     name    = Column(Text)
+    description = Column(Text)
     events  = relationship('SimulationEvent', back_populates='simulation', cascade='all, delete, delete-orphan')
     vectors = relationship('SimulationVector', back_populates='simulation', cascade='all, delete, delete-orphan')
     runs = relationship('SimulationRun', back_populates='simulation', cascade='all, delete, delete-orphan')

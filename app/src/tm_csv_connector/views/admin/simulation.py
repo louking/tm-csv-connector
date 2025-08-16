@@ -314,8 +314,8 @@ results_view = ResultsViewSim(
 results_view.register()
 
 
-simulation_dbattrs = 'id,name'.split(',')
-simulation_formfields = 'rowid,name'.split(',')
+simulation_dbattrs = 'id,name,description'.split(',')
+simulation_formfields = 'rowid,name,description'.split(',')
 simulation_dbmapping = dict(zip(simulation_dbattrs, simulation_formfields))
 simulation_formmapping = dict(zip(simulation_formfields, simulation_dbattrs))
 
@@ -335,6 +335,8 @@ simulation_view = DbCrudApiRolePermissions(
     buttons=['create', 'editRefresh', 'remove', 'csv'],
     clientcolumns = [
         {'data': 'name', 'name': 'name', 'label': 'Name',
+         },
+        {'data': 'description', 'name': 'description', 'label': 'Description',
          },
     ],
     dtoptions={
