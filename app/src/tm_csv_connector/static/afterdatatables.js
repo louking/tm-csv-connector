@@ -162,17 +162,17 @@ function afterdatatables() {
         simulationevents_import_saeditor.init();
 
         simulationevents_import_saeditor.saeditor.on('submitComplete', function(e, json, data, action) {
-            // TODO: this doesn't work because the table is not server side
-            _dt_table.draw();
+            // use refresh_table_data to retrieve data from server because it's browser side
+            refresh_table_data(_dt_table, '/admin/simulationevents/rest', 'full-hold');
         });
 
-    } else if (pathname == '/admin/simulationvectors') {
+    } else if (pathname == '/admin/simulationexpected') {
         // initialize import button handling
-        simulationvector_import_saeditor.init();
+        simulationexpected_import_saeditor.init();
 
-        simulationvector_import_saeditor.saeditor.on('submitComplete', function(e, json, data, action) {
-            // TODO: this doesn't work because the table is not server side
-            _dt_table.draw();
+        simulationexpected_import_saeditor.saeditor.on('submitComplete', function(e, json, data, action) {
+            // use refresh_table_data to retrieve data from server because it's browser side
+            refresh_table_data(_dt_table, '/admin/simulationexpected/rest', 'full-hold');
         });
 
     }

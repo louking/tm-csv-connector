@@ -30,14 +30,14 @@ timedisplay = asctime('%Y-%m-%d %H:%M:%S')
 # homegrown
 from . import bp
 from ...model import User
-from ...model import db, Simulation, SimulationEvent, SimulationResult, SimulationRun, SimulationVector, Result
+from ...model import db, Simulation, SimulationEvent, SimulationResult, SimulationRun, SimulationExpected, Result
 from ...model import ScannedBib
 from ...model import Setting
 from ...model import etype_type
 from ...times import asc2time, time2asc
 from ..common import ResultsView, get_results_posttablehtml, results_dbmapping, results_formmapping, results_validate
 from ..common import PostResultApi, PostBibApi, ScanActionApi
-from ...fileformat import filecolumns, db2file, filelock, lock, unlock
+from ...fileformat import filecolumns, db2file, filelock, lock, unlock, fulltime
 
 from ...roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN
 roles_accepted = [ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN]
@@ -62,7 +62,7 @@ def get_results_filters_sim():
             with div(_class='filter-item'):
                 span('Run', _class='label')
                 with span(_class='filter'):
-                    results_filter_simrun_select = select(id='simulation-run', name="simulation-run", url=rest_url_for('admin._setgetsimulationrun'))
+                    results_filter_simrun_select = select(id='simulation-run', name="simulation-run", url=url_for('admin._setgetsimulationrun'))
                     # TODO: do we want super-admin to be able to see all simulation runs?
                     simruns = SimulationRun.query.filter_by(user=current_user).order_by(SimulationRun.timestarted.desc()).all()
                     with results_filter_simrun_select:
@@ -390,7 +390,7 @@ simulationevent_view = DbCrudApiRolePermissions(
             'editor': {'eval': 'simulationevents_import_saeditor.saeditor'},
             'url': url_for('admin._simulationevents'),
             'action': {
-                'eval': f'simulationevents_import("{rest_url_for('admin._simulationevents')}")'
+                'eval': f'simulationevents_import("{url_for('admin._simulationevents')}")'
             }
         },
     ],
@@ -626,53 +626,53 @@ class SimulationEventsApi(MethodView):
             return jsonify(output_result)
         
 simulationevents_api = SimulationEventsApi.as_view('_simulationevents')
-bp.add_url_rule('/_simulationevents/rest', view_func=simulationevents_api, methods=['POST','GET'])
+bp.add_url_rule('/_simulationevents', view_func=simulationevents_api, methods=['POST','GET'])
 
 
-simulationvector_dbattrs = 'id,simulation,order,time,bibno'.split(',')
-simulationvector_formfields = 'rowid,simulation,order,time,bibno'.split(',')
-simulationvector_dbmapping = dict(zip(simulationvector_dbattrs, simulationvector_formfields))
-simulationvector_formmapping = dict(zip(simulationvector_formfields, simulationvector_dbattrs))
-simulationvector_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
-simulationvector_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
+simulationexpected_dbattrs = 'id,simulation,order,time,epsilon,bibno'.split(',')
+simulationexpected_formfields = 'rowid,simulation,order,time,epsilon,bibno'.split(',')
+simulationexpected_dbmapping = dict(zip(simulationexpected_dbattrs, simulationexpected_formfields))
+simulationexpected_formmapping = dict(zip(simulationexpected_formfields, simulationexpected_dbattrs))
+simulationexpected_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
+simulationexpected_formmapping['time'] = lambda dbrow: time2asc(dbrow.time)
 
-def simulationvector_filters():
+def simulationexpected_filters():
     pretablehtml = filtercontainerdiv()
     with pretablehtml:
         with span(id='spinner', style='display:none;'):
             i(cls='fa-solid fa-spinner fa-spin')
-        filterdiv('simulationvector-external-filter-simulation', 'Simulation')
+        filterdiv('simulationexpected-external-filter-simulation', 'Simulation')
     return pretablehtml.render()
 
-simulationvector_yadcf_options = [
-    yadcfoption('simulation.name:name', 'simulationvector-external-filter-simulation', 'select', placeholder='Select simulation', width='300px', select_type='select2'),
+simulationexpected_yadcf_options = [
+    yadcfoption('simulation.name:name', 'simulationexpected-external-filter-simulation', 'select', placeholder='Select simulation', width='300px', select_type='select2'),
 ]
 
 
-simulationvector_view = DbCrudApiRolePermissions(
+simulationexpected_view = DbCrudApiRolePermissions(
     roles_accepted=roles_accepted,
     app=bp,  # use blueprint instead of app
     db=db,
-    model=SimulationVector,
+    model=SimulationExpected,
     template='datatables.jinja2',
-    pretablehtml=simulationvector_filters(),
-    yadcfoptions=simulationvector_yadcf_options,
-    pagename='Simulation Vectors',
-    endpoint='admin.simulationvectors',
-    rule='/simulationvectors',
-    dbmapping=simulationvector_dbmapping,
-    formmapping=simulationvector_formmapping,
+    pretablehtml=simulationexpected_filters(),
+    yadcfoptions=simulationexpected_yadcf_options,
+    pagename='Simulation Expected Results',
+    endpoint='admin.simulationexpected',
+    rule='/simulationexpected',
+    dbmapping=simulationexpected_dbmapping,
+    formmapping=simulationexpected_formmapping,
     servercolumns=None,  # not server side
     idSrc='rowid',
     buttons=lambda: ['create', 'editRefresh', 'remove', 'csv',
         {
             'extend': 'create',
             'text': 'Import',
-            'name': 'import-simulationvector',
-            'editor': {'eval': 'simulationvector_import_saeditor.saeditor'},
-            'url': url_for('admin._simulationvector'),
+            'name': 'import-simulationexpected',
+            'editor': {'eval': 'simulationexpected_import_saeditor.saeditor'},
+            'url': url_for('admin._simulationexpected'),
             'action': {
-                'eval': f'simulationvector_import("{rest_url_for('admin._simulationvector')}")'
+                'eval': f'simulationexpected_import("{url_for('admin._simulationexpected')}")'
             }
         },
     ],
@@ -687,13 +687,19 @@ simulationvector_view = DbCrudApiRolePermissions(
                              }}
          },
         {'data': 'order', 'name': 'order', 'label': 'Order'},
-        {'data': 'time', 'name': 'time', 
-         'className': 'field_req',
-         'label': 'Time'},
         {'data': 'bibno', 
          'className': 'field_req',
          'name': 'bibno', 
          'label': 'Bib No'},
+        {'data': 'time', 'name': 'time', 
+         'className': 'field_req',
+         'label': 'Time'},
+        {'data': 'epsilon', 'name': 'epsilon', 
+         'className': 'field_req',
+         'label': 'Epsilon',
+         'fieldInfo': 'if non-zero, bibno match within epsilon seconds of expected time',
+         'ed': {'def': 0},
+         },
     ],
     dtoptions={
         'order': [['simulation.name:name', 'asc'],['order:name', 'asc']],
@@ -703,10 +709,10 @@ simulationvector_view = DbCrudApiRolePermissions(
         'scrollY': True,
     },
 )
-simulationvector_view.register()
+simulationexpected_view.register()
 
-class SimulationVectorApi(MethodView):
-    """upload simulation vector from file
+class SimulationExpectedApi(MethodView):
+    """upload simulation expected from file
 
     Raises:
         ParameterError: error if action is not 'upload' or 'edit', or if bad file format detected
@@ -723,6 +729,7 @@ class SimulationVectorApi(MethodView):
             filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
     
     def post(self):
+        lineno = 0
         try:
             options = request.form
             action = options['action']
@@ -768,22 +775,23 @@ class SimulationVectorApi(MethodView):
                     if 'order' not in header or 'time' not in header or 'bibno' not in header:
                         raise ParameterError('missing required field')
                     
-                    # delete all existing vector entries for this simulation
-                    db.session.query(SimulationVector).filter(SimulationVector.simulation_id == simid).delete()
+                    # delete all existing expected entries for this simulation
+                    db.session.query(SimulationExpected).filter(SimulationExpected.simulation_id == simid).delete()
                     
                     # read to end of file
                     lineno = 1  # skip header
                     for line in csvfile:
                         lineno += 1
                         
-                        # create new SimulationVector object
-                        simvector = SimulationVector(
+                        # create new SimulationExpected object
+                        simexpected = SimulationExpected(
                             simulation_id = simid,
                             order = line['order'],
                             time = timesecs(line['time']),
                             bibno = line['bibno'],
+                            epsilon = line['epsilon'] if 'epsilon' in line and line['epsilon'] else 0,
                         )
-                        db.session.add(simvector)
+                        db.session.add(simexpected)
                         
                 # commit changes to database, delete temporary file, and declare success
                 db.session.commit()
@@ -796,15 +804,18 @@ class SimulationVectorApi(MethodView):
         except Exception as e:
             # report exception
             exc = ''.join(format_exception_only(type(e), e))
-            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            if lineno:
+                output_result = {'status' : 'fail', 'error': f'exception occurred processing line {lineno}:<br>{exc}'}
+            else:
+                output_result = {'status' : 'fail', 'error': f'exception occurred:<br>{exc}'}
             
             # roll back database updates and close transaction
             db.session.rollback()
             current_app.logger.error(format_exc())
             return jsonify(output_result)
         
-simulationvector_api = SimulationVectorApi.as_view('_simulationvector')
-bp.add_url_rule('/_simulationvector/rest', view_func=simulationvector_api, methods=['POST','GET'])
+simulationexpected_api = SimulationExpectedApi.as_view('_simulationexpected')
+bp.add_url_rule('/_simulationexpected', view_func=simulationexpected_api, methods=['POST','GET'])
 
 
 # note user.name and simulation.name are used rather than _treatment/relationship as this is a read only view
@@ -812,12 +823,12 @@ simulationrun_dbattrs = 'id,user.name,simulation.name,start_time,timestarted,tim
 simulationrun_formfields = 'rowid,user,simulation,timestarted,start_time,timeended,score'.split(',')
 simulationrun_dbmapping = dict(zip(simulationrun_dbattrs, simulationrun_formfields))
 simulationrun_formmapping = dict(zip(simulationrun_formfields, simulationrun_dbattrs))
-simulationrun_dbmapping['start_time'] = lambda formrow: timedisplay.asc2dt(formrow['start_time'])
-simulationrun_formmapping['start_time'] = lambda dbrow: timedisplay.dt2asc(dbrow.start_time)
-simulationrun_dbmapping['timestarted'] = lambda formrow: timedisplay.asc2dt(formrow['timestarted'])
-simulationrun_formmapping['timestarted'] = lambda dbrow: timedisplay.dt2asc(dbrow.timestarted)
+simulationrun_dbmapping['start_time'] = lambda formrow: timesecs(formrow['start_time']) if formrow['start_time'] else None
+simulationrun_formmapping['start_time'] = lambda dbrow: fulltime(dbrow.start_time) if dbrow.start_time else ''
+simulationrun_dbmapping['timestarted'] = lambda formrow: timedisplay.asc2dt(formrow['timestarted']) if formrow['timestarted'] else None
+simulationrun_formmapping['timestarted'] = lambda dbrow: timedisplay.dt2asc(dbrow.timestarted) if dbrow.timestarted else ''
 simulationrun_dbmapping['timeended'] = lambda formrow: timedisplay.asc2dt(formrow['timeended']) if formrow['timeended'] else None
-simulationrun_formmapping['timeended'] = lambda dbrow: timedisplay.dt2asc(dbrow.timeended) if dbrow.timeended else None
+simulationrun_formmapping['timeended'] = lambda dbrow: timedisplay.dt2asc(dbrow.timeended) if dbrow.timeended else ''
 
 def simulationrun_filters():
     pretablehtml = filtercontainerdiv()
@@ -966,7 +977,7 @@ class CreateGetSimulationRunApi(MethodView):
             return jsonify(output_result)
         
 creategetsimulationrun_api = CreateGetSimulationRunApi.as_view('_setgetsimulationrun')
-bp.add_url_rule('/_creategetsimulationrun/rest', view_func=creategetsimulationrun_api, methods=['POST'])
+bp.add_url_rule('/_creategetsimulationrun', view_func=creategetsimulationrun_api, methods=['POST'])
 
 class SimStepApi(MethodView):
     """execute simulation step
@@ -1056,8 +1067,154 @@ class SimStepApi(MethodView):
             return jsonify(output_result)
         
 simstep_api = SimStepApi.as_view('_simstep')
-bp.add_url_rule('/_simstep/rest', view_func=simstep_api, methods=['POST'])
+bp.add_url_rule('/_simstep', view_func=simstep_api, methods=['POST'])
 
+# adapted from https://g.co/gemini/share/f7cc51f83809
+def group_results_by_bibno(results_list):
+    """Groups results by bibno, handling duplicate bibs."""
+    grouped = {}
+    for entry in results_list:
+        bibno = entry.bibno
+        time = entry.time
+        if bibno not in grouped:
+            grouped[bibno] = []
+        grouped[bibno].append({time: entry})
+    return grouped
+
+def compare_sim_results_with_expected(expected_results, sim_results):
+    """
+    Compares two lists of race results, handling potential duplicate bib numbers.
+
+    Args:
+        expected_results: A list of dicts with 'bibno' and 'time'.
+        sim_results: A list of dicts with 'bibno' and 'time'.
+
+    Returns:
+        A dictionary containing all discrepancies.
+    """
+    discrepancies = {
+        'time_mismatches': [],
+        'missing_from_sim': [],
+        'extra_in_sim': [],
+        # 'order_errors': []
+    }
+
+    # Group results by bibno to handle duplicates
+    expected_grouped = group_results_by_bibno(expected_results)
+    sim_grouped = group_results_by_bibno(sim_results)
+
+    # Compare entries and identify mismatches and missing bibs
+    for bibno, expected_times in expected_grouped.items():
+        expected_time_dict = expected_times[0]  # assumes only one expected for this bibno
+        expected_time = list(expected_time_dict.keys())[0]
+        if bibno in sim_grouped:
+            sim_times = sim_grouped[bibno]
+            current_app.logger.debug(f'sim_times={sim_times}, expected_time={expected_time}, epsilon={expected_time_dict[expected_time].epsilon}')
+
+            for sim_time_dict in sim_times:
+                sim_time = list(sim_time_dict.keys())[0]
+                if abs(sim_time - expected_time) <= expected_time_dict[expected_time].epsilon:
+                    sim_time_dict[sim_time].correct = True
+                else:
+                    sim_time_dict[sim_time].correct = False
+                    discrepancies['time_mismatches'].append({
+                        'bibno': bibno,
+                        'expected_time': expected_time,
+                        'sim_time': sim_time
+                    })
+            # Remove from sim_grouped to track 'extra' entries later
+            del sim_grouped[bibno]
+        else:
+            discrepancies['missing_from_sim'].append({'bibno': bibno, 'expected_times': expected_times})
+
+    # Any remaining entries in sim_grouped are 'extra' bibs
+    for bibno, times in sim_grouped.items():
+        discrepancies['extra_in_sim'].append({'bibno': bibno, 'sim_times': times})
+        for sim_time in times:
+            times[sim_time].correct = False
+
+    # # Check for order errors
+    # expected_bibnos = [entry.bibno for entry in expected_results]
+    # sim_bibnos = [entry.bibno for entry in sim_results]
+    #
+    # if expected_bibnos != sim_bibnos:
+    #     discrepancies['order_errors'].append({
+    #         'message': 'Simulation results are not in the same order as expected.',
+    #         'expected_order': expected_bibnos,
+    #         'sim_order': sim_bibnos
+    #     })
+
+    return discrepancies
+
+class SimFinishApi(MethodView):
+    """finish simulation run and calculate score
+
+    """
+    def permission(self):
+        session.permanent = True
+        
+        # check if user is authenticated
+        if not current_user.is_authenticated:
+            return False
+        
+        # check if user has role
+        if not current_user.has_role(ROLE_TMSIM_ADMIN) and not current_user.has_role(ROLE_SUPER_ADMIN):
+            current_app.logger.warning(f'User {current_user.id} tried to access simulation run creation without permission')
+            return False
+        
+        self.simrun_id = request.form.get('simulationrun_id', None)
+        if not self.simrun_id:
+            current_app.logger.warning('simulationrun_id is required')
+            return False
+        
+        self.simrun = db.session.query(SimulationRun).filter_by(id=self.simrun_id).one_or_none()
+        if not self.simrun:
+            current_app.logger.warning(f'simulation run {self.simrun_id} not found')
+            return False
+        
+        return True
+    
+    def post(self):
+        # this finishes a simulation run
+        try:
+            if not self.permission():
+                raise ParameterError('permission denied')
+            
+            # get simulation run results
+            simrun_results = db.session.query(SimulationResult).filter(SimulationResult.simulationrun_id == self.simrun.id).order_by(SimulationResult.order).all()
+            num_results = len(simrun_results)
+            
+            # get expected results
+            simulation_id = self.simrun.simulation_id
+            expected_results = db.session.query(SimulationExpected).filter(SimulationExpected.simulation_id == simulation_id).order_by(SimulationExpected.order).all()
+            num_expected = len(expected_results)
+            
+            discrepancies = compare_sim_results_with_expected(expected_results, simrun_results)
+            # for debugging
+            current_app.logger.debug(f'Simulation run {self.simrun.userstart} discrepancies: {discrepancies}, num_results={num_results}, num_expected={num_expected}')
+            
+            # calculate score
+            num_errors = len(discrepancies['time_mismatches']) + len(discrepancies['missing_from_sim']) + len(discrepancies['extra_in_sim'])
+            divisor = max(num_expected, num_results)
+            num_correct = divisor - num_errors if divisor > num_errors else 0
+            self.simrun.score = (num_correct / divisor) * 100 if divisor > 0 else 0
+            self.simrun.timeended = datetime.now()
+            db.session.commit()
+            
+            return jsonify({'status': 'success', 'score': f'{round(self.simrun.score)}%', })
+    
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+        
+simfinish_api = SimFinishApi.as_view('_simfinish')
+bp.add_url_rule('/_simfinish', view_func=simfinish_api, methods=['POST'])
 
 class SimPostResultApi(PostResultApi):
     def set_query(self):
@@ -1119,8 +1276,8 @@ simpostbib_api = SimPostBibApi.as_view('_simpostbib')
 bp.add_url_rule('/_simpostbib', view_func=simpostbib_api, methods=['POST',])
 
 
-simulationresult_dbattrs = 'id,time,bibno,order,simulationrun.usersimstart'.split(',')
-simulationresult_formfields = 'rowid,time,bibno,order,usersimstart'.split(',')
+simulationresult_dbattrs = 'id,time,bibno,order,correct,simulationrun.usersimstart'.split(',')
+simulationresult_formfields = 'rowid,time,bibno,order,correct,usersimstart'.split(',')
 simulationresult_dbmapping = dict(zip(simulationresult_dbattrs, simulationresult_formfields))
 simulationresult_formmapping = dict(zip(simulationresult_formfields, simulationresult_dbattrs))
 simulationresult_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
@@ -1146,7 +1303,7 @@ simulationresult_view = DbCrudApiRolePermissions(
     template='datatables.jinja2',
     pretablehtml=simulationresult_filters(),
     yadcfoptions=simulationresult_yadcf_options,
-    pagename='Simulation Results',
+    pagename='Simulation Run Results',
     endpoint='admin.simulationresults',
     rule='/simulationresults',
     dbmapping=simulationresult_dbmapping,
@@ -1159,9 +1316,10 @@ simulationresult_view = DbCrudApiRolePermissions(
         {'data': 'order', 'name': 'order', 'label': 'Order'},
         {'data': 'time', 'name': 'time', 'label': 'Time'},
         {'data': 'bibno', 'name': 'bibno', 'label': 'Bib No'},
+        {'data': 'correct', 'name': 'correct', 'label': 'Correct'},
     ],
     dtoptions={
-        'order': [['usersimstart:name', 'asc'],['order:name', 'asc']],
+        'order': [['usersimstart:name', 'desc'],['order:name', 'asc']],
         'scrollCollapse': True,
         'scrollX': True,
         'scrollXInner': "100%",

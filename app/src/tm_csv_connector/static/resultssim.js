@@ -90,7 +90,7 @@ function startSimulation() {
             console.log(`step_simulation: step ${step.time} for simulationrun_id ${simulationrun_id}`);
             // send the step to the backend
             $.ajax( {
-                url: '/admin/_simstep/rest',
+                url: '/admin/_simstep',
                 type: 'post',
                 dataType: 'json',
                 data: {
@@ -148,7 +148,23 @@ function stopSimulation() {
     stopSimulationUI();
 
     // tally results for the simulation run
-    // TODO: this should be done in the backend
+    let simulationrun_id = $('#simulation-run').val();
+    $.ajax( {
+        url: '/admin/_simfinish',
+        type: 'post',
+        dataType: 'json',
+        data: {
+            simulationrun_id: simulationrun_id,
+        },
+        success: function ( json ) {
+            if (json.status == 'success') {
+                // update the last time
+                alert(`Simulation finished. Score: ${json.score}`);
+            } else {
+                alert(json.error);
+            }
+        }
+    } );
 }
 
 // simulation mode: executed when speed is changed

@@ -92,11 +92,11 @@ def nav_menu():
                     or current_user.has_role(ROLE_SUPER_ADMIN)):
                 simulation = Subgroup('Simulation')
                 navbar.items.append(simulation)
+                simulation.items.append(View('Runs', 'admin.simulationruns'))
+                simulation.items.append(View('Run Results', 'admin.simulationresults'))
                 simulation.items.append(View('Simulations', 'admin.simulations'))
                 simulation.items.append(View('Events', 'admin.simulationevents'))
-                simulation.items.append(View('Vectors', 'admin.simulationvectors'))
-                simulation.items.append(View('Runs', 'admin.simulationruns'))
-                simulation.items.append(View('Results', 'admin.simulationresults'))
+                simulation.items.append(View('Expected Results', 'admin.simulationexpected'))
                 
             if (current_user.has_role(ROLE_SUPER_ADMIN)):
                 super = Subgroup('Super')

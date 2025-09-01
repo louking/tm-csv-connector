@@ -117,15 +117,15 @@ var simulationevents_import = function(url) {
 }
 
 // Simulation Vector view
-var simulationvector_import_saeditor = new SaEditor({
+var simulationexpected_import_saeditor = new SaEditor({
     title: 'Import Simulation Vector',
     fields: [
              {name: 'simulation', data: 'simulation', label: 'Simulation', type: 'select2', className: 'field_req full block',
-                 fieldInfo: 'simulation vector entries are stored by simulation',
+                 fieldInfo: 'simulation expected entries are stored by simulation',
              },
              {name: 'file', data: 'file', label: 'Import File', type: 'upload',
                  display: function(data) {
-                     return simulationvector_import_saeditor.saeditor.file('data', data).filename
+                     return simulationexpected_import_saeditor.saeditor.file('data', data).filename
                  },
                  fieldInfo: 'csv file must contain columns order, time, and bibno',
                  className: 'field_req full block'},
@@ -164,7 +164,7 @@ var simulationvector_import_saeditor = new SaEditor({
 });
 
 // need to create this function because of some funkiness of how eval works from the python interface
-var simulationvector_import = function(url) {
-    return simulationvector_import_saeditor.edit_button_hook(url);
+var simulationexpected_import = function(url) {
+    return simulationexpected_import_saeditor.edit_button_hook(url);
 }
 

@@ -229,7 +229,7 @@ class Simulation(Base):
     name    = Column(Text)
     description = Column(Text)
     events  = relationship('SimulationEvent', back_populates='simulation', cascade='all, delete, delete-orphan')
-    vectors = relationship('SimulationVector', back_populates='simulation', cascade='all, delete, delete-orphan')
+    expectedresults = relationship('SimulationExpected', back_populates='simulation', cascade='all, delete, delete-orphan')
     runs = relationship('SimulationRun', back_populates='simulation', cascade='all, delete, delete-orphan')
     
     # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
@@ -260,13 +260,14 @@ class SimulationEvent(Base):
                          server_onupdate=FetchedValue()
                          )
 
-class SimulationVector(Base):
-    __tablename__ = 'simulationvector'
+class SimulationExpected(Base):
+    __tablename__ = 'simulationexpected'
     id      = Column(Integer(), primary_key=True)
     simulation_id = mapped_column(ForeignKey('simulation.id'))
-    simulation = relationship('Simulation', back_populates='vectors')
+    simulation = relationship('Simulation', back_populates='expectedresults')
     order   = Column(Integer)
     time    = Column(Float)
+    epsilon = Column(Float, default=0) # allowable error in seconds
     bibno   = Column(Text)
 
     # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
@@ -313,12 +314,12 @@ class SimulationRun(Base):
 
     @hybrid_property
     def usersimstart(self):
-        return self.user.name + ' ' + self.simulation.name + ' '  + self.timestarted.strftime('%Y-%m-%d %H:%M')
+        return self.timestarted.strftime('%Y-%m-%d %H:%M') + ' ' +self.user.name + ' ' + self.simulation.name
     
     @usersimstart.inplace.expression
     @classmethod
     def _usersimstart_expression(cls):
-        return cls.user.name + ' ' + cls.simulation.name + ' '  + cls.date
+        return cls.date + ' ' + cls.user.name + ' ' + cls.simulation.name
 
 class SimulationResult(Base):
     __tablename__ = 'simulationresult'
@@ -328,6 +329,7 @@ class SimulationResult(Base):
     order   = Column(Integer)
     bibno   = Column(Text)
     time    = Column(Float)
+    correct = Column(Boolean)
 
     # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
     update_time = Column(DateTime,
