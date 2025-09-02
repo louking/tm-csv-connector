@@ -72,8 +72,8 @@ def results_validate(action, formdata):
 
 
 # using bibno in dbattrs for bibalert as this gets replaced in formmapping, and this is readonly
-results_dbattrs = 'id,is_confirmed,tmpos,place,bibno,scannedbib.bibno,bibno,time,is_confirmed,update_time'.split(',')
-results_formfields = 'rowid,is_confirmed,tmpos,placepos,bibalert,scanned_bibno,bibno,time,is_confirmed,update_time'.split(',')
+results_dbattrs = 'id,is_confirmed,race_id,simulationrun_id,tmpos,place,bibno,scannedbib.bibno,bibno,time,is_confirmed,update_time'.split(',')
+results_formfields = 'rowid,is_confirmed,race_id,simulationrun_id,tmpos,placepos,bibalert,scanned_bibno,bibno,time,is_confirmed,update_time'.split(',')
 results_dbmapping = dict(zip(results_dbattrs, results_formfields))
 results_formmapping = dict(zip(results_formfields, results_dbattrs))
 results_dbmapping['time'] = lambda formrow: asc2time(formrow['time'])
@@ -206,51 +206,59 @@ class ResultsView():
         # LOCK file access
         lock(filelock)
         
-        # # test lock
-        # from time import sleep
-        # current_app.logger.debug(f'sleeping')
-        # sleep(10)
-        # current_app.logger.debug(f'awake')
+        try:
+            # # test lock
+            # from time import sleep
+            # current_app.logger.debug(f'sleeping')
+            # sleep(10)
+            # current_app.logger.debug(f'awake')
 
-        # set place
-        rows = (Result.query.filter_by(**self.queryparams)
-                .populate_existing().with_for_update()
-                .filter(*self.queryfilters).order_by(Result.time, Result.tmpos).all())
-        place = 1
-        for row in rows:
-            row.place = place
-            place += 1
-        # need flush here else Result query below will not return updated rows
-        db.session.flush()
+            # set place
+            rows = (Result.query.filter_by(**self.queryparams).filter(*self.queryfilters)
+                    .populate_existing().with_for_update()
+                    .order_by(Result.time, Result.tmpos).all())
+            place = 1
+            for row in rows:
+                row.place = place
+                place += 1
+            # need flush here else Result query below will not return updated rows
+            db.session.flush()
 
-        # set had_scannedbib depending on whether the next result had a scanned bib
-        if self.action == 'create':
-            thisresult = Result.query.filter_by(id=self.created_id).one()
-            filters = copy(self.queryfilters)
-            filters.append(Result.place>thisresult.place)
-            next_result = Result.query.filter_by(**self.queryparams).filter(*filters).order_by(Result.place).first()
-            thisresult.had_scannedbib = next_result and next_result.had_scannedbib
+            # set had_scannedbib depending on whether the next result had a scanned bib
+            if self.action == 'create':
+                thisresult = Result.query.filter_by(id=self.created_id).one()
+                filters = copy(self.queryfilters)
+                current_app.logger.debug(f'thisresult.place={thisresult.place}')
+                filters.append(Result.place>thisresult.place)
+                next_result = Result.query.filter_by(**self.queryparams).filter(*filters).order_by(Result.place).first()
+                thisresult.had_scannedbib = next_result and next_result.had_scannedbib
+            
+            # commit again
+            db.session.commit()
+            # note table is refreshed after the create (afterdatatables.js editor.on('postCreate'))
+            # so place display is correct
+
+            # only rewrite the file if a previously confirmed row has been updated. see self.check_confirmed()
+            if self.rewritefile:
+                refreshfile(rows)
+            
+            ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
+            ## not present in the data. Need to revisit this later.
+            # if 'since' in form:
+            #     since = form['since']
         
-        # commit again
-        db.session.commit()
-        # note table is refreshed after the create (afterdatatables.js editor.on('postCreate'))
-        # so place display is correct
+            #     # bring in all rows since the requested time
+            #     self.filterrowssince(since)
+            #     self.getrowssince()
 
-        # only rewrite the file if a previously confirmed row has been updated. see self.check_confirmed()
-        if self.rewritefile:
-            refreshfile(rows)
-        
-        ## commented out logic was for #9 but the refresh_table_data in afterdatatables.js was removing rows 
-        ## not present in the data. Need to revisit this later.
-        # if 'since' in form:
-        #     since = form['since']
-    
-        #     # bring in all rows since the requested time
-        #     self.filterrowssince(since)
-        #     self.getrowssince()
-
-        # UNLOCK file access
-        unlock(filelock)
+            # UNLOCK file access
+            unlock(filelock)
+            
+        except:
+            db.session.rollback()
+            # UNLOCK file access
+            unlock(filelock)
+            raise
 
 
 class PostResultApi(MethodView):
