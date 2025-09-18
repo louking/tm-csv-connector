@@ -160,20 +160,9 @@ function afterdatatables() {
     } else if (pathname == '/admin/simulationevents') {
         // initialize import button handling
         simulationevents_import_saeditor.init();
-
-        simulationevents_import_saeditor.saeditor.on('submitComplete', function(e, json, data, action) {
-            // use refresh_table_data to retrieve data from server because it's browser side
-            refresh_table_data(_dt_table, '/admin/simulationevents/rest', 'full-hold');
-        });
-
     } else if (pathname == '/admin/simulationexpected') {
         // initialize import button handling
         simulationexpected_import_saeditor.init();
-
-        simulationexpected_import_saeditor.saeditor.on('submitComplete', function(e, json, data, action) {
-            // use refresh_table_data to retrieve data from server because it's browser side
-            refresh_table_data(_dt_table, '/admin/simulationexpected/rest', 'full-hold');
-        });
 
     }
 

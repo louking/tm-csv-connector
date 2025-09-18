@@ -228,7 +228,7 @@ class ResultsView():
             if self.action == 'create':
                 thisresult = Result.query.filter_by(id=self.created_id).one()
                 filters = copy(self.queryfilters)
-                current_app.logger.debug(f'thisresult.place={thisresult.place}')
+                # current_app.logger.debug(f'thisresult.place={thisresult.place}')
                 filters.append(Result.place>thisresult.place)
                 next_result = Result.query.filter_by(**self.queryparams).filter(*filters).order_by(Result.place).first()
                 thisresult.had_scannedbib = next_result and next_result.had_scannedbib
