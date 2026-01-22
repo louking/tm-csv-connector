@@ -169,6 +169,7 @@ cython_debug/
 *-config.js
 *_config.py
 config/
+.ssh/
 
 # ignore weirdness which started appearing since maybe Oct 15, 2023, possibly due to esbonio update
 %SystemDrive%/
