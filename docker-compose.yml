@@ -86,25 +86,6 @@ services:
               "--workers=${GUNICORN_WORKERS}", "--threads=${GUNICORN_THREADS}",
               "run:app"]
   
-  # this is used for for rsync file transfer of leaderboard html files, not part of tm-csv-connector core functionality
-  crond:
-    image: louking/tm-csv-connector-app:${APP_VER}
-    user: root
-    build: *app-build
-    restart: always
-    secrets:
-      - rsync-sshkey
-    volumes:
-      - ./config/cronjobs:/etc/crontabs/root:ro
-      - ./.ssh:/root/.ssh
-      - ${RSYNC_SOURCE_PATH_HOST}:${RSYNC_SOURCE_PATH}:ro
-    environment:
-      - RSYNC_SOURCE_PATH=${RSYNC_SOURCE_PATH}
-      - RSYNC_DEST_USER=${RSYNC_DEST_USER}
-      - RSYNC_DEST_HOST=${RSYNC_DEST_HOST}
-      - RSYNC_DEST_PATH=${RSYNC_DEST_PATH}
-    command: ["./entrypoint.sh", "crond", "-f", "-d", "8"]
-
 volumes:
   db-data:
 
@@ -119,8 +100,6 @@ secrets:
     file: config/db/security-password-salt.txt
   super-admin-user-password:
     file: config/db/super-admin-user-password.txt
-  rsync-sshkey:
-    file: .ssh/rsync-sshkey
 
 networks:
   backend-network:

@@ -36,7 +36,7 @@
             "dependsOn": [
                 "build docs"
             ],
-            "command": "docker compose -f docker-compose.yml build",
+            "command": "docker compose -f docker-compose.yml -f docker-compose-crond.yml build",
             "problemMatcher": []
         },
         {
@@ -45,7 +45,7 @@
             "dependsOn": [
                 "build app"
             ],
-            "command": "docker compose -f docker-compose.yml push",
+            "command": "docker compose -f docker-compose.yml -f docker-compose-crond.yml push",
             "problemMatcher": []
         },
         {
