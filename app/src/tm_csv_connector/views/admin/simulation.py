@@ -197,7 +197,7 @@ class ResultsViewSim(ResultsView, SimConnectorView):
                 sqlselect(SimulationResult)
                 .where(SimulationResult.simulationrun_id == self.simulationrun.id)
                 .order_by(SimulationResult.order.desc())
-            ).one_or_none()
+            ).first()
             if lastresult:
                 order = lastresult[0].order + 1
             else:
