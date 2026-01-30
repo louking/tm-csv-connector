@@ -1138,8 +1138,9 @@ def compare_sim_results_with_expected(expected_results, sim_results):
     # Any remaining entries in sim_grouped are 'extra' bibs
     for bibno, times in sim_grouped.items():
         discrepancies['extra_in_sim'].append({'bibno': bibno, 'sim_times': times})
-        for sim_time in times:
-            times[sim_time].correct = False
+        for sim_time_dict in times:
+            sim_time = list(sim_time_dict.keys())[0]
+            sim_time_dict[sim_time].correct = False
 
     # # Check for order errors
     # expected_bibnos = [entry.bibno for entry in expected_results]
