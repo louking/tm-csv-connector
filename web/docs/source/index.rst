@@ -33,12 +33,12 @@ Source can be found at https://github.com/louking/tm-csv-connector
 .. toctree::
     :maxdepth: 3
 
-    users-guide
-    admin-guide
-    admin-reference
+    standard
+    simulator
     design
     background
     development
+    typographical-conventions
 
 *******************
 Indices and tables
