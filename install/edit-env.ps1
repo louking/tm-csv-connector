@@ -26,6 +26,7 @@ if (Test-Path .lastenv) {
     $lastenv = Get-IniContent .lastenv
     $output_dir = $lastenv["_"]["OUTPUT_DIR"]
     $logging_dir = $lastenv["_"]["LOGGING_DIR"]
+    $rsync_source_path_host = $lastenv["_"]["RSYNC_SOURCE_PATH_HOST"]
 } else {
     $lastenv = @{"_" = @{}}
 }
@@ -44,6 +45,12 @@ $logging_dir = Set-Path "$logging_dir" "Directory for logging?"
 $logging_dir = $logging_dir.Replace('\', '/')
 $env["_"]["LOGGING_DIR"] = $logging_dir
 $lastenv["_"]["LOGGING_DIR"] = $logging_dir
+
+# RSYNC_SOURCE_PATH_HOST
+$rsync_source_path_host = Set-Path "$rsync_source_path_host" "Host path for rsync source?"
+$rsync_source_path_host = $rsync_source_path_host.Replace('\', '/')
+$env["_"]["RSYNC_SOURCE_PATH_HOST"] = $rsync_source_path_host
+$lastenv["_"]["RSYNC_SOURCE_PATH_HOST"] = $rsync_source_path_host
 
 # save new .env, .lastenv
 $env | Out-IniFile -FilePath .env -Encoding ASCII -Force
