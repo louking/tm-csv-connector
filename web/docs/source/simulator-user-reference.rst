@@ -13,7 +13,9 @@ Results view in simulator mode is used to control the playback of simulation
 events and practice using the **tmtility** user interface which would be seen on
 race day.
 
-The view has the following controls:
+The standard Results view controls and display is found at :ref:`**tmtility** operation (scanner connected)`
+
+The view has the following simulation controls:
 
     :Simulation:
         select a simulation to play back events from
@@ -42,7 +44,7 @@ The view has the following controls:
         increase the speed of the playback of the simulation events by a factor
         of 2x each time this button is clicked, up to a maximum of 8x speed
 
-The view has the following filters:
+The view has the following simulation filters:
 
     :Run:
         when **Play** is clicked, a new run is created for the simulation
@@ -51,7 +53,7 @@ The view has the following filters:
         if a previous run is to be viewed, select the desired run from this
         filter
     
-The view has the following indicators:
+The view has the following simulation indicators:
 
     :Playback Speed:
         shows the current playback speed (*1x* is real time)
