@@ -19,7 +19,6 @@ let lasttime = 0;
 let sim_interval = null;
 
 // constants
-const CHECK_TABLE_UPDATE = 1000;
 const SIMULATION_UPDATE = 250; // milliseconds, how often to update the simulation
 
 // simulation mode: executed when play/pause button is clicked
@@ -228,58 +227,68 @@ function setParams() {
     // set up for table redraw
     let resturl = window.location.pathname + '/rest';
 
-    /*
-    // did simulationrun_id change?
-    let last_simulationrun_id = simulationrun_id;
-    console.log(`last_simulationrun_id = ${last_simulationrun_id}`);
-    */
+    // critical region with update interval (afterdatatables.js)
+    results_cookie_mutex.promise()
+        .then(function(mutex) {
+            mutex.lock();
+            /*
+            // did simulationrun_id change?
+            let last_simulationrun_id = simulationrun_id;
+            console.log(`last_simulationrun_id = ${last_simulationrun_id}`);
+            */
 
-    // we'll be sending these to the server
-    let simulationrun_id = $('#simulation-run').val();
-    let logdir = $('#logdir').val();
-    let data = {
-        simulationrun_id: simulationrun_id, 
-        logdir: logdir,
-    }
+            // we'll be sending these to the server
+            let simulationrun_id = $('#simulation-run').val();
+            let logdir = $('#logdir').val();
+            let data = {
+                simulationrun_id: simulationrun_id, 
+                logdir: logdir,
+            }
 
-    /*
-    // TODO: should this all be for simulation_id, not simulationrun_id?
-    // trigger a simulation results rewrite if the simulationrun_id changed
-    if (simulationrun_id != last_simulationrun_id) {
-        // if not the initial case, confirm with user
-        if (last_simulationrun_id == undefined) {
-            confirmed = true;
-        } else {
-            confirmed = confirm('Simulation update will overwrite the simulation results\nPress OK or Cancel');
-        }
+            /*
+            // TODO: should this all be for simulation_id, not simulationrun_id?
+            // trigger a simulation results rewrite if the simulationrun_id changed
+            if (simulationrun_id != last_simulationrun_id) {
+                // if not the initial case, confirm with user
+                if (last_simulationrun_id == undefined) {
+                    confirmed = true;
+                } else {
+                    confirmed = confirm('Simulation update will overwrite the simulation results\nPress OK or Cancel');
+                }
 
-        // initial case or user confirmation causes rewrite of file based on new raceid
-        if (confirmed) {
-            data.race_changed = true;
-        
-        // otherwise revert the change
-        } else {
-            simulationrun_id = last_simulationrun_id;
-            $('#simulation-run').select2('val', last_simulationrun_id);
-            data.simulationrun_id = last_simulationrun_id;
-        }
-    }
-    */
+                // initial case or user confirmation causes rewrite of file based on new raceid
+                if (confirmed) {
+                    data.race_changed = true;
+                
+                // otherwise revert the change
+                } else {
+                    simulationrun_id = last_simulationrun_id;
+                    $('#simulation-run').select2('val', last_simulationrun_id);
+                    data.simulationrun_id = last_simulationrun_id;
+                }
+            }
+            */
 
-    $.ajax( {
-        url: '/_setparams',
-        type: 'post',
-        dataType: 'json',
-        data: data,
-        success: function ( json ) {
+            return $.ajax( {
+                url: '/_setparams',
+                type: 'post',
+                dataType: 'json',
+                data: data,
+            })
+        })
+        .then(function(json) {
             if (json.status == 'success') {
                 refresh_table_data(_dt_table, resturl);
             }
             else {
                 alert(json.error);
             }
-        }
-    } );
+            results_cookie_mutex.unlock();
+        })
+        .catch(function(err) {
+            results_cookie_mutex.unlock();
+            throw err;
+        });
 
 }
 

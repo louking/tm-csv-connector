@@ -31,9 +31,18 @@ function afterdatatables() {
 
         function start_updates() {
             let draw_interval = setInterval(function() {
-                let resturl = window.location.pathname + `/rest?since=${last_draw}`;
-                last_draw = moment().format();
-                refresh_table_data(_dt_table, resturl, 'full-hold');
+                results_cookie_mutex.promise()
+                    .then(function(mutex) {
+                        mutex.lock();
+                        let resturl = window.location.pathname + `/rest?since=${last_draw}`;
+                        last_draw = moment().format();
+                        refresh_table_data(_dt_table, resturl, 'full-hold');
+                        mutex.unlock();
+                    })
+                    .catch(function(err) {
+                        mutex.unlock();
+                        throw err;
+                    });
             }, CHECK_TABLE_UPDATE);
 
             return draw_interval;
@@ -86,8 +95,17 @@ function afterdatatables() {
         function start_updates() {
             // TODO: need to send simulation state
             let draw_interval = setInterval(function() {
-                let resturl = window.location.pathname + `/rest?`;
-                refresh_table_data(_dt_table, resturl, 'full-hold');
+                results_cookie_mutex.promise()
+                    .then(function(mutex) {
+                        mutex.lock();
+                        let resturl = window.location.pathname + `/rest?`;
+                        refresh_table_data(_dt_table, resturl, 'full-hold');
+                        mutex.unlock();
+                    })
+                    .catch(function(err) {
+                        mutex.unlock();
+                        throw err;
+                    });
             }, CHECK_TABLE_UPDATE);
 
             return draw_interval;

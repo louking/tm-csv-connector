@@ -28,7 +28,6 @@ const CHECK_CONNECTED_WAIT = 3000;
 const CHECK_INITIALIZED_WAIT = 1000;
 const GET_COMPORTS_WAIT = 1000;
 const REOPEN_SOCKET_WAIT = 5000;
-const CHECK_TABLE_UPDATE = 1000;
 
 // bluetooth type mapping
 const bluetooth_select_id = {
@@ -390,64 +389,74 @@ function setParams() {
     // set up for table redraw
     let resturl = window.location.pathname + '/rest';
 
-    // did raceid change?
-    let last_raceid = raceid;
-    console.log(`last_raceid = ${last_raceid}`);
+    // critical region with update interval (afterdatatables.js)
+    results_cookie_mutex.promise()
+        .then(function(mutex) {
+            mutex.lock();
 
-    // we'll be sending these to the server
-    raceid = $('#race').val();
-    port = $('#port').val();
-    scannerport = $('#scannerport').val();
-    logdir = $('#logdir').val();
-    let data = {
-        port: port, 
-        scannerport: scannerport,
-        raceid: raceid, 
-        logdir: logdir
-    }
+            // did raceid change?
+            let last_raceid = raceid;
+            console.log(`last_raceid = ${last_raceid}`);
 
-    // trigger a csv file rewrite if the raceid changed
-    if (raceid != last_raceid) {
-        // if not the initial case, confirm with user
-        if (last_raceid == undefined) {
-            confirmed = true;
-        } else {
-            confirmed = confirm('Race update will overwrite the csv file\nPress OK or Cancel');
-        }
+            // we'll be sending these to the server
+            raceid = $('#race').val();
+            port = $('#port').val();
+            scannerport = $('#scannerport').val();
+            logdir = $('#logdir').val();
+            let data = {
+                port: port, 
+                scannerport: scannerport,
+                raceid: raceid, 
+                logdir: logdir
+            }
 
-        // initial case or user confirmation causes rewrite of file based on new raceid
-        if (confirmed) {
-            data.race_changed = true;
-        
-        // otherwise revert the change
-        } else {
-            raceid = last_raceid;
-            $('#race').select2('val', last_raceid);
-            data.raceid = last_raceid;
-        }
-    }
+            // trigger a csv file rewrite if the raceid changed
+            if (raceid != last_raceid) {
+                // if not the initial case, confirm with user
+                if (last_raceid == undefined) {
+                    confirmed = true;
+                } else {
+                    confirmed = confirm('Race update will overwrite the csv file\nPress OK or Cancel');
+                }
 
-    // send latest raceid to reader, scanner, and trident processes
-    msg = JSON.stringify({opcode: 'raceid', raceid: raceid});
-    tm_reader.send(msg);
-    scanner.send(msg);
-    trident.send(msg);
+                // initial case or user confirmation causes rewrite of file based on new raceid
+                if (confirmed) {
+                    data.race_changed = true;
+                
+                // otherwise revert the change
+                } else {
+                    raceid = last_raceid;
+                    $('#race').select2('val', last_raceid);
+                    data.raceid = last_raceid;
+                }
+            }
 
-    $.ajax( {
-        url: '/_setparams',
-        type: 'post',
-        dataType: 'json',
-        data: data,
-        success: function ( json ) {
+            // send latest raceid to reader, scanner, and trident processes
+            msg = JSON.stringify({opcode: 'raceid', raceid: raceid});
+            tm_reader.send(msg);
+            scanner.send(msg);
+            trident.send(msg);
+
+            return $.ajax( {
+                url: '/_setparams',
+                type: 'post',
+                dataType: 'json',
+                data: data,
+            } )
+        })
+        .then(function (json) {
             if (json.status == 'success') {
                 refresh_table_data(_dt_table, resturl);
             }
             else {
                 alert(json.error);
             }
-        }
-    } );
-
+            results_cookie_mutex.unlock();
+        })
+        .catch(function(err) {
+            results_cookie_mutex.unlock();
+            throw err;
+        });
 }
 
 // careful, this is specific to normal mode, the function for simulation mode is in resultssim.js
