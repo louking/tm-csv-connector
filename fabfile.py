@@ -41,10 +41,10 @@ def deploy(c, qualifier, branchname='master'):
 
     project_dir = f'~/{APP_NAME}-{qualifier}'
 
-    for the_file in ['docker-compose.yml']:
+    for the_file in ['docker-compose.yml', 'docker-compose-sim.yml']:
         if not c.run(f"cd {project_dir} && curl --fail -O 'https://raw.githubusercontent.com/louking/{PROJECT_NAME}/{branchname}/{the_file}'", warn=True):
             raise Exit(f'louking/{PROJECT_NAME}/{branchname}/{the_file} does not exist')
 
     # stop and build/start docker services
     c.run(f'cd {project_dir} && docker compose pull')
-    c.run(f'cd {project_dir} && docker compose up -d')
+    c.run(f'cd {project_dir} && docker compose -f docker-compose.yml -f docker-compose-sim.yml up -d')

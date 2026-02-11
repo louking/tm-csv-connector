@@ -1,0 +1,9 @@
+services:
+  # this is used for for rsync file transfer of leaderboard html files, not part of tm-csv-connector core functionality
+  crond:
+    image: louking/tm-csv-connector-app:${APP_VER}
+    user: root
+    restart: always
+    volumes:
+      - ./config/cronjobs:/etc/crontabs/root:ro
+    command: ["crond", "-f", "-d", "8"]
