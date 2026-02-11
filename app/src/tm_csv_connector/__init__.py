@@ -50,8 +50,13 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
     app.jinja_env.trim_blocks = True
     app.jinja_env.lstrip_blocks = True
 
-    # define product name (don't import nav until after app.jinja_env.globals['_productname'] set)
-    app.jinja_env.globals['_productname'] = app.config['THISAPP_PRODUCTNAME']
+    # hack to add "simulator" to product name in heading
+    if app.config.get('SIMULATION_MODE', False):
+        app.jinja_env.globals['_productname'] = f"{app.config['THISAPP_PRODUCTNAME']}<span> simulator</span>"
+    else:
+        # define product name (don't import nav until after app.jinja_env.globals['_productname'] set)
+        app.jinja_env.globals['_productname'] = app.config['THISAPP_PRODUCTNAME']
+    
     app.jinja_env.globals['_productname_text'] = app.config['THISAPP_PRODUCTNAME_TEXT']
     app.jinja_env.globals['_product_version'] = __version__
     
