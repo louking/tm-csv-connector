@@ -3,7 +3,18 @@ services:
   crond:
     image: louking/tm-csv-connector-app:${APP_VER}
     user: root
+    secrets:
+      - db-password
     restart: always
+    depends_on:
+      - db
+    networks:
+      - backend-network
     volumes:
-      - ./config/cronjobs:/etc/crontabs/root:ro
+      - ./config/cronjobs:/etc/crontabs/appuser
+      - ${BACKUP_FOLDER_HOST}/tmsim:/backup
     command: ["crond", "-f", "-d", "8"]
+
+secrets:
+  db-password:
+    file: config/db/root-password.txt
