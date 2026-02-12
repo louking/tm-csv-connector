@@ -36,7 +36,7 @@
             "dependsOn": [
                 "build docs"
             ],
-            "command": "docker compose -f docker-compose.yml -f docker-compose-crond.yml build",
+            "command": "docker compose -f docker-compose.yml -f docker-compose-sim.yml build",
             "problemMatcher": []
         },
         {
@@ -45,7 +45,7 @@
             "dependsOn": [
                 "build app"
             ],
-            "command": "docker compose -f docker-compose.yml -f docker-compose-crond.yml push",
+            "command": "docker compose -f docker-compose.yml -f docker-compose-sim.yml push",
             "problemMatcher": []
         },
         {
@@ -80,10 +80,10 @@
                   "detached": true,
                   "build": false,
                 },
-                "files": [
-                  "${workspaceFolder}/docker-compose.yml",
-                  "${workspaceFolder}/docker-compose.dev.yml",
-                ]
+                // "files": [
+                //   "${workspaceFolder}/docker-compose.yml",
+                //   "${workspaceFolder}/docker-compose.dev.yml",
+                // ]
           },
         },
         {
