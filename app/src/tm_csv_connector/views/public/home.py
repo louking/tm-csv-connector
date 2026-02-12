@@ -8,7 +8,7 @@ from csv import DictWriter
 from os.path import join
 
 # pypi
-from flask import render_template, session, current_app, url_for
+from flask import render_template, session, current_app, url_for, abort
 from flask.views import MethodView
 from dominate.tags import div, button, span, select, option, p, i
 from dominate.tags import table, thead, tbody, tr, th, td
@@ -168,6 +168,14 @@ def get_results_filters():
     return prehtml.render()
 
 class ResultsViewNormal(ResultsView, TmConnectorView):
+    def permission(self):
+        # we don't handle this url in simulation mode
+        if current_app.config.get('SIMULATION_MODE', False):
+            abort(404) 
+        
+        # normal processing
+        return super().permission()
+    
     def beforequery(self):
         '''
         filter on current race
