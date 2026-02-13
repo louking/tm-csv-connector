@@ -13,6 +13,8 @@ services:
     volumes:
       - ./config/cronjobs:/etc/crontabs/appuser
       - ${BACKUP_FOLDER_HOST}/tmsim:/backup
+    environment:
+      - TZ=${TZ}
     command: ["crond", "-f", "-d", "8"]
 
 secrets:
