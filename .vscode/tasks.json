@@ -165,10 +165,11 @@
                 "down": {
                 //   "services": ["app"]
                 },
-                "files": [
-                  "${workspaceFolder}/docker-compose.yml",
-                  "${workspaceFolder}/docker-compose.debug.yml"
-                ]
+                // because now in .env as COMPOSE_FILE
+                // "files": [
+                //   "${workspaceFolder}/docker-compose.yml",
+                //   "${workspaceFolder}/docker-compose.debug.yml"
+                // ]
           },
         },
     ]
