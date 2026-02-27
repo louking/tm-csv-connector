@@ -17,6 +17,10 @@ services:
       - TZ=${TZ}
     command: ["crond", "-f", "-d", "8"]
 
+  app:
+    environment:
+      - TM_CSV_CONNECTOR_PORT=${TM_CSV_CONNECTOR_PORT}
+      
 secrets:
   db-password:
     file: config/db/root-password.txt

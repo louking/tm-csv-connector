@@ -5,6 +5,7 @@ simulation - simulation views
 # standard
 from os.path import join
 from os import remove
+from os import environ
 from uuid import uuid4
 from traceback import format_exception_only, format_exc
 from csv import DictReader, DictWriter
@@ -1048,13 +1049,13 @@ class SimStepApi(MethodView):
 
             # need to go back out to the docker host to call the admin endpoints
             if etype == 'scan':
-                url = f'http://host.docker.internal:{request.headers['X-Forwarded-Port']}{url_for('admin._simpostbib')}'
+                url = f'http://host.docker.internal:{environ["TM_CSV_CONNECTOR_PORT"]}{url_for("admin._simpostbib")}'
                 if not bibno:
                     return jsonify({'status': 'fail', 'error': 'bibno is required for etype scan'})
                 rsp = post(url, headers=headers, json={'opcode': 'scannedbib', 'bibno': bibno, 'simulationrun_id': self.simrun_id})
             
             elif etype == 'timemachine':
-                url = f'http://host.docker.internal:{request.headers['X-Forwarded-Port']}{url_for('admin._simpostresult')}'
+                url = f'http://host.docker.internal:{environ["TM_CSV_CONNECTOR_PORT"]}{url_for("admin._simpostresult")}'
                 if not tmpos:
                     return jsonify({'status': 'fail', 'error': 'tmpos is required for etype timemachine'})
                 if not bibno:
