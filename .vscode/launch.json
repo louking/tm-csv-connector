@@ -48,7 +48,7 @@
             "name": "Launch Chrome",
             "request": "launch",
             "type": "chrome",
-            "url": "http://tm.localhost:8080",
+            "url": "http://tmsim.localhost",
             "webRoot": "${workspaceFolder}/app/src/tm_csv_connector/"
         },
         // this doesn't seem to work -- get alert, 'Invalid message: either "program", "module", or "code" needs to be specified'
