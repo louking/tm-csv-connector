@@ -190,7 +190,7 @@ class ResultsView():
         thisresult = (Result.query.filter_by(id=thisid)
                       .populate_existing().with_for_update()
                       .one())
-        if thisresult.scannedbib:
+        if thisresult.scannedbib and thisresult.scannedbib.bibno != BLANK_BIBNO:
             self._error='cannot delete result which has scanned bib assigned - use Ins first'
             raise ParameterError('cannot delete result which has scanned bib assigned - use Ins first')
             
