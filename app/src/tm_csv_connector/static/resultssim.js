@@ -143,7 +143,6 @@ function confirmStopSimulation() {
         .rows()
         .data()
         .filter(function(row, instance){
-            console.log(`row=${JSON.stringify(row)}`);
             return row.is_confirmed == "" || row.is_confirmed == false
         });
         
