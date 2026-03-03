@@ -137,8 +137,28 @@ function stopSimulationUI() {
     }
 }
 
+// check if any results are unconfirmed, and if so, confirm with user before stopping simulation
+function confirmStopSimulation() {
+    var unconfirmed_rows = _dt_table
+        .rows()
+        .data()
+        .filter(function(row, instance){
+            console.log(`row=${JSON.stringify(row)}`);
+            return row.is_confirmed == "" || row.is_confirmed == false
+        });
+        
+    if (unconfirmed_rows.length > 0) {
+        return confirm(`There are ${unconfirmed_rows.length} unconfirmed results. Are you sure you want to stop the simulation?`);
+    } else {
+        return true;
+    }
+}
+
 // simulation mode: executed when stop button is clicked
 function stopSimulation() {
+    if (!confirmStopSimulation()) {
+        return;
+    }
     $('#simulation-state').text('stopped');
     $('#start-pause-simulation').attr('title', 'start simulation');
     $('#start-pause-simulation').prop('disabled', false).removeClass('ui-state-disabled');
