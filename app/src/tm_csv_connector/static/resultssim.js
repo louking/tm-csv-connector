@@ -25,35 +25,45 @@ const SIMULATION_UPDATE = 250; // milliseconds, how often to update the simulati
 function startPauseSimulation() {
     let simulation_state = $('#simulation-state').text();
     if (simulation_state == 'stopped') {
-        // create simulationrun row; get the label and value; get the simulation steps
-        $.ajax( $('#simulation-run').attr('url'), {
-            method: 'post',
-            data: {simulation_id: $('#sim').val(), start_time: $('#start-time').val()},
-            dataType: 'json',
-            success: function ( json ) {
-                if (json.status == 'success') {
-                    // set new simulation-run select option
-                    $('#simulation-run').empty();
-                    for (let i = 0; i < json.options.length; i++) {
-                        let option = new Option(json.options[i].label, json.options[i].value);
-                        $('#simulation-run').append(option);
-                    }
-                    // first option is latest (just created), so select it
-                    $('#simulation-run').val(json.options[0].value).trigger('change');
+        // critical region with update interval (afterdatatables.js)
+        results_cookie_mutex.promise()
+            .then(function(mutex) {
+                mutex.lock();
+                // create simulationrun row; get the label and value; get the simulation steps
+                $.ajax( $('#simulation-run').attr('url'), {
+                    method: 'post',
+                    data: {simulation_id: $('#sim').val(), start_time: $('#start-time').val()},
+                    dataType: 'json',
+                    success: function ( json ) {
+                        if (json.status == 'success') {
+                            // set new simulation-run select option
+                            $('#simulation-run').empty();
+                            for (let i = 0; i < json.options.length; i++) {
+                                let option = new Option(json.options[i].label, json.options[i].value);
+                                $('#simulation-run').append(option);
+                            }
+                            // first option is latest (just created), so select it
+                            $('#simulation-run').val(json.options[0].value).trigger('change');
 
-                    // remember simulation steps, prepare for running
-                    simsteps = json.simsteps;
-                    if (simsteps.length > 0) {
-                        lasttime = simsteps[0].time-1; // last time is one less than the first step time
-                    }
+                            // remember simulation steps, prepare for running
+                            simsteps = json.simsteps;
+                            if (simsteps.length > 0) {
+                                lasttime = simsteps[0].time-1; // last time is one less than the first step time
+                            }
 
-                    // now we're running
-                    startSimulation();
-                } else {
-                    alert(`simulation-run post error: ${json.error}`);
-                }
-            }
-        } );
+                            // now we're running
+                            startSimulation();
+                        } else {
+                            alert(`simulation-run post error: ${json.error}`);
+                        }
+                    }
+                } );
+                mutex.unlock();
+            })
+            .catch(function(err) {
+                results_cookie_mutex.unlock();
+                throw err;
+            });
 
     } else if (simulation_state == 'paused') {
         // now we're running
