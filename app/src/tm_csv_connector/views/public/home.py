@@ -859,7 +859,6 @@ applog_dbattrs = 'id,time,info'.split(',')
 applog_formfields = 'rowid,time,info'.split(',')
 applog_dbmapping = dict(zip(applog_dbattrs, applog_formfields))
 applog_formmapping = dict(zip(applog_formfields, applog_dbattrs))
-applog_formmapping['time'] = lambda dbrow: logrender.dt2asc(dbrow.time + Local.utcoffset(dbrow.time))
 
 applog_view = TmConnectorView(
     app=bp,  # use blueprint instead of app
@@ -871,7 +870,7 @@ applog_view = TmConnectorView(
     rule='/applog',
     dbmapping=applog_dbmapping,
     formmapping=applog_formmapping,
-    servercolumns=None,  # not server side
+    serverside=True,
     idSrc='rowid',
     buttons=[],
     clientcolumns = [
