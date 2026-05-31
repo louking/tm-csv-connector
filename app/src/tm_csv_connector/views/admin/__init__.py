@@ -11,3 +11,4 @@ bp = Blueprint('admin', __name__.split('.')[0], url_prefix='/admin', static_fold
 from . import home
 from . import simulation
 from . import userrole
+from . import sysinfo

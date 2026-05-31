@@ -103,12 +103,12 @@ def nav_menu():
                 navbar.items.append(super)
                 super.items.append(View('Users', 'admin.users'))
                 super.items.append(View('Roles', 'admin.roles'))
+                super.items.append(View('Debug', 'admin.debug'))
             
             # allow user to change password
 
     # always show settings and app log, regardless of simulation mode
-    if (current_user.has_role(ROLE_TMSIM_USER)
-            or current_user.has_role(ROLE_TMSIM_ADMIN)
+    if (current_user.has_role(ROLE_TMSIM_ADMIN)
             or current_user.has_role(ROLE_SUPER_ADMIN)):
         navbar.items.append(View('Settings', 'public.settings'))
         navbar.items.append(View('App Log', 'public.applog'))
