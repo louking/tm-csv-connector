@@ -18,19 +18,37 @@ function Set-Path ($path, $prompt) {
     return $path
 }
 
-# Read previous values from .lastenv (PsIni is fine here — .lastenv is a simple controlled file)
+# Extract a variable's current value from raw .env lines
+function Get-EnvValue($lines, $key) {
+    $line = $lines | Where-Object { $_ -match "^${key}=" } | Select-Object -First 1
+    if ($line -match "^${key}=(.*)") { return $matches[1].Trim() }
+    return $null
+}
+
+# Read current .env as raw lines — used for line-by-line update and as fallback source
+$envContent = Get-Content .env
+
+# Read .lastenv for use as fallback when .env values are blank (PsIni is fine here — .lastenv is a simple controlled file)
 if (Test-Path .lastenv) {
     $lastenv = Get-IniContent .lastenv
-    $output_dir = $lastenv["_"]["OUTPUT_DIR"]
-    $logging_dir = $lastenv["_"]["LOGGING_DIR"]
-    $rsync_source_path_host = $lastenv["_"]["RSYNC_SOURCE_PATH_HOST"]
-    $backup_folder_host = $lastenv["_"]["BACKUP_FOLDER_HOST"]
-    $rsync_dest_host = $lastenv["_"]["RSYNC_DEST_HOST"]
-    $rsync_dest_user = $lastenv["_"]["RSYNC_DEST_USER"]
-    $rsync_dest_path = $lastenv["_"]["RSYNC_DEST_PATH"]
 } else {
     $lastenv = @{"_" = @{}}
 }
+
+# Priority: current .env value (manual edits win) → .lastenv (remembered from prior install) → prompt
+function Get-Value($envLines, $lastenv, $key) {
+    $v = Get-EnvValue $envLines $key
+    if (-not $v) { $v = $lastenv["_"][$key] }
+    return $v
+}
+
+$output_dir             = Get-Value $envContent $lastenv 'OUTPUT_DIR'
+$logging_dir            = Get-Value $envContent $lastenv 'LOGGING_DIR'
+$rsync_source_path_host = Get-Value $envContent $lastenv 'RSYNC_SOURCE_PATH_HOST'
+$backup_folder_host     = Get-Value $envContent $lastenv 'BACKUP_FOLDER_HOST'
+$rsync_dest_host        = Get-Value $envContent $lastenv 'RSYNC_DEST_HOST'
+$rsync_dest_user        = Get-Value $envContent $lastenv 'RSYNC_DEST_USER'
+$rsync_dest_path        = Get-Value $envContent $lastenv 'RSYNC_DEST_PATH'
 
 # OUTPUT_DIR
 $output_dir = Set-Path "$output_dir" "Directory for output csv?"
@@ -67,7 +85,6 @@ $lastenv["_"]["RSYNC_DEST_PATH"] = $rsync_dest_path
 # Update .env line-by-line to preserve comments, formatting, and unmanaged variables.
 # Using Out-IniFile for .env is unreliable — it drops lines with special characters (backslashes,
 # quoted paths, apostrophes in paths).
-$envContent = Get-Content .env
 $envContent = $envContent | ForEach-Object {
     if      ($_ -match '^OUTPUT_DIR=')            { "OUTPUT_DIR=$output_dir" }
     elseif  ($_ -match '^LOGGING_DIR=')           { "LOGGING_DIR=$logging_dir" }

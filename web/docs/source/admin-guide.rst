@@ -198,6 +198,15 @@ App Upgrade
 
         ./disable-all
 
+* if you have manually edited ``.env`` since the last install, run the following first to
+  save those values so they survive the upgrade
+
+    .. code-block:: shell
+
+        ./edit-env
+
+  press Enter at each prompt to accept the current values
+
 * extract files from the downloaded file to the install directory
 
 * run the install procedure
