@@ -14,14 +14,11 @@ function Set-Path ($path, $prompt) {
         New-Item -Path $path -ItemType Directory | Out-Null
         Write-Host "'$path' created"
     }
-    
+
     return $path
 }
 
-# https://stackoverflow.com/a/22804178/799921
-$env = Get-IniContent .env
-
-# check if we've installed before
+# Read previous values from .lastenv (PsIni is fine here — .lastenv is a simple controlled file)
 if (Test-Path .lastenv) {
     $lastenv = Get-IniContent .lastenv
     $output_dir = $lastenv["_"]["OUTPUT_DIR"]
@@ -35,48 +32,53 @@ if (Test-Path .lastenv) {
     $lastenv = @{"_" = @{}}
 }
 
-# https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/read-host?view=powershell-7.3
-# https://lazyadmin.nl/powershell/powershell-replace/
-
 # OUTPUT_DIR
 $output_dir = Set-Path "$output_dir" "Directory for output csv?"
 $output_dir = $output_dir.Replace('\', '/')
-$env["_"]["OUTPUT_DIR"] = $output_dir
 $lastenv["_"]["OUTPUT_DIR"] = $output_dir
 
 # LOGGING_DIR
 $logging_dir = Set-Path "$logging_dir" "Directory for logging?"
 $logging_dir = $logging_dir.Replace('\', '/')
-$env["_"]["LOGGING_DIR"] = $logging_dir
 $lastenv["_"]["LOGGING_DIR"] = $logging_dir
 
 # RSYNC_SOURCE_PATH_HOST
 $rsync_source_path_host = Set-Path "$rsync_source_path_host" "Host path for rsync source?"
 $rsync_source_path_host = $rsync_source_path_host.Replace('\', '/')
-$env["_"]["RSYNC_SOURCE_PATH_HOST"] = $rsync_source_path_host
 $lastenv["_"]["RSYNC_SOURCE_PATH_HOST"] = $rsync_source_path_host
 
 # BACKUP_FOLDER_HOST
 $backup_folder_host = Set-Path "$backup_folder_host" "Host path for backups?"
 $backup_folder_host = $backup_folder_host.Replace('\', '/')
-$env["_"]["BACKUP_FOLDER_HOST"] = $backup_folder_host
 $lastenv["_"]["BACKUP_FOLDER_HOST"] = $backup_folder_host
 
 # RSYNC_DEST_HOST
 if (-not $rsync_dest_host) { $rsync_dest_host = Read-Host "Rsync destination host?" }
-$env["_"]["RSYNC_DEST_HOST"] = $rsync_dest_host
 $lastenv["_"]["RSYNC_DEST_HOST"] = $rsync_dest_host
 
 # RSYNC_DEST_USER
 if (-not $rsync_dest_user) { $rsync_dest_user = Read-Host "Rsync destination user?" }
-$env["_"]["RSYNC_DEST_USER"] = $rsync_dest_user
 $lastenv["_"]["RSYNC_DEST_USER"] = $rsync_dest_user
 
 # RSYNC_DEST_PATH
 if (-not $rsync_dest_path) { $rsync_dest_path = Read-Host "Rsync destination path?" }
-$env["_"]["RSYNC_DEST_PATH"] = $rsync_dest_path
 $lastenv["_"]["RSYNC_DEST_PATH"] = $rsync_dest_path
 
-# save new .env, .lastenv
-$env | Out-IniFile -FilePath .env -Encoding ASCII -Force
+# Update .env line-by-line to preserve comments, formatting, and unmanaged variables.
+# Using Out-IniFile for .env is unreliable — it drops lines with special characters (backslashes,
+# quoted paths, apostrophes in paths).
+$envContent = Get-Content .env
+$envContent = $envContent | ForEach-Object {
+    if      ($_ -match '^OUTPUT_DIR=')            { "OUTPUT_DIR=$output_dir" }
+    elseif  ($_ -match '^LOGGING_DIR=')           { "LOGGING_DIR=$logging_dir" }
+    elseif  ($_ -match '^RSYNC_SOURCE_PATH_HOST='){ "RSYNC_SOURCE_PATH_HOST=$rsync_source_path_host" }
+    elseif  ($_ -match '^BACKUP_FOLDER_HOST=')    { "BACKUP_FOLDER_HOST=$backup_folder_host" }
+    elseif  ($_ -match '^RSYNC_DEST_HOST=')       { "RSYNC_DEST_HOST=$rsync_dest_host" }
+    elseif  ($_ -match '^RSYNC_DEST_USER=')       { "RSYNC_DEST_USER=$rsync_dest_user" }
+    elseif  ($_ -match '^RSYNC_DEST_PATH=')       { "RSYNC_DEST_PATH=$rsync_dest_path" }
+    else    { $_ }
+}
+$envContent | Set-Content .env -Encoding ASCII
+
+# Save .lastenv using PsIni (values here are always simple paths/hostnames)
 $lastenv | Out-IniFile -FilePath .lastenv -Encoding ASCII -Force
