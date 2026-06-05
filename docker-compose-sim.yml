@@ -1,26 +1,20 @@
 services:
   # this is used for for rsync file transfer of leaderboard html files, not part of tm-csv-connector core functionality
-  crond:
-    image: louking/tm-csv-connector-app:${APP_VER}
-    user: root
-    secrets:
-      - db-password
-    restart: always
-    depends_on:
-      - db
-    networks:
-      - backend-network
-    volumes:
-      - ./config/cronjobs:/etc/crontabs/appuser
-      - ${BACKUP_FOLDER_HOST}/tmsim:/backup
-    environment:
-      - TZ=${TZ}
-    command: ["crond", "-f", "-d", "8"]
-
   app:
     environment:
       - TM_CSV_CONNECTOR_PORT=${TM_CSV_CONNECTOR_PORT}
-      
+      - SIMULATION_MODE=True
+    secrets:
+      - mail-password
+      - security-password-salt
+      - super-admin-user-password
+
 secrets:
   db-password:
     file: config/db/root-password.txt
+  mail-password:
+    file: config/db/mail-password.txt
+  security-password-salt:
+    file: config/db/security-password-salt.txt
+  super-admin-user-password:
+    file: config/db/super-admin-user-password.txt

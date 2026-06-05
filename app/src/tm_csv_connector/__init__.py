@@ -4,6 +4,7 @@ app - package
 '''
 
 # standard
+import os
 import os.path
 
 # pypi
@@ -45,7 +46,11 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
         for configfile in configfiles:
             appconfig = getitems(configfile, 'app')
             app.config.update(appconfig)
-    
+
+    # env var overrides cfg file (allows SIMULATION_MODE=True in docker-compose-sim.yml)
+    if os.environ.get('SIMULATION_MODE', '').lower() in ('true', '1', 'yes'):
+        app.config['SIMULATION_MODE'] = True
+
     # tell jinja to remove linebreaks
     app.jinja_env.trim_blocks = True
     app.jinja_env.lstrip_blocks = True

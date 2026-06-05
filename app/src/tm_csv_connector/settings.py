@@ -6,6 +6,7 @@ see http://flask.pocoo.org/docs/1.0/config/?highlight=production#configuration-b
 
 # standard
 import logging
+import os
 
 # homegrown
 from loutilities.configparser import getitems
@@ -92,7 +93,8 @@ class RealDb(Config):
         appconfig = {}
         for configfile in configfiles:
             appconfig.update(getitems(configfile, 'app'))
-        if appconfig.get('SIMULATION_MODE', False):
+        sim_mode = appconfig.get('SIMULATION_MODE', False) or os.environ.get('SIMULATION_MODE', '').lower() in ('true', '1', 'yes')
+        if sim_mode:
             with open(f'/run/secrets/mail-password') as pw:
                 mailpw = pw.readline().strip()
                 self.MAIL_PASSWORD = mailpw

@@ -169,6 +169,8 @@ App Installation
           [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "N"):
 
   * enter directory names for the output csv file, and for the logging files (full path)
+  * enter the host path for rsync source (local directory that contains leaderboard html files to sync)
+  * enter rsync destination host, user, and path (for optional leaderboard sync to a web server; press Enter to skip if not using this feature)
   * enter passwords for root and app database users -- accepting the defaults are fine
 
   .. note:: you can see the values of these later by navigating to ``config/db`` in the installation directory

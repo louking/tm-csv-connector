@@ -1,6 +1,23 @@
 # see .env for image version env variables
 # see repo/settings/environments for image version env variables for github actions
 services:
+  crond:
+    image: louking/tm-csv-connector-app:${APP_VER}
+    user: root
+    secrets:
+      - db-password
+    restart: always
+    depends_on:
+      - db
+    networks:
+      - backend-network
+    volumes:
+      - ./config/cronjobs:/etc/crontabs/appuser
+      - ${BACKUP_FOLDER_HOST}/tmsim:/backup
+    environment:
+      - TZ=${TZ}
+    command: ["crond", "-f", "-d", "8"]
+
   db:
     # https://github.com/docker-library/mysql/issues/275#issuecomment-636831964
     image: mysql:${MYSQL_VER}
@@ -57,9 +74,6 @@ services:
     secrets:
       - db-password
       - tm-csv-connector-password
-      - mail-password
-      - security-password-salt
-      - super-admin-user-password
     networks:
       - backend-network
       - frontend-network
@@ -94,12 +108,6 @@ secrets:
     file: config/db/root-password.txt
   tm-csv-connector-password:
     file: config/db/tm-csv-connector-password.txt
-  mail-password:
-    file: config/db/mail-password.txt
-  security-password-salt:
-    file: config/db/security-password-salt.txt
-  super-admin-user-password:
-    file: config/db/super-admin-user-password.txt
 
 networks:
   backend-network:
