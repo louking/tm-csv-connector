@@ -21,9 +21,13 @@ $distCfgContent = $devCfgContent | ForEach-Object {
     else { $_ }
 }
 
-# Temporarily swap in dist versions of .env and cfg
+# Temporarily swap in dist .env
 Rename-Item .env .env.bak
-Rename-Item config/tm-csv-connector.cfg config/tm-csv-connector.cfg.bak
+# Temporarily swap in dist cfg — track success so finally block only restores if backup exists
+$cfgBacked = $false
+Move-Item config/tm-csv-connector.cfg config/tm-csv-connector.cfg.bak
+$cfgBacked = $true
+
 try {
     $distEnvContent | Set-Content .env -Encoding ASCII
     $distCfgContent | Set-Content config/tm-csv-connector.cfg -Encoding ASCII
@@ -33,6 +37,8 @@ try {
 finally {
     Remove-Item .env -Force
     Rename-Item .env.bak .env
-    Remove-Item config/tm-csv-connector.cfg -Force
-    Rename-Item config/tm-csv-connector.cfg.bak config/tm-csv-connector.cfg
+    if ($cfgBacked) {
+        Remove-Item config/tm-csv-connector.cfg -Force -ErrorAction SilentlyContinue
+        Move-Item config/tm-csv-connector.cfg.bak config/tm-csv-connector.cfg
+    }
 }
