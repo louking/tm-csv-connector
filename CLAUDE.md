@@ -33,15 +33,21 @@ flask db migrate -m "..."  # generate a new migration
 
 ## Releasing
 
-```powershell
-.\new-release.ps1
-```
+There are two distinct release paths:
 
-This strips machine-specific env vars and simulation config, then builds `dist/tm-csv-connector.zip` for deployment. Deploy to a server with:
+**Simulation mode (server deployment)** — deploy the Docker stack to a remote server:
 
 ```bash
 fab -H <host> deploy prod
 ```
+
+**Normal mode (on-site installation)** — distribute a `dist/tm-csv-connector.zip` package that the operator installs on their laptop. Build it with:
+
+```powershell
+.\new-release.ps1
+```
+
+`new-release.ps1` strips machine-specific env vars and forces `SIMULATION_MODE: False` and `SERVER_NAME: 'tm.localhost'` before zipping. Installation instructions for the operator are at https://tm-csv-connector.readthedocs.io/en/latest/admin-guide.html#installation
 
 ## Architecture
 
