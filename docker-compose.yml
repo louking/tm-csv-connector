@@ -16,7 +16,7 @@ services:
       - ${BACKUP_FOLDER_HOST}/tmsim:/backup
     environment:
       - TZ=${TZ}
-      - RSYNC_SOURCE_PATH=${RSYNC_SOURCE_PATH}
+      - APP_DATABASE=tm-csv-connector
       - RSYNC_DEST_USER=${RSYNC_DEST_USER}
       - RSYNC_DEST_HOST=${RSYNC_DEST_HOST}
       - RSYNC_DEST_PATH=${RSYNC_DEST_PATH}
