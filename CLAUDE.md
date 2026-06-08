@@ -31,23 +31,47 @@ flask db migrate -m "..."  # generate a new migration
 
 `app.py` (not `run.py`) is the entry point for flask CLI commands — it sets `init_for_operation=False` so migrations work before tables exist.
 
-## Releasing
+## Building and Releasing
 
-There are two distinct release paths:
+### Full release pipeline (run in sequence via VS Code "Build/Push/Release" task)
 
-**Simulation mode (server deployment)** — deploy the Docker stack to a remote server:
+1. **Build client executables** (PyInstaller, outputs to `install/`):
+   ```powershell
+   .venv/scripts/activate; pyinstaller --noconfirm --distpath install tm-reader-client/app.py -n tm-reader
+   .venv/scripts/activate; pyinstaller --noconfirm --distpath install barcode-scanner-client/app.py -n barcode-scanner
+   .venv/scripts/activate; pyinstaller --noconfirm --distpath install trident-reader-client/app.py -n trident-reader
+   ```
+   Requires a `.venv` in the repo root with PyInstaller and the client dependencies.
 
+2. **Build docs** (must run before building the Docker image):
+   ```powershell
+   cd web/docs; ../../.venv/scripts/activate; ./make html
+   ```
+
+3. **Build and push Docker image** (includes sim compose overlay so both modes are baked in):
+   ```powershell
+   docker compose -f docker-compose.yml -f docker-compose-sim.yml build
+   docker compose -f docker-compose.yml -f docker-compose-sim.yml push
+   ```
+
+4. **Build the normal-mode distribution zip**:
+   ```powershell
+   .\new-release.ps1
+   ```
+   Strips machine-specific env vars, forces `SIMULATION_MODE: False` and `SERVER_NAME: 'tm.localhost'`, and produces `dist/tm-csv-connector.zip`.
+
+### Deploying
+
+**Simulation mode (server)** — pull and restart the Docker stack on a remote server:
 ```bash
 fab -H <host> deploy prod
 ```
 
-**Normal mode (on-site installation)** — distribute a `dist/tm-csv-connector.zip` package that the operator installs on their laptop. Build it with:
+**Normal mode (on-site laptop)** — distribute `dist/tm-csv-connector.zip`. Installation instructions for the operator are at https://tm-csv-connector.readthedocs.io/en/latest/admin-guide.html#installation
 
-```powershell
-.\new-release.ps1
-```
+### Developing against a local loutilities checkout
 
-`new-release.ps1` strips machine-specific env vars and forces `SIMULATION_MODE: False` and `SERVER_NAME: 'tm.localhost'` before zipping. Installation instructions for the operator are at https://tm-csv-connector.readthedocs.io/en/latest/admin-guide.html#installation
+Substitute `docker-compose.loutilities.yml` for `docker-compose.dev.yml` to mount a local loutilities source tree into the container instead of the installed package.
 
 ## Architecture
 
