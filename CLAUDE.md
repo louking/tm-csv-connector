@@ -14,7 +14,9 @@ The app runs in Docker. For local development:
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
-`docker-compose.dev.yml` mounts `./app/src` into the container so Flask reloads on file changes.
+`docker-compose.dev.yml` mounts `./app/src` into the container so Flask reloads on file changes. `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` is already set in `.env` (Docker Compose V2 uses `:` as the separator on all platforms, including Windows — the old `;` was V1 behavior).
+
+**Important:** bind mounts only take effect when the container is *recreated*, not just restarted. If the `./app/src:/app` mount is missing (check `docker inspect`), run `docker compose down && docker compose up -d` to recreate. Once the mount is active, both Python and JS changes are live without rebuilding — `ASSETS_DEBUG=True` in `config/tm-csv-connector.cfg` ensures JS files are served individually (not from a compiled bundle).
 
 For simulation mode (enables admin views, multi-user login):
 
