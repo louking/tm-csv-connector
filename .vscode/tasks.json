@@ -80,10 +80,6 @@
                   "detached": true,
                   "build": false,
                 },
-                // "files": [
-                //   "${workspaceFolder}/docker-compose.yml",
-                //   "${workspaceFolder}/docker-compose.dev.yml",
-                // ]
           },
         },
         {
@@ -97,10 +93,6 @@
                   "detached": true,
                   "build": false,
                 },
-                "files": [
-                  "${workspaceFolder}/docker-compose.yml",
-                  "${workspaceFolder}/docker-compose.debug.yml"
-                ]
           },
         },
         {
@@ -150,9 +142,6 @@
                   "detached": true,
                   "build": false,
                 },
-                "files": [
-                  "${workspaceFolder}/docker-compose.yml",
-                ]
           },
         },
         {
