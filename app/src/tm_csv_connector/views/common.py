@@ -38,11 +38,11 @@ def scanned_bibno(dbrow):
         with scannedbib:
             with span(style="margin-left: 2px;"):
                 # actions processed in api.ScanActionApi.post()
-                button('Use', type='button', _class=f"ui-button ui-corner-all ui-widget {use_state}", 
+                button('Use', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {use_state}",
                         onclick=f'scan_action(event, {{action: "use", resultid: {dbrow.id}, scanid: {scanid}}})')
-                button('Ins', type='button', _class=f"ui-button ui-corner-all ui-widget {ins_state}", 
+                button('Ins', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {ins_state}",
                         onclick=f'scan_action(event, {{action: "insert", resultid: {dbrow.id}, scanid: {scanid}}})')
-                button('Del', type='button', _class=f"ui-button ui-corner-all ui-widget {del_state}", 
+                button('Del', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {del_state}",
                         onclick=f'scan_action(event, {{action: "delete", resultid: {dbrow.id}, scanid: {scanid}}})')
                 text(f'{bibno}')
     

@@ -1,6 +1,31 @@
 function afterdatatables() {
     console.log('afterdatatables()');
 
+    // Prevent the periodic table redraw from canceling an in-progress scan button click.
+    // A draw between mousedown and mouseup destroys the button element so the click event
+    // never fires and scan_action() is never called. Block any draw while a button is held.
+    let scan_mousedown = false;
+    $(document).on('mousedown', '.scan-action-btn', function() {
+        scan_mousedown = true;
+        console.log('scan-action-btn mousedown: draw guard ON');
+    });
+    $(document).on('mouseup', function() {
+        if (!scan_mousedown) return;
+        // Delay so that the click event (fired synchronously during mouseup in most browsers)
+        // has already been dispatched before we clear the guard.
+        setTimeout(function() {
+            scan_mousedown = false;
+            console.log('scan-action-btn mouseup: draw guard OFF');
+        }, 0);
+    });
+    // preDraw.dt (camelCase) is the correct DataTables event name; returning false cancels the draw.
+    _dt_table.on('preDraw.dt', function() {
+        if (scan_mousedown) {
+            console.log('preDraw.dt: draw blocked by scan-action-btn guard');
+            return false;
+        }
+    });
+
     let pathname = location.pathname;
 
     // show spinner when ajax is sent (hidden in .on('draw.dt'))
@@ -31,6 +56,7 @@ function afterdatatables() {
 
         function start_updates() {
             let draw_interval = setInterval(function() {
+                // if (scan_mousedown) return;
                 results_cookie_mutex.promise()
                     .then(function(mutex) {
                         mutex.lock();
@@ -95,6 +121,7 @@ function afterdatatables() {
         function start_updates() {
             // TODO: need to send simulation state
             let draw_interval = setInterval(function() {
+                if (scan_mousedown) return;
                 results_cookie_mutex.promise()
                     .then(function(mutex) {
                         mutex.lock();

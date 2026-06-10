@@ -144,7 +144,7 @@ The browser communicates with these clients over WebSocket (`results.js`). The c
 - `results.js` — WebSocket management for TM reader, scanner, and Trident connections
 - The results table polls for updates every 1 second (`setInterval` + `refresh_table_data`)
 
-**Critical draw-guard pattern**: DataTables redraws every second destroy and recreate DOM nodes. Any button rendered inside a table cell (e.g. Use/Ins/Del scan-action buttons) must carry the CSS class `scan-action-btn`. The `predraw.dt` handler in `afterdatatables.js` blocks the redraw while any `.scan-action-btn` is held down, preventing a race between `mousedown` → redraw → DOM destruction → lost `click` event. A `setTimeout(..., 0)` on `mouseup` ensures the click fires before the guard clears.
+**Critical draw-guard pattern**: The 1-second `setInterval` redraws destroy and recreate DOM nodes. Any button rendered inside a table cell (e.g. Use/Ins/Del scan-action buttons) must carry the CSS class `scan-action-btn`. Two layers in `afterdatatables.js` prevent a race where a redraw between `mousedown` and `mouseup` destroys the button so the `click` event never fires: (1) the `setInterval` callback skips the tick entirely if `scan_mousedown` is true; (2) a `preDraw.dt` handler (camelCase — DataTables is case-sensitive) returns `false` to cancel any draw that slips through while the flag is set. A `setTimeout(..., 0)` on `mouseup` ensures the click fires before the guard clears.
 
 ### Asset Bundling
 
