@@ -93,7 +93,7 @@ Substitute `docker-compose.loutilities.yml` for `docker-compose.dev.yml` to moun
 - `app/src/tm_csv_connector/views/public/` — normal-operation views and APIs
 - `app/src/tm_csv_connector/views/admin/` — simulation-only views (gated by `SIMULATION_MODE`)
 - `app/src/tm_csv_connector/views/common.py` — shared view mixins and API base classes
-- `app/src/tm_csv_connector/model.py` — all SQLAlchemy models
+- `app/src/tm_csv_connector/model.py` — all SQLAlchemy models; SQLAlchemy types and constructs (`Column`, `Index`, `ForeignKey`, etc.) are aliased from `db.*` at the top of the file — do not add redundant `from sqlalchemy import ...` imports for names already aliased there
 - `app/src/tm_csv_connector/fileformat.py` — CSV output logic and the `filelock` mutex
 - `app/src/tm_csv_connector/trident.py` — Trident RFID binary-format parser
 
@@ -149,6 +149,8 @@ The browser communicates with these clients over WebSocket (`results.js`). The c
 - `resultscommon.js` — shared constants (`CHECK_TABLE_UPDATE = 1000 ms`) and the `results_cookie_mutex`
 - `results.js` — WebSocket management for TM reader, scanner, and Trident connections
 - The results table polls for updates every 1 second (`setInterval` + `refresh_table_data`)
+
+**Poll returns full dataset every tick**: The JS sends `?since={last_draw}` on every poll, but `loutilities.DbCrudApi._retrieverows()` never reads that arg — it always returns every row for the race. `refresh_table_data` then does a full client-side diff. For large races this creates noticeable lag. The `Result` model has composite indexes on `(race_id, place)` and `(simulationrun_id, place)` to keep the per-race query fast. DataTables server-side mode is **not** a fit here — the view shows all finishers in a scrollable list and needs to detect row deletions, both of which break the server-side pagination model.
 
 **Critical draw-guard pattern**: The 1-second `setInterval` redraws destroy and recreate DOM nodes. Any button rendered inside a table cell (e.g. Use/Ins/Del scan-action buttons) must carry the CSS class `scan-action-btn`. Two layers in `afterdatatables.js` prevent a race where a redraw between `mousedown` and `mouseup` destroys the button so the `click` event never fires: (1) the `setInterval` callback skips the tick entirely if `scan_mousedown` is true; (2) a `preDraw.dt` handler (camelCase — DataTables is case-sensitive) returns `false` to cancel any draw that slips through while the flag is set. A `setTimeout(..., 0)` on `mouseup` ensures the click fires before the guard clears.
 

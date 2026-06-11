@@ -142,6 +142,10 @@ class Race(Base):
     
 class Result(Base):
     __tablename__ = 'result'
+    __table_args__ = (
+        Index('ix_result_race_place', 'race_id', 'place'),
+        Index('ix_result_simrun_place', 'simulationrun_id', 'place'),
+    )
     id           = Column(Integer(), primary_key=True)
     # has race_id or simrun_id, but not both
     race_id      = mapped_column(ForeignKey('race.id'))
