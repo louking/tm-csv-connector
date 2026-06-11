@@ -14,11 +14,13 @@ The app runs in Docker. For local development:
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
-`docker-compose.dev.yml` mounts `./app/src` into the container so Flask reloads on file changes. `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` is already set in `.env` (Docker Compose V2 uses `:` as the separator on all platforms, including Windows — the old `;` was V1 behavior).
+`docker-compose.dev.yml` mounts `./app/src` into the container so Flask reloads on file changes. The dev `.env` sets `COMPOSE_FILE=docker-compose.yml;docker-compose.dev.yml;docker-compose-sim.yml` (Windows uses `;` as the path separator; Linux uses `:`), so all three overlays are active during local development.
 
 **Important:** bind mounts only take effect when the container is *recreated*, not just restarted. If the `./app/src:/app` mount is missing (check `docker inspect`), run `docker compose down && docker compose up -d` to recreate. Once the mount is active, both Python and JS changes are live without rebuilding — `ASSETS_DEBUG=True` in `config/tm-csv-connector.cfg` ensures JS files are served individually (not from a compiled bundle).
 
-For simulation mode (enables admin views, multi-user login):
+**VS Code task gotcha:** the `docker-compose` task type's `files` key overrides `COMPOSE_FILE` entirely. Tasks in `.vscode/tasks.json` that should rely on `COMPOSE_FILE` from `.env` must omit the `files` key.
+
+For simulation mode on the production sim server (no dev bind-mount):
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose-sim.yml up
@@ -60,7 +62,7 @@ flask db migrate -m "..."  # generate a new migration
    ```powershell
    .\new-release.ps1
    ```
-   Strips machine-specific env vars, forces `SIMULATION_MODE: False` and `SERVER_NAME: 'tm.localhost'`, and produces `dist/tm-csv-connector.zip`.
+   Temporarily swaps in a dist `.env` (blanks machine-specific vars, sets `COMPOSE_FILE=docker-compose.yml`). The cfg is **not** patched on disk — instead a dist version (with `SERVER_NAME: 'tm.localhost'`, `SIMULATION_MODE: False`, `SEND_FILE_MAX_AGE_DEFAULT` removed) is written to a `dist-stage/config/` staging directory and included in the zip as `config/tm-csv-connector.cfg.example`. `config/cronjobs.example` is also staged there. Both example files land under `config/` when the zip is extracted; `install/initialize-config.ps1` copies them to their live names only on a fresh install (skipped on upgrade to protect user customizations).
 
 ### Deploying
 
@@ -79,9 +81,11 @@ Substitute `docker-compose.loutilities.yml` for `docker-compose.dev.yml` to moun
 
 ### Two Operating Modes
 
-`SIMULATION_MODE` (env var or cfg key) toggles between:
+`SIMULATION_MODE` toggles between:
 - **Normal mode**: auto-logs in a default user, shows public views only, connects to real hardware
 - **Simulation mode**: full multi-user login, exposes `/admin/*` routes, replays recorded events for training
+
+`SIMULATION_MODE` can be set in `config/tm-csv-connector.cfg` (`SIMULATION_MODE: True`) **or** as a Docker environment variable. `docker-compose-sim.yml` sets `SIMULATION_MODE=True` on the app service, which the app reads via `os.environ` in both `settings.py` (for loading sim-specific secrets) and `__init__.py` (where it overrides the cfg value). The env var takes precedence. Sim-specific Docker secrets (`mail-password`, `security-password-salt`, `super-admin-user-password`) are defined only in `docker-compose-sim.yml` — `docker-compose.yml` does not reference them.
 
 ### Flask App Structure
 

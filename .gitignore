@@ -170,6 +170,7 @@ cython_debug/
 *_config.py
 config/*
 !config/cronjobs.example
+dist-stage/
 .ssh/
 
 # ignore weirdness which started appearing since maybe Oct 15, 2023, possibly due to esbonio update
