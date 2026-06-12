@@ -20,6 +20,8 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 **VS Code task gotcha:** the `docker-compose` task type's `files` key overrides `COMPOSE_FILE` entirely. Tasks in `.vscode/tasks.json` that should rely on `COMPOSE_FILE` from `.env` must omit the `files` key.
 
+**Local HTTPS via Caddy:** A separate `caddy-docker` project (`C:\Users\lking\Documents\Lou's Software\projects\caddy-docker\caddy-docker`) runs a Caddy reverse proxy that provides automatic HTTPS for `*.localhost` domains. The app's nginx container listens on port 8080; Caddy forwards `https://tm.localhost` (and `https://tmsim.localhost`) to `host.docker.internal:8080`. If `SERVER_NAME` in `config/tm-csv-connector.cfg` changes, add a matching block to that project's `config/Caddyfile` and reload Caddy.
+
 For simulation mode on the production sim server (no dev bind-mount):
 
 ```powershell
