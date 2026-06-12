@@ -45,7 +45,14 @@
             "justMyCode": false
         },
         {
-            "name": "Launch Chrome",
+            "name": "Chrome Normal Mode",
+            "request": "launch",
+            "type": "chrome",
+            "url": "http://tm.localhost",
+            "webRoot": "${workspaceFolder}/app/src/tm_csv_connector/"
+        },
+        {
+            "name": "Chrome Simulation Mode",
             "request": "launch",
             "type": "chrome",
             "url": "http://tmsim.localhost",
