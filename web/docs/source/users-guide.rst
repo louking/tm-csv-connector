@@ -171,6 +171,30 @@ Time Machine and **tmtility** Connection
       **Connect** button display changes to **Disconnect**
 
 
+Pre-Race Data Flow Testing
+-------------------------------------------------
+
+Before the race starts, verify the full data path from the Time Machine and
+barcode scanner through **tmtility** to RaceDay Scoring.
+
+* trigger a few test finishes on the Time Machine and confirm they appear in the
+  :ref:`Results view`
+* if a barcode scanner is in use, scan a few test bibs and confirm they appear
+  in the Scanned Bib No column
+* click **Confirm** on the last test result to write the results to the csv file
+* confirm RaceDay Scoring receives those test results via the csv file
+
+Once verified, clear the test data from all systems:
+
+* on the Time Machine, clear the time and reset results
+* in RaceDay Scoring, delete the test reads
+* in **tmtility**, on the :ref:`Results view`, click **Clear All** to remove the
+  test results and scanned bibs
+
+.. note::
+    If you need to undo the **Clear All**, click **Undo Clear** (visible immediately
+    after the clear) to restore the results and scanned bibs.
+
 If chip timing, synchronize actual start times
 -------------------------------------------------
 

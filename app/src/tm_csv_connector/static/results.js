@@ -459,6 +459,52 @@ function setParams() {
         });
 }
 
+function results_clear_all() {
+    let nrows = _dt_table.rows().count();
+    let noun = nrows === 1 ? 'result' : 'results';
+    if (!confirm(`Clear all ${nrows} test ${noun} for this race? Use Undo Clear to restore.`)) {
+        return;
+    }
+
+    let resturl = window.location.pathname + '/rest';
+
+    $.ajax({
+        url: '/_clearresults',
+        type: 'post',
+        contentType: 'application/json',
+        dataType: 'json',
+        data: JSON.stringify({raceid: raceid}),
+        success: function(json) {
+            if (json.status == 'success') {
+                $('#undo-clear-button').show();
+                refresh_table_data(_dt_table, resturl);
+            } else {
+                alert(json.error);
+            }
+        }
+    });
+}
+
+function results_undo_clear() {
+    let resturl = window.location.pathname + '/rest';
+
+    $.ajax({
+        url: '/_undoclearresults',
+        type: 'post',
+        contentType: 'application/json',
+        dataType: 'json',
+        data: JSON.stringify({raceid: raceid}),
+        success: function(json) {
+            if (json.status == 'success') {
+                $('#undo-clear-button').hide();
+                refresh_table_data(_dt_table, resturl);
+            } else {
+                alert(json.error);
+            }
+        }
+    });
+}
+
 // careful, this is specific to normal mode, the function for simulation mode is in resultssim.js
 // the only difference is the ajax url
 function scan_action(e, options) {

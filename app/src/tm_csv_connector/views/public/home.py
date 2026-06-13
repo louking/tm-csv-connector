@@ -97,7 +97,14 @@ def get_results_filters():
         comports.append(session['_results_port'])
     comports.sort()
     
-    with prehtml.add(filtercontainerdiv()).add(table()):
+    with prehtml:
+        with div(style='float: right;'):
+            button('Undo Clear', id='undo-clear-button', _class='filter-item ui-button',
+                   style='display:none; margin-left: 4px;')
+            button('Clear All', id='clear-all-button', _class='filter-item ui-button')
+
+    fcd = filtercontainerdiv()
+    with prehtml.add(fcd).add(table()):
         with thead().add(tr()):
             th('')
             th('Time Machine', style='text-align: center;')
@@ -163,8 +170,7 @@ def get_results_filters():
                                 ), 
                                _class='filter'
                             )
-                            
-        
+
     return prehtml.render()
 
 class ResultsViewNormal(ResultsView, TmConnectorView):
@@ -317,7 +323,7 @@ results_view = ResultsViewNormal(
             'action': {'eval': 'results_confirm'},
         },
         'spacer',
-        'csv', 
+        'csv',
     ],
     clientcolumns = [
         {

@@ -203,15 +203,27 @@ The view has the following controls:
         the button on the left of the controls is used to connect or disconnect
         from the time machine. If the button says "placeholder" for more than a
         second or two, there's a problem communicating with the reader service
-    
+
     :Race:
         choose the race previously defined at :ref:`Races view`
-    
+
     :Port:
         the COM port which has been set up to communicate with the Time Machine.
         See `Wireless Computer Interface User's Guide
         <https://timemachine.org/tmwci_user_s_guide.pdf>`_ for information on
         how to set up the communication.
+
+    :Clear All:
+        removes all results and scanned bibs for the current race. Intended for
+        use after pre-race data flow testing — once test results have been cleared
+        from the Time Machine and RaceDay Scoring, click **Clear All** to clean up
+        **tmtility** as well. A snapshot is saved automatically to allow the
+        operation to be undone.
+
+    :Undo Clear:
+        restores the results and scanned bibs removed by the most recent **Clear
+        All**. This button appears only after **Clear All** has been used and
+        disappears once the restore is complete.
 
 To select a row, click on the row. Note when any row is selected, updates to the
 display are suspended and a warning is displayed. The row must be deselected by

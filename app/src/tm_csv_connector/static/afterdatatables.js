@@ -40,6 +40,9 @@ function afterdatatables() {
     });
     
     if (pathname == '/results') {
+        $('#clear-all-button').on('click', results_clear_all);
+        $('#undo-clear-button').on('click', results_undo_clear);
+
         // indicate last draw time for editor submissions, then update
         last_draw = moment().format();
         editor.on('preSubmit', function(e, data, action) {

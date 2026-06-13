@@ -95,6 +95,16 @@ def db2file(result):
 
     return resultrow
 
+def clearfile():
+    """truncate the csv output file to empty
+
+    NOTE: caller must acquire/release filelock
+    """
+    filesetting = Setting.query.filter_by(name='output-file').one_or_none()
+    if filesetting:
+        filepath = join('/output_dir', filesetting.value)
+        open(filepath, mode='w').close()
+
 def refreshfile(rows):
     """rewrite csv file
     

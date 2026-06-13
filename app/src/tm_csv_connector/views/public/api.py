@@ -9,7 +9,8 @@ from os.path import join
 from os import remove
 from uuid import uuid4
 from csv import DictReader
-from datetime import datetime
+from datetime import datetime, timezone
+from json import dumps, loads
 
 # pypi
 from flask import session, request, current_app, jsonify
@@ -19,9 +20,9 @@ from loutilities.timeu import timesecs
 
 # homegrown
 from . import bp
-from ...model import db, Result, Setting, ScannedBib, Race, ChipBib, AppLog, BluetoothDevice
+from ...model import db, Result, Setting, ScannedBib, Race, ChipBib, AppLog, BluetoothDevice, ResultsSnapshot
 from ..common import PostBibApi, PostResultApi, ScanActionApi
-from ...fileformat import filelock, refreshfile, lock, unlock
+from ...fileformat import filelock, refreshfile, lock, unlock, clearfile
 from ...trident import trident2db
 
 class ParameterError(Exception): pass
@@ -194,6 +195,134 @@ class LiveChipReadsApi(MethodView):
         
 livechipreads_api = LiveChipReadsApi.as_view('_livechipreads')
 bp.add_url_rule('/_livechipreads', view_func=livechipreads_api, methods=['POST'])
+
+
+class ClearResultsApi(MethodView):
+    """delete all Results and ScannedBibs for a race; saves a snapshot for undo"""
+
+    def post(self):
+        try:
+            raceid = request.json['raceid']
+
+            lock(filelock)
+
+            # serialize current data into a snapshot before deleting
+            results = Result.query.filter_by(race_id=raceid).order_by(Result.place).all()
+            scannedbibs = ScannedBib.query.filter_by(race_id=raceid).order_by(ScannedBib.order).all()
+
+            results_data = [
+                {
+                    'tmpos': r.tmpos, 'place': r.place, 'bibno': r.bibno,
+                    'time': r.time, 'is_confirmed': r.is_confirmed,
+                    'had_scannedbib': r.had_scannedbib,
+                    'scannedbib_id': r.scannedbib_id,
+                }
+                for r in results
+            ]
+            scannedbibs_data = [
+                {'id': sb.id, 'order': sb.order, 'bibno': sb.bibno}
+                for sb in scannedbibs
+            ]
+
+            # replace any prior snapshot for this race
+            ResultsSnapshot.query.filter_by(race_id=raceid).delete(synchronize_session=False)
+            snapshot = ResultsSnapshot(
+                race_id=raceid,
+                cleared_at=datetime.now(timezone.utc),
+                results_json=dumps(results_data),
+                scannedbibs_json=dumps(scannedbibs_data),
+            )
+            db.session.add(snapshot)
+            db.session.flush()
+
+            # null out obsolete Race.next_scannedbib_id if set
+            race = Race.query.filter_by(id=raceid).one_or_none()
+            if race and race.next_scannedbib_id:
+                race.next_scannedbib_id = None
+                db.session.flush()
+
+            # Results hold the FK to ScannedBib, so delete them first
+            Result.query.filter_by(race_id=raceid).delete(synchronize_session=False)
+            db.session.flush()
+            ScannedBib.query.filter_by(race_id=raceid).delete(synchronize_session=False)
+            db.session.commit()
+
+            clearfile()
+
+            unlock(filelock)
+            return jsonify(status='success')
+
+        except Exception as e:
+            unlock(filelock)
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status': 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+
+clearresults_api = ClearResultsApi.as_view('_clearresults')
+bp.add_url_rule('/_clearresults', view_func=clearresults_api, methods=['POST'])
+
+
+class UndoClearResultsApi(MethodView):
+    """restore Results and ScannedBibs from the snapshot saved by ClearResultsApi"""
+
+    def post(self):
+        try:
+            raceid = request.json['raceid']
+
+            lock(filelock)
+
+            snapshot = ResultsSnapshot.query.filter_by(race_id=raceid).one_or_none()
+            if not snapshot:
+                unlock(filelock)
+                return jsonify(status='fail', error='no snapshot to restore')
+
+            scannedbibs_data = loads(snapshot.scannedbibs_json)
+            results_data = loads(snapshot.results_json)
+
+            # restore ScannedBibs; build old-id → new-id map for Result FK fixup
+            id_map = {}
+            for sb_d in scannedbibs_data:
+                sb = ScannedBib(race_id=raceid, order=sb_d['order'], bibno=sb_d['bibno'])
+                db.session.add(sb)
+                db.session.flush()
+                id_map[sb_d['id']] = sb.id
+
+            # restore Results
+            for r_d in results_data:
+                r = Result(
+                    race_id=raceid,
+                    tmpos=r_d['tmpos'],
+                    place=r_d['place'],
+                    bibno=r_d['bibno'],
+                    time=r_d['time'],
+                    is_confirmed=r_d['is_confirmed'],
+                    had_scannedbib=r_d['had_scannedbib'],
+                    scannedbib_id=id_map.get(r_d['scannedbib_id']) if r_d['scannedbib_id'] else None,
+                )
+                db.session.add(r)
+
+            db.session.delete(snapshot)
+            db.session.commit()
+
+            # rewrite CSV with the restored confirmed rows
+            rows = Result.query.filter_by(race_id=raceid).order_by(Result.place).all()
+            refreshfile(rows)
+
+            unlock(filelock)
+            return jsonify(status='success')
+
+        except Exception as e:
+            unlock(filelock)
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status': 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+
+undoclearresults_api = UndoClearResultsApi.as_view('_undoclearresults')
+bp.add_url_rule('/_undoclearresults', view_func=undoclearresults_api, methods=['POST'])
 
 
 class Chip2BibApi(MethodView):

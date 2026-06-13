@@ -125,6 +125,7 @@ class Race(Base):
     scannedbibs = relationship('ScannedBib', back_populates='race', foreign_keys=[ScannedBib.race_id], cascade='all, delete, delete-orphan')
     chipreads   = relationship('ChipRead', back_populates='race', foreign_keys=[ChipRead.race_id], cascade='all, delete, delete-orphan')
     chipbibs    = relationship('ChipBib', back_populates='race', foreign_keys=[ChipBib.race_id], cascade='all, delete, delete-orphan')
+    resultssnapshots = relationship('ResultsSnapshot', back_populates='race', cascade='all, delete, delete-orphan')
     
     # next_scannedbib is set when there are more scanned bibs than there are results
     # OBSOLETE
@@ -324,6 +325,16 @@ class SimulationRun(Base):
     @classmethod
     def _usersimstart_expression(cls):
         return cls.date + ' ' + cls.user.name + ' ' + cls.simulation.name
+
+class ResultsSnapshot(Base):
+    """One-row-per-race snapshot taken by Clear All; used to restore via Undo Clear."""
+    __tablename__ = 'resultssnapshot'
+    id               = Column(Integer(), primary_key=True)
+    race_id          = mapped_column(ForeignKey('race.id'))
+    race             = relationship('Race', back_populates='resultssnapshots')
+    cleared_at       = Column(DateTime)
+    results_json     = Column(Text)
+    scannedbibs_json = Column(Text)
 
 class SimulationResult(Base):
     __tablename__ = 'simulationresult'
