@@ -117,13 +117,18 @@ def get_results_filters():
                 with span(_class='filter'):
                     results_filter_race_select = select(id='race', name="race", _class="validate", required='true', aria_required="true", onchange="setParams()")
                     races = Race.query.order_by(Race.date.desc()).all()
-                    # select first (lastest) race
-                    selected = False
+                    # select last-used race from session, fall back to latest
+                    # session stores form values as strings; race ids are ints
+                    try:
+                        session_race_id = int(session.get('_results_raceid'))
+                    except (TypeError, ValueError):
+                        session_race_id = None
+                    race_ids = {r.id for r in races}
+                    current_race_id = session_race_id if session_race_id in race_ids else (races[0].id if races else None)
                     with results_filter_race_select:
                         for r in races:
-                            if not selected:
+                            if r.id == current_race_id:
                                 option(r.raceyear, value=r.id, selected='true')
-                                selected = True
                             else:
                                 option(r.raceyear, value=r.id)
         
