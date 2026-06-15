@@ -368,12 +368,16 @@ class PostBibApi(MethodView):
 
         Returns:
             ScannedBib()
-            
+
         Raises:
             NotImplementedError: if not implemented by inheriting class
         """
         raise NotImplementedError
-    
+
+    def is_duplicate_bib(self, msg, bibno):
+        """Override to return True when a duplicate bib scan should be silently ignored."""
+        return False
+
     def post(self):
 
         try:
@@ -403,6 +407,13 @@ class PostBibApi(MethodView):
                 # remove leading 0's if not 0000 ('0000' is "blank" bibno BLANK_BIBNO)
                 if bibno != BLANK_BIBNO:
                     bibno = bibno.lstrip('0')
+
+                # returns true if the bibno was just scanned, and the race is in progress
+                if self.is_duplicate_bib(msg, bibno):
+                    current_app.logger.info(f'ignoring duplicate bib scan: {bibno}')
+                    db.session.commit()
+                    unlock(filelock)
+                    return jsonify(status='success')
 
                 scannedbib = self.new_scannedbib()
                 scannedbib.bibno = bibno

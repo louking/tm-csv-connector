@@ -21,7 +21,7 @@ from loutilities.timeu import timesecs
 # homegrown
 from . import bp
 from ...model import db, Result, Setting, ScannedBib, Race, ChipBib, AppLog, BluetoothDevice, ResultsSnapshot
-from ..common import PostBibApi, PostResultApi, ScanActionApi
+from ..common import PostBibApi, PostResultApi, ScanActionApi, BLANK_BIBNO
 from ...fileformat import filelock, refreshfile, lock, unlock, clearfile
 from ...trident import trident2db
 
@@ -81,7 +81,17 @@ class NormalPostBibApi(PostBibApi):
         scannedbib = ScannedBib()
         scannedbib.race_id = msg['raceid']
         return scannedbib
-        
+
+    def is_duplicate_bib(self, msg, bibno):
+        """returns true if the bibno was just scanned, and the race is in progress"""
+        if bibno == BLANK_BIBNO:
+            return False
+        race = Race.query.get(msg['raceid'])
+        if not race or not race.resultssnapshots:
+            return False
+        last = ScannedBib.query.filter_by(race_id=msg['raceid']).order_by(ScannedBib.order.desc()).first()
+        return last is not None and last.bibno == bibno
+
 postbib_api = NormalPostBibApi.as_view('_postbib')
 bp.add_url_rule('/_postbib', view_func=postbib_api, methods=['POST',])
 
