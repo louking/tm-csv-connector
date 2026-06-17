@@ -565,14 +565,14 @@ def chipreads_filters():
         with span(id='spinner', style='display:none;'):
                   i(cls='fa-solid fa-spinner fa-spin')
         filterdiv('chipreads-external-filter-raceyear', 'Race')
-        filterdiv('chipreads-external-filter-display_date', 'Date')
+        # filterdiv('chipreads-external-filter-display_date', 'Date')
         filterdiv('chipreads-external-filter-tag_id', 'Chips')
         filterdiv('chipreads-external-filter-bib', 'Bibs')
     return pretablehtml.render()
 
 chipreads_yadcf_options = [
     yadcfoption('raceyear:name', 'chipreads-external-filter-raceyear', 'select', placeholder='Select races', width='300px', select_type='select2'),
-    yadcfoption('display_date:name', 'chipreads-external-filter-display_date', 'date'),
+    # yadcfoption('display_date:name', 'chipreads-external-filter-display_date', 'date'),
     yadcfoption('tag_id:name', 'chipreads-external-filter-tag_id', 'multi_select', placeholder='Select', width='200px'),
     yadcfoption('bib:name', 'chipreads-external-filter-bib', 'multi_select', placeholder='Select', width='200px'),
 ]
@@ -588,8 +588,8 @@ def chipreads_set_yadcf_data():
     matches = [str(row[0]) for row in db.session.query(Race.raceyear).order_by(Race.date.desc()).all()]
     yadcf_data.append((f'yadcf_data_{getcol('raceyear')}', matches))
 
-    matches = [str(row[0]) for row in db.session.query(ChipRead.date).distinct().all()]
-    yadcf_data.append((f'yadcf_data_{getcol('display_date')}', matches))
+    # matches = [str(row[0]) for row in db.session.query(ChipRead.date).distinct().all()]
+    # yadcf_data.append((f'yadcf_data_{getcol('display_date')}', matches))
     
     matches = [row[0] for row in db.session.query(ChipRead.tag_id).distinct().all()]
     yadcf_data.append((f'yadcf_data_{getcol('tag_id')}', matches))
