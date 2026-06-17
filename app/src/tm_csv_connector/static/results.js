@@ -234,6 +234,8 @@ class StableWebSocket {
     check_timeout = null;
     open_timeout = null;
     ping_timeout = null;
+    last_recv_time = null;
+    last_ping_time = null;
 
     constructor(options_config) {
         let defaultoptions = {
@@ -268,6 +270,7 @@ class StableWebSocket {
     #open_socket(that) {
         console.log(`${that.name}: attempting to create new WebSocket instance`);
         that.open_timeout = null;
+        that.last_ping_time = null;
         if (that.check_timeout != null) {
             clearTimeout(that.check_timeout);
         }
@@ -276,14 +279,15 @@ class StableWebSocket {
         }
         that.check_timeout = setTimeout(that.#check_socket, that.check_connected_wait, that);
         that.websocket = new WebSocket(that.uri);
-    
+
         that.websocket.onopen = (event) => {
             console.log(`${that.name}: websocket open`);
+            that.last_recv_time = Date.now();
             that.open_callback();
             // start ping process
             that.ping_timeout = setTimeout(that.#ping_socket, that.ping_interval, that);
         }
-    
+
         that.websocket.onclose = (event) => {
             that.websocket = null;
             that.close_callback();
@@ -294,8 +298,9 @@ class StableWebSocket {
             }
             that.open_timeout = setTimeout(that.#open_socket, that.reopen_socket_wait, that);
         }
-        
+
         that.websocket.onmessage = (event) => {
+            that.last_recv_time = Date.now();
             if (that.log_data) console.log(`${that.name}: received ${event.data}`);
             let msg = JSON.parse(event.data);
             if (msg.opcode != 'pong') {
@@ -331,25 +336,45 @@ class StableWebSocket {
     }
 
     /**
-     * ping a websocket, else browser closes with 1006 error due to inactivity
-     * @param {WebSocket} websocket 
+     * ping a websocket, else browser closes with 1006 error due to inactivity.
+     * also detects zombie connections (readyState OPEN but messages not flowing).
+     * @param {WebSocket} websocket
      */
     #ping_socket(that) {
-        let msg = JSON.stringify({opcode: 'ping'});
-        that.send(msg);
+        // zombie detection: if a previous ping went unanswered (nothing received since),
+        // the connection is dead despite appearing OPEN — force close to trigger reconnect
+        if (that.last_ping_time !== null && that.last_recv_time < that.last_ping_time) {
+            console.log(`${that.name}: zombie socket detected (no response since last ping), forcing close`);
+            that.websocket.close();
+            return;
+        }
+        try {
+            let msg = JSON.stringify({opcode: 'ping'});
+            that.send(msg);
+            that.last_ping_time = Date.now();
+        } catch(e) {
+            // websocket not open; reconnect logic will handle it
+            return;
+        }
         that.ping_timeout = setTimeout(that.#ping_socket, that.ping_interval, that);
     }
 }
 
 function cdbuttonclick() {
     var msg;
-    if (port != null) {
-        if (!connected) {
-            msg = JSON.stringify({opcode: 'open', port: port, raceid: raceid, loggingpath: ''});
-            tm_reader.send(msg);
-        } else {
+    if (connected) {
+        try {
             msg = JSON.stringify({opcode: 'close'});
             tm_reader.send(msg);
+        } catch(e) {
+            alert('Cannot disconnect: reader client not reachable');
+        }
+    } else if (port != null) {
+        try {
+            msg = JSON.stringify({opcode: 'open', port: port, raceid: raceid, loggingpath: ''});
+            tm_reader.send(msg);
+        } catch(e) {
+            alert('Cannot connect: reader client not reachable');
         }
     } else {
         alert('set port first');
@@ -358,13 +383,19 @@ function cdbuttonclick() {
 
 function scanner_cdbuttonclick() {
     var msg;
-    if (scannerport != null) {
-        if (!scanner_connected) {
-            msg = JSON.stringify({opcode: 'open', port: scannerport, raceid: raceid, loggingpath: ''});
-            scanner.send(msg);
-        } else {
+    if (scanner_connected) {
+        try {
             msg = JSON.stringify({opcode: 'close'});
             scanner.send(msg);
+        } catch(e) {
+            alert('Cannot disconnect: scanner client not reachable');
+        }
+    } else if (scannerport != null) {
+        try {
+            msg = JSON.stringify({opcode: 'open', port: scannerport, raceid: raceid, loggingpath: ''});
+            scanner.send(msg);
+        } catch(e) {
+            alert('Cannot connect: scanner client not reachable');
         }
     } else {
         alert('set port first');
@@ -374,12 +405,20 @@ function scanner_cdbuttonclick() {
 // #82 needs work here and elsewhere
 function trident_cdbuttonclick() {
     var msg;
-    if (!trident_connected) {
-        msg = JSON.stringify({opcode: 'open', ipaddr: $(this).attr('ipaddr'), fport: $(this).attr('fport'), loggingpath: ''});
-        trident.send(msg);
+    if (trident_connected) {
+        try {
+            msg = JSON.stringify({opcode: 'close'});
+            trident.send(msg);
+        } catch(e) {
+            alert('Cannot disconnect: chip reader client not reachable');
+        }
     } else {
-        msg = JSON.stringify({opcode: 'close'});
-        trident.send(msg);
+        try {
+            msg = JSON.stringify({opcode: 'open', ipaddr: $(this).attr('ipaddr'), fport: $(this).attr('fport'), loggingpath: ''});
+            trident.send(msg);
+        } catch(e) {
+            alert('Cannot connect: chip reader client not reachable');
+        }
     }
 }
 
