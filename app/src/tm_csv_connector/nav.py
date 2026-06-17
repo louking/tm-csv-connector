@@ -81,6 +81,7 @@ def nav_menu():
         chips.items.append(View('Chip Reads', 'public.chipreads'))
         chips.items.append(View('Chip/Bib Map', 'public.chip2bib'))
         chips.items.append(View('Chip Readers', 'public.chipreaders'))
+        chips.items.append(View('App Log', 'public.applog'))
         bluetooth = Subgroup('Bluetooth')
         navbar.items.append(bluetooth)
         bluetooth.items.append(View('Types', 'public.bluetoothtypes'))
@@ -111,7 +112,6 @@ def nav_menu():
     if (current_user.has_role(ROLE_TMSIM_ADMIN)
             or current_user.has_role(ROLE_SUPER_ADMIN)):
         navbar.items.append(View('Settings', 'public.settings'))
-        navbar.items.append(View('App Log', 'public.applog'))
     
     # password change allowed in simulation mode if logged in
     if current_app.config.get('SIMULATION_MODE', False):
