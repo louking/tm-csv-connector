@@ -64,7 +64,7 @@ flask db migrate -m "..."  # generate a new migration
    ```powershell
    .\new-release.ps1
    ```
-   Temporarily swaps in a dist `.env` (blanks machine-specific vars, sets `COMPOSE_FILE=docker-compose.yml`). The cfg is **not** patched on disk — instead a dist version (with `SERVER_NAME: 'tm.localhost'`, `SIMULATION_MODE: False`, `SEND_FILE_MAX_AGE_DEFAULT` removed) is written to a `dist-stage/config/` staging directory and included in the zip as `config/tm-csv-connector.cfg.example`. `config/cronjobs.example` is also staged there. Both example files land under `config/` when the zip is extracted; `install/initialize-config.ps1` copies them to their live names only on a fresh install (skipped on upgrade to protect user customizations).
+   Temporarily swaps in a dist `.env` (blanks machine-specific vars, sets `COMPOSE_FILE=docker-compose.yml`, sets `JS_COMMON_HOST=./js`). The cfg is **not** patched on disk — instead a dist version (with `SERVER_NAME: 'tm.localhost'`, `SIMULATION_MODE: False`, `SEND_FILE_MAX_AGE_DEFAULT` removed) is written to a `dist-stage/config/` staging directory and included in the zip as `config/tm-csv-connector.cfg.example`. `config/cronjobs.example` is also staged there. Vendor JS files are copied from `JS_COMMON_HOST` into `dist-stage/js/` and land under `js/` in the zip. All three (`config/`, `js/`) are staged under `dist-stage/` so the existing `Compress-Archive` sweep picks them up. `install/initialize-config.ps1` copies the example config files to their live names only on a fresh install (skipped on upgrade to protect user customizations).
 
 ### Deploying
 
@@ -161,3 +161,5 @@ The browser communicates with these clients over WebSocket (`results.js`). The c
 ### Asset Bundling
 
 `assets.py` defines `flask-assets` bundles. All vendor JS/CSS lives under `static/js/`. Bundles are compiled to `static/gen/`. `loutilities` provides additional JS/CSS served via `/loutilities/static/<path>`.
+
+**Vendor JS via `JS_COMMON_HOST`**: `docker-compose.yml` mounts `${JS_COMMON_HOST}` from the host into `/app/tm_csv_connector/static/js:ro`. In dev, the `./app/src:/app` bind mount (from `docker-compose.dev.yml`) shadows this, so JS changes in the source tree are live. The `app/src/tm_csv_connector/static/js/` directory in the repo is transitional — it will be removed once `JS_COMMON_HOST` is confirmed to contain all needed files. For normal-mode installs the zip includes a `js/` directory (sourced from `JS_COMMON_HOST` during release) and the dist `.env` sets `JS_COMMON_HOST=./js`.

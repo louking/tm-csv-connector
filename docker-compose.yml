@@ -93,6 +93,7 @@ services:
       - type: bind
         source: ${OUTPUT_DIR}
         target: /output_dir
+      - ${JS_COMMON_HOST}:/app/tm_csv_connector/static/js:ro
     environment:
       - FLASK_DEBUG=True
       - APP_DATABASE=tm-csv-connector
