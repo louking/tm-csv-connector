@@ -245,29 +245,38 @@ RaceDay Scoring data collection.
 
 .. _tmtility operation:
 
-**tmtility** Operation (scanner not connected)
+**tmtility** Operation
 -----------------------------------------------
 
 **tmtility** displays a grid with TM Pos, Bib No, Time, similar to the Time
 Machine printer tape. In addition, the currently computed Place is displayed.
-**tmtility** allows the Bib No and Time to be edited, which can't be done on the
-Time Machine itself. Normally the Time should not be edited, but the Bib No can
-be edited for the following cases
+There are also Scanned Bib No and :fas:`not-equal` columns.
+
+The scanner acts like a pull tag spindle. The scanner operator scans the bib
+number barcode on the front of each bib in order. This allows the **tmtility**
+operator to correct the Bib No in the results.
+
+Under the Scanned Bib No column, there are controls to facilitate editing of the
+Bib No based on the scanned bib numbers which have been seen.
+
+The following cases are considered
 
 * the bib number was not selected by the time machine operator (no bib number recorded)
 * the bib number selected by the time machine operator was mistyped (wrong bib number recorded)
 * the time machine operator recorded an extra result
 * the time machine operator missed recording a result
+* the barcode scanner operator missed scanning a bib
+* the barcode scanner operator scanned the same bib multiple times
 
 All of these cases can be corrected in **tmtility**.
 
-The pull tag spindles should be collected periodically from the finish line. The
-pull tags should be reviewed to verify there is a row in the grid for each pull
-tag. After updating **tmtility** to match the pull tags, these results need to be
-confirmed to send them to the csv file.
+.. note::
 
-.. note:: 
-    when editing rows, the grid display update is disabled. Deselect any selected 
+    **tmtility** allows the Bib No and Time to be edited. However when using the
+    Scanned Bib No controls, this should not be necessary.
+
+.. note::
+    when editing rows, the grid display update is disabled. Deselect any selected
     row to resume the display updates
 
 To fix an incorrect/missing bib number (or time)
@@ -287,45 +296,6 @@ To add a missing result
 * click **New**
 * enter Bib No and Time for the missing result (leave TM Pos blank)
 * click **Create**
-
-To confirm a set of results
-
-* click on the row for latest result which is to be confirmed by clicking on the
-  row (away from the bib number or time fields to avoid inline edit of these)
-* click **Confirm** at the top of the table
-* the confirmed rows will be displayed in green shortly thereafter, with the
-  :fas:`file-circle-check` icon in the associated column -- these results are
-  added to the file which RDS reads
-
-**tmtility** Operation (scanner connected)
------------------------------------------------
-
-**tmtility** displays a grid with TM Pos, Bib No, Time, similar to the Time
-Machine printer tape. In addition, the currently computed Place is displayed. 
-With the scanner connected, there are Scanned Bib No and :fas:`not-equal` columns.
-
-The scanner acts like a pull tag spindle. The scanner operator scans the bib
-number barcode on the front of each bib in order. This allows the **tmtility**
-operator to correct the Bib No in the results.
-
-Under the Scanned Bib No column, there are controls to facilitate editing of the
-Bib No based on the scanned bib numbers which have been seen.
-
-When using a scanner, the following cases are considered
-
-* the bib number was not selected by the time machine operator (no bib number recorded)
-* the bib number selected by the time machine operator was mistyped (wrong bib number recorded)
-* the time machine operator recorded an extra result
-* the time machine operator missed recording a result
-* the barcode scanner operator missed scanning a bib
-* the barcode scanner operator scanned the same bib multiple times
-
-All of these cases can be corrected in **tmtility**.
-
-.. note::
-
-    **tmtility** allows the Bib No and Time to be edited. However when using the
-    Scanned Bib No controls, this should not be necessary.
 
 To confirm a set of results
 

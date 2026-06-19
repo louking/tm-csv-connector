@@ -261,9 +261,6 @@ the **Confirm** button.
 
     Full result edit (select row, click Edit)
 
-If a bib barcode scanner is connected, the Scanned Bib No and ≠ columns are shown.
-
-
 Settings view
 ======================
 The Settings view is used to update individual settings required by the system.

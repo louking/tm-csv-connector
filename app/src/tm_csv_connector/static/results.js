@@ -129,11 +129,9 @@ $( function() {
             scanner_connected = rsp.connected;
             if (rsp.connected) {
                 scd.text('Disconnect');
-                $('.dataTable .scanned_bibno_field, .dataTable .bibalert_field').show();
             } else {
                 scd.text('Connect');
-                $('.dataTable .scanned_bibno_field, .dataTable .bibalert_field').hide();
-            }    
+            }
         }
     });
 
