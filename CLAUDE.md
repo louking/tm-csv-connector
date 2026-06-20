@@ -60,11 +60,17 @@ flask db migrate -m "..."  # generate a new migration
    docker compose -f docker-compose.yml -f docker-compose-sim.yml push
    ```
 
-4. **Build the normal-mode distribution zip**:
+4. **Build the normal-mode distribution zips**:
    ```powershell
    .\new-release.ps1
    ```
-   Temporarily swaps in a dist `.env` (blanks machine-specific vars, sets `COMPOSE_FILE=docker-compose.yml`, sets `JS_COMMON_HOST=./js`). The cfg is **not** patched on disk — instead a dist version (with `SERVER_NAME: 'tm.localhost'`, `SIMULATION_MODE: False`, `SEND_FILE_MAX_AGE_DEFAULT` removed) is written to a `dist-stage/config/` staging directory and included in the zip as `config/tm-csv-connector.cfg.example`. `config/cronjobs.example` is also staged there. Vendor JS files are copied from `JS_COMMON_HOST` into `dist-stage/js/` and land under `js/` in the zip. All three (`config/`, `js/`) are staged under `dist-stage/` so the existing `Compress-Archive` sweep picks them up. `install/initialize-config.ps1` copies the example config files to their live names only on a fresh install (skipped on upgrade to protect user customizations).
+   Produces two artifacts in `dist/`:
+   - `tm-csv-connector.zip` — rebuilt every release; contains `install/`, docker-compose files, dist `.env`, and `config/` (via `dist-stage/`). Does **not** contain vendor JS. **Important**: `Compress-Archive -Path install/*` strips the `install\` prefix — all scripts land directly in the run directory alongside `config/`, `js-version.txt`, etc., not in an `install\` subdirectory. Paths in `install/install.ps1` must use `./` (run directory), not `../`.
+   - `tm-csv-connector-js.zip` — contains `js/` (vendor JS); only rebuilt when JS content changes. A SHA256 content hash of all files in `JS_COMMON_HOST` is compared against `dist/js-content-hash.txt` (committed); if unchanged the existing zip is left untouched so git sees no modification.
+
+   The main zip includes a `js-version.txt` at its root (the current JS hash). `install/install.ps1` compares this against `js/js-version.txt` inside the installed JS tree and auto-extracts `tm-csv-connector-js.zip` when they differ (fresh install or a release that updated vendor JS). On upgrades where JS hasn't changed, operators only need to extract the main zip.
+
+   Temporarily swaps in a dist `.env` (blanks machine-specific vars, sets `COMPOSE_FILE=docker-compose.yml`, sets `JS_COMMON_HOST=./js`). The cfg is **not** patched on disk — instead a dist version (with `SERVER_NAME: 'tm.localhost'`, `SIMULATION_MODE: False`, `SEND_FILE_MAX_AGE_DEFAULT` removed) is written to `dist-stage/config/` and included in the main zip as `config/tm-csv-connector.cfg.example`. `install/initialize-config.ps1` copies the example config files to their live names only on a fresh install (skipped on upgrade to protect user customizations).
 
 ### Deploying
 
@@ -73,7 +79,7 @@ flask db migrate -m "..."  # generate a new migration
 fab -H <host> deploy prod
 ```
 
-**Normal mode (on-site laptop)** — distribute `dist/tm-csv-connector.zip`. Installation instructions for the operator are at https://tm-csv-connector.readthedocs.io/en/latest/admin-guide.html#installation
+**Normal mode (on-site laptop)** — distribute `dist/tm-csv-connector.zip` and (on first install or when JS changed) `dist/tm-csv-connector-js.zip`. Installation instructions for the operator are at https://tm-csv-connector.readthedocs.io/en/latest/admin-guide.html#installation
 
 ### Developing against a local loutilities checkout
 
@@ -144,6 +150,10 @@ Three asyncio client processes run as Windows services via NSSM (`install/`):
 | `trident-reader-client` | Trident RFID | `ws://tm.localhost:8083/` | `/_livechipreads` |
 
 The browser communicates with these clients over WebSocket (`results.js`). The clients also POST directly to the Flask backend.
+
+**Why clients run on Windows (not in the container):** The clients need direct access to USB serial devices (barcode scanner) and the laptop's internal Bluetooth (Time Machine, paired via Windows and exposed as a virtual COM port). Internal laptop Bluetooth is typically CNVi/PCIe-based and cannot be passed through to a Docker container via USB/IP, so `tm-reader-client` must run on Windows. The NSSM service approach has been stable and is deliberately kept.
+
+**Port discovery flow (Windows):** The DB stores `BluetoothDevice` rows with MAC addresses (`hwaddr`). On page load, the browser fetches these from `/_getbluetoothdevices`, sends them to `tm-reader-client` via the `get_comports` WebSocket opcode, and the client uses `serial.tools.list_ports.comports()` to match Windows HWID strings (format: `BTHENUM\..._LOCALMFR&..&<MACADDR>\...`) to COM port names. This HWID-parsing logic in `tm-reader-client/app.py` is Windows-specific and would need to be replaced if the clients ever move to Linux (e.g. fixed udev symlinks instead).
 
 ### JavaScript / DataTables
 

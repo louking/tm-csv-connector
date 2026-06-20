@@ -134,11 +134,17 @@ Now you need to determine the device's Bluetooth Hardware address.
 
 App Installation
 ---------------------
-* download https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
+* download both of the following files (``tm-csv-connector-js.zip`` contains vendor JavaScript
+  and is required for a fresh install; it rarely changes after that):
 
-    .. note:: your browser may want to scan the file for malware/virus. let it
-    
-* extract files from the downloaded file into the directory you want the app to run from
+  * https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
+  * https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector-js.zip
+
+  .. note:: your browser may want to scan each file for malware/virus. let it
+
+* extract files from ``tm-csv-connector.zip`` into the directory you want the app to run from
+* place ``tm-csv-connector-js.zip`` (do not extract it) into that same directory — the install
+  procedure will extract it automatically
 * start powershell **Run as Administrator**, and navigate to this directory
 
     .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
@@ -188,6 +194,12 @@ App Upgrade
 
     .. note:: your browser may want to scan the file for malware/virus. let it
 
+* vendor JavaScript (``tm-csv-connector-js.zip``) rarely changes between releases; only download
+  it if the release notes mention updated vendor JavaScript:
+  https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector-js.zip
+  If you do download it, place it (do not extract it) in the install directory — ``./install``
+  will extract it automatically
+
 * start powershell **Run as Administrator**, and navigate to the install directory
 
     .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
@@ -207,7 +219,9 @@ App Upgrade
 
   press Enter at each prompt to accept the current values
 
-* extract files from the downloaded file to the install directory
+* extract files from ``tm-csv-connector.zip`` to the install directory
+* if you downloaded ``tm-csv-connector-js.zip``, place it (do not extract it) in the install
+  directory — the install procedure will extract it automatically
 
 * run the install procedure
 

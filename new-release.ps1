@@ -1,3 +1,5 @@
+$ErrorActionPreference = 'Stop'
+
 # Build dist package with clean .env and tm-csv-connector.cfg:
 #   .env:
 #     - COMPOSE_FILE set to docker-compose.yml only (no dev/sim files)
@@ -30,10 +32,44 @@ New-Item -ItemType Directory -Path dist-stage/config -Force | Out-Null
 $distCfgContent | Set-Content dist-stage/config/tm-csv-connector.cfg.example -Encoding ASCII
 Copy-Item config/cronjobs.example dist-stage/config/cronjobs.example
 
-# Stage JS common files so they land under js/ when the zip is extracted.
+# Compute a content hash over all JS source files to detect changes between releases.
+# Only rebuild tm-csv-connector-js.zip when the hash changes; otherwise leave it untouched
+# so git does not see a spurious modification on every release run.
 $jsCommonHost = ($devEnvContent | Where-Object { $_ -match '^JS_COMMON_HOST=' } | Select-Object -First 1) -replace '^JS_COMMON_HOST="?(.*?)"?\s*$', '$1'
-New-Item -ItemType Directory -Path dist-stage/js -Force | Out-Null
-Copy-Item "$jsCommonHost/*" dist-stage/js/ -Recurse -Force
+$jsRootPath = (Resolve-Path $jsCommonHost).Path
+$jsFiles = Get-ChildItem $jsCommonHost -Recurse -File | Sort-Object FullName
+$manifestLines = $jsFiles | ForEach-Object {
+    "$($_.FullName -replace [regex]::Escape($jsRootPath), ''):$(($_ | Get-FileHash -Algorithm SHA256).Hash)"
+}
+$manifestBytes = [System.Text.Encoding]::UTF8.GetBytes(($manifestLines -join "`n"))
+$manifestStream = [System.IO.MemoryStream]::new($manifestBytes)
+$newJsHash = (Get-FileHash -Algorithm SHA256 -InputStream $manifestStream).Hash
+$manifestStream.Dispose()
+
+$jsHashFile = 'dist/js-content-hash.txt'
+$oldJsHash = if (Test-Path $jsHashFile) { (Get-Content $jsHashFile).Trim() } else { '' }
+
+# Stage js-version.txt so the installer can verify the JS zip is at the right version
+$newJsHash | Set-Content dist-stage/js-version.txt -Encoding ASCII
+
+if ($newJsHash -ne $oldJsHash) {
+    Write-Host "JS content changed -- rebuilding tm-csv-connector-js.zip"
+    $jsZipDest = Join-Path (Resolve-Path '.').Path 'dist\tm-csv-connector-js.zip'
+    New-Item -ItemType Directory -Path dist-stage-js/js -Force | Out-Null
+    Copy-Item "$jsCommonHost/*" dist-stage-js/js/ -Recurse -Force
+    $newJsHash | Set-Content dist-stage-js/js/js-version.txt -Encoding ASCII
+    if (Test-Path $jsZipDest) { Remove-Item $jsZipDest }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+        (Resolve-Path 'dist-stage-js').Path,
+        $jsZipDest
+    )
+    Remove-Item -Recurse -Force dist-stage-js
+    $newJsHash | Set-Content $jsHashFile -Encoding ASCII
+    Write-Host "tm-csv-connector-js.zip updated."
+} else {
+    Write-Host "JS content unchanged -- tm-csv-connector-js.zip not rebuilt."
+}
 
 # Temporarily swap in dist .env
 Rename-Item .env .env.bak
