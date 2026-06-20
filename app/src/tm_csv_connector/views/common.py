@@ -33,8 +33,8 @@ def scanned_bibno(dbrow):
     if dbrow.had_scannedbib:
         scannedbib = span(_class="scannedbib", __pretty=False)
         use_state = 'ui-state-disabled' if bibno == dbrow.bibno or bibno == BLANK_BIBNO or not bibno or dbrow.is_confirmed else ''
-        ins_state = 'ui-state-disabled' if dbrow.is_confirmed else ''
-        del_state = 'ui-state-disabled' if dbrow.is_confirmed else ''
+        ins_state = ''
+        del_state = ''
         with scannedbib:
             with span(style="margin-left: 2px;"):
                 # actions processed in api.ScanActionApi.post()
