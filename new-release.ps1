@@ -49,6 +49,11 @@ $manifestStream.Dispose()
 $jsHashFile = 'dist/js-content-hash.txt'
 $oldJsHash = if (Test-Path $jsHashFile) { (Get-Content $jsHashFile).Trim() } else { '' }
 
+# Persist the per-file manifest (checked into git) so `git diff` on this file shows exactly
+# which JS files were added/removed/changed between releases -- the aggregate hash alone
+# only tells you *that* something changed, not *what*.
+$manifestLines | Set-Content dist/js-content-manifest.txt -Encoding ASCII
+
 # Stage js-version.txt so the installer can verify the JS zip is at the right version
 $newJsHash | Set-Content dist-stage/js-version.txt -Encoding ASCII
 
