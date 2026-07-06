@@ -35,6 +35,12 @@ connected = False
 # detailed status is global, values must match api.py and results.js
 detailedstatus = 'disconnected'
 
+# a candidate status must be observed this many consecutive times before it's
+# reported -- avoids logging a status change for a single transient ping blip
+STATUS_DEBOUNCE_COUNT = 3
+pending_status = None
+pending_count = 0
+
 # stop_reader flag
 stop_reader = False
 
@@ -69,20 +75,43 @@ def save_reads_to_db(data):
         if respdata['status'] != 'success':
             log.error(f'error sending to backend: response = {respdata["error"]}')
 
-def check_update_status(newstatus):
-    global detailedstatus
-    
-    laststatus = detailedstatus
-    detailedstatus = newstatus
-    if detailedstatus != laststatus:
-        # set reader_id appropriately for #82
-        rsp = post(chipstatuspost, json={'status':detailedstatus, 'reader_id':'A'})
-        if rsp.status_code != codes.ok:
-            log.error(f'error sending to backend: status = {rsp.status_code}')
+def check_update_status(newstatus, immediate=False):
+    """update detailedstatus and notify backend, but debounce transient flips
+
+    Args:
+        newstatus (str): candidate status
+        immediate (bool): bypass debounce, e.g. for a definitive one-shot
+            event like the reader connection actually closing
+    """
+    global detailedstatus, pending_status, pending_count
+
+    if newstatus == detailedstatus:
+        pending_status = None
+        pending_count = 0
+        return
+
+    if not immediate:
+        if newstatus == pending_status:
+            pending_count += 1
         else:
-            respdata = loads(rsp.text)
-            if respdata['status'] != 'success':
-                log.error(f'error sending to backend: response = {respdata["error"]}')
+            pending_status = newstatus
+            pending_count = 1
+
+        if pending_count < STATUS_DEBOUNCE_COUNT:
+            return
+
+    detailedstatus = newstatus
+    pending_status = None
+    pending_count = 0
+
+    # set reader_id appropriately for #82
+    rsp = post(chipstatuspost, json={'status':detailedstatus, 'reader_id':'A'})
+    if rsp.status_code != codes.ok:
+        log.error(f'error sending to backend: status = {rsp.status_code}')
+    else:
+        respdata = loads(rsp.text)
+        if respdata['status'] != 'success':
+            log.error(f'error sending to backend: response = {respdata["error"]}')
 
 async def shell(reader, writer):
     global stop_reader
@@ -153,7 +182,7 @@ async def shell(reader, writer):
         reader.feed_eof()
         writer.close()
         connected = False
-        check_update_status('disconnected')
+        check_update_status('disconnected', immediate=True)
         return
 
 def reader_thread(ipaddr, fport, logging_path):
