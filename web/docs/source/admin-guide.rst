@@ -249,6 +249,60 @@ App Upgrade
         ./install
 
 
+.. _sync results to rds:
+
+Syncing Results to RaceDay Scoring
+====================================
+The output CSV file (see **output-file** in :ref:`Settings view`) is written by
+**tmtility** on the timing laptop, and must be readable by RaceDay Scoring,
+which normally runs on a separate laptop. If RaceDay Scoring reads the file over
+a network share (e.g. ``\\host\share``), it loses access to the file -- and the
+read connector requires a restart -- whenever the venue network drops, even
+briefly (see `issue #144
+<https://github.com/louking/tm-csv-connector/issues/144>`_).
+
+`Syncthing <https://syncthing.net/>`_ avoids this: it's a free, open-source, peer-to-peer
+file sync tool with no cloud/internet dependency, so it keeps working over the local network
+alone even if the venue has no internet access.
+
+Install Syncthing on both laptops, then share the ``OUTPUT_DIR`` folder used by
+**tmtility** (see :ref:`Settings view`) between them:
+
+* on the **tmtility** laptop, add the folder and set its type to **Send Only**
+* on the **RaceDay Scoring** laptop, accept the shared folder and set its type to
+  **Receive Only**
+* point RaceDay Scoring's **Folder Path** (below) at the local Syncthing-synced copy of
+  the folder on the RDS laptop, instead of a network share path
+
+Recommended settings, beyond the folder types above:
+
+    :Watch for Changes:
+        on, for the folder on the **tmtility** laptop -- this triggers a sync as soon as
+        the CSV file changes, instead of waiting for the periodic rescan
+
+    :Rescan Interval:
+        30-60 seconds for the folder on the **tmtility** laptop, as a fallback in case the
+        filesystem watcher misses a change (the default of 3600s is too slow for results
+        that update throughout a race)
+
+    :Local Discovery:
+        on (default) -- lets the two laptops find each other on the venue's LAN
+        automatically, even though both get their IP address via DHCP, so there's no need
+        to configure a static IP for either laptop
+
+    :Global Discovery / Relaying:
+        off, under **Actions > Settings > Connections** -- these features rely on
+        Syncthing's internet-based servers, which aren't needed (and may not be reachable)
+        at a race venue; turning them off also keeps sync traffic strictly local
+
+    :Versioning:
+        not needed -- the Send Only / Receive Only folder types already prevent RaceDay
+        Scoring from overwriting the source file
+
+.. note::
+    Both laptops must be on the same local network (same venue WiFi, hotspot, or switch)
+    for Local Discovery to find each other.
+
 .. _set up RDS:
 
 Set up RaceDay Scoring
@@ -258,7 +312,8 @@ Set up RaceDay Scoring
   * Stream Name: Time Machine
   * Stream Type: File (Custom or Chip System Type)
   * File Type: File (Custom or Chip System Type)
-  * Folder Path: MAIN-FOLDER-PATH
+  * Folder Path: MAIN-FOLDER-PATH, the local path on the RDS laptop for the Syncthing-synced
+    folder described in `Syncing Results to RaceDay Scoring`_
   * File Extension: csv
   * Passing Format: [IGNORE],[BIBCODE],[TIME]
   * Field Delimiter: ,
