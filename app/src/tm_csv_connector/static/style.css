@@ -475,7 +475,7 @@
       cursor: text;
       /* match select2-container */
       box-sizing: border-box;
-      min-height: 32px;
+      min-height: 28px;
   }
   
   /* hidden row display */

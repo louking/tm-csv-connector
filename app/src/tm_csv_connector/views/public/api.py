@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from json import dumps, loads
 
 # pypi
+from re import compile as re_compile
 from flask import session, request, current_app, jsonify
 from flask.views import MethodView
 from sqlalchemy import and_, select as sqlselect
@@ -23,7 +24,10 @@ from . import bp
 from ...model import db, Result, Setting, ScannedBib, Race, ChipBib, AppLog, BluetoothDevice, ResultsSnapshot
 from ..common import PostBibApi, PostResultApi, ScanActionApi, BLANK_BIBNO
 from ...fileformat import filelock, refreshfile, lock, unlock, clearfile
+from ...times import time2asc
 from ...trident import trident2db
+
+TIME_PATTERN = re_compile(r'^(\d{1,2}:)?([0-5]\d:)?[0-5]\d(\.\d{0,2})?$')
 
 class ParameterError(Exception): pass
 
@@ -479,6 +483,10 @@ class SetParamsApi(MethodView):
             output_result = {'status' : 'success'}
             session.permanent = True
 
+            # let the browser refresh its Start Time field for the newly selected race
+            race = Race.query.filter_by(id=form.get('raceid')).one_or_none()
+            output_result['start_time'] = time2asc(race.start_time) if race and race.start_time is not None else ''
+
             return jsonify(output_result)
 
         except Exception as e:
@@ -488,7 +496,7 @@ class SetParamsApi(MethodView):
             # report exception
             exc = ''.join(format_exception_only(type(e), e))
             output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
-            
+
             # roll back database updates and close transaction
             db.session.rollback()
             current_app.logger.error(format_exc())
@@ -496,6 +504,53 @@ class SetParamsApi(MethodView):
 
 params_api = SetParamsApi.as_view('_setparams')
 bp.add_url_rule('/_setparams', view_func=params_api, methods=['POST',])
+
+
+class SetRaceStartTimeApi(MethodView):
+    """set race.start_time from the results view"""
+
+    def post(self):
+        try:
+            raceid = request.form['raceid']
+            start_time = request.form['start_time']
+
+            if not TIME_PATTERN.fullmatch(start_time):
+                return jsonify(status='fail', error='start time must be formatted as [[hh:]mm:]ss[.dd]')
+
+            race = Race.query.filter_by(id=raceid).one_or_none()
+            if not race:
+                return jsonify(status='fail', error='invalid race')
+
+            race.start_time = timesecs(start_time)
+            db.session.commit()
+
+            return jsonify(status='success', start_time=time2asc(race.start_time))
+
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+
+setracestarttime_api = SetRaceStartTimeApi.as_view('_setracestarttime')
+bp.add_url_rule('/_setracestarttime', view_func=setracestarttime_api, methods=['POST'])
+
+
+class GetRaceStartTimeApi(MethodView):
+    """poll race.start_time, e.g. to pick up the value auto-set from the first live GUNTIME marker"""
+
+    def get(self):
+        raceid = request.args.get('raceid')
+        race = Race.query.filter_by(id=raceid).one_or_none() if raceid else None
+        start_time = time2asc(race.start_time) if race and race.start_time is not None else ''
+        return jsonify(start_time=start_time)
+
+getracestarttime_api = GetRaceStartTimeApi.as_view('_getracestarttime')
+bp.add_url_rule('/_getracestarttime', view_func=getracestarttime_api, methods=['GET'])
 
 
 class NormalScanActionApi(ScanActionApi):

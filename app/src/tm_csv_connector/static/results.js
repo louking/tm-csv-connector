@@ -10,7 +10,7 @@ const readeruri = 'ws://tm.localhost:8081/';
 const scanneruri = 'ws://tm.localhost:8082/';
 const tridenturi = 'ws://tm.localhost:8083/';
 // track checkConnected interval
-var ccinterval, scanner_ccinterval, trident_ccinterval;
+var ccinterval, scanner_ccinterval, trident_ccinterval, start_time_interval;
 
 // remember if connected, websockets open
 var connected, scanner_connected, trident_connected, trident_status;
@@ -48,6 +48,8 @@ $( function() {
     // #82 requires work here, and elsewhere
     tcd = $('#chipreaderA-connect-disconnect');
     tcd.on('click', trident_cdbuttonclick);
+
+    $('#set-start-time-button').on('click', set_start_time_click);
 
     $('#race').select2({
         placeholder: 'select a race',
@@ -168,6 +170,9 @@ $( function() {
     ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, tm_reader);
     scanner_ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, scanner);
     trident_ccinterval = setInterval(checkConnected, CHECK_CONNECTED_WAIT, trident);
+
+    // pick up race.start_time if it gets auto-set from the first live Trident GUNTIME marker
+    start_time_interval = setInterval(refresh_start_time, CHECK_CONNECTED_WAIT);
 
     // when websockets first open, setParams
     checkInitialized();
@@ -484,6 +489,9 @@ function setParams() {
         .then(function (json) {
             if (json.status == 'success') {
                 refresh_table_data(_dt_table, resturl);
+                if (json.start_time !== undefined && document.activeElement !== $('#start-time')[0]) {
+                    $('#start-time').val(json.start_time);
+                }
             }
             else {
                 alert(json.error);
@@ -494,6 +502,35 @@ function setParams() {
             results_cookie_mutex.unlock();
             throw err;
         });
+}
+
+// update race.start_time from the Start Time field in the filter bar
+function set_start_time_click() {
+    let value = $('#start-time').val();
+    $.ajax({
+        url: '/_setracestarttime',
+        type: 'post',
+        dataType: 'json',
+        data: {raceid: raceid, start_time: value},
+        success: function(json) {
+            if (json.status == 'success') {
+                $('#start-time').val(json.start_time);
+            } else {
+                alert(json.error);
+            }
+        }
+    });
+}
+
+// poll race.start_time so an auto-set from the first live Trident GUNTIME marker shows up
+// without a page reload; skip while the operator is actively editing the field
+function refresh_start_time() {
+    if (!raceid) return;
+    if (document.activeElement === $('#start-time')[0]) return;
+
+    $.getJSON('/_getracestarttime', {raceid: raceid}, function(json) {
+        $('#start-time').val(json.start_time);
+    });
 }
 
 function results_clear_all() {

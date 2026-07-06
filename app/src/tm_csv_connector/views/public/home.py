@@ -10,7 +10,7 @@ from os.path import join
 # pypi
 from flask import render_template, session, current_app, url_for, abort
 from flask.views import MethodView
-from dominate.tags import div, button, span, select, option, p, i
+from dominate.tags import div, button, span, select, option, p, i, input_
 from dominate.tags import table, thead, tbody, tr, th, td
 from dominate.util import text
 from sqlalchemy import update, and_, select as sqlselect
@@ -110,7 +110,8 @@ def get_results_filters():
             th('Time Machine', style='text-align: center;')
             th('Scanner', style='text-align: center;')
             th('Chip Reader', style='text-align: center;')
-        
+            th('Start Time', style='text-align: center;')
+
         with tbody().add(tr()):
             with td().add(div(_class='filter-item')):
                 span('Race', _class='label')
@@ -166,15 +167,27 @@ def get_results_filters():
                             td(chipreader.name)                
                             td(i(id=f'chipreader-alert-{chipreader.reader_id}', _class="fa-solid fa-circle", style="color: lightgrey;"))
                             td(button(
-                                "placeholder", 
-                                id=f"chipreader{chipreader.reader_id}-connect-disconnect", 
+                                "placeholder",
+                                id=f"chipreader{chipreader.reader_id}-connect-disconnect",
                                 reader_id=chipreader.reader_id,
                                 ipaddr=chipreader.ipaddr,
                                 fport=chipreader.fport,
                                 _class='filter-item ui-button'
-                                ), 
+                                ),
                                _class='filter'
                             )
+
+            with td().add(div(_class='filter-item')):
+                current_race = next((r for r in races if r.id == current_race_id), None)
+                current_start_time = time2asc(current_race.start_time) \
+                    if current_race and current_race.start_time is not None else ''
+                with span(_class='filter'):
+                    input_(id='start-time', name='start-time', type='text', value=current_start_time,
+                           _class='like-select2-sizing',
+                           style='width: 90px; height: 28px; padding: 0 8px;',
+                           placeholder='hh:mm:ss.dd')
+                div(button('Set', id='set-start-time-button', type='button', _class='filter-item ui-button'),
+                    _class='filter', style='margin-top: 4px;')
 
     return prehtml.render()
 

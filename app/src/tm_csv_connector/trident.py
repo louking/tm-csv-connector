@@ -9,7 +9,7 @@ from sqlalchemy import and_, select as sqlselect
 from loutilities.timeu import asctime
 
 # homegrown
-from .model import db, ChipBib, ChipRead
+from .model import db, ChipBib, ChipRead, Race
 
 datefmt = asctime('%y%m%d')
 timefmt = asctime('%H%M%S')
@@ -157,6 +157,21 @@ def trident2db(raceid, line, source):
         
         # add if not there already; ignore if already there
         if not chipread:
+            # the first GUNTIME marker ever received for this race is the actual gun time;
+            # auto-populate race.start_time so the operator doesn't have to eyeball RaceDay
+            # Scoring and reconfigure it manually. Later markers (e.g., a second reader) are ignored.
+            is_first_guntime = False
+            if rtype == 'GUNTIME':
+                existing_guntime = db.session.execute(
+                    sqlselect(ChipRead.id)
+                        .where(and_(
+                            ChipRead.race_id == raceid,
+                            ChipRead.types == rtype,
+                            )
+                        )
+                ).first()
+                is_first_guntime = existing_guntime is None
+
             chipread = ChipRead(
                 race_id=raceid,
                 reader_id=reader_id,
@@ -167,3 +182,10 @@ def trident2db(raceid, line, source):
             )
             db.session.add(chipread)
             db.session.flush()
+
+            if is_first_guntime:
+                race = db.session.execute(
+                    sqlselect(Race).where(Race.id == raceid)
+                ).one_or_none()
+                if race:
+                    race[0].start_time = float(time)
