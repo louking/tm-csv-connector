@@ -519,3 +519,18 @@
           display: none;
       }
   }
+
+  /* hard-to-miss banner for chip reader connectivity failures, see results.js chipreader-alert-banner */
+  .chipreader-alert-banner {
+      display: none;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      font-weight: bold;
+      text-align: center;
+      color: black;
+      background-color: #ff9800; /* orange */
+      border: 1px solid #c66900;
+      border-radius: 4px;
+  }

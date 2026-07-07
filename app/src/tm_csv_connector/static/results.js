@@ -14,6 +14,7 @@ var ccinterval, scanner_ccinterval, trident_ccinterval, start_time_interval;
 
 // remember if connected, websockets open
 var connected, scanner_connected, trident_connected, trident_status;
+var trident_status_prev = null;
 var tm_websocket_open = false;
 var scanner_websocket_open = false;
 var trident_websocket_open = false;
@@ -157,12 +158,23 @@ $( function() {
             if (trident_status == 'connected') {
                 tsi.attr('style', 'color: limegreen;');
             } else if (trident_status == 'disconnected') {
-                tsi.attr('style', 'color: lightgrey;'); 
+                tsi.attr('style', 'color: lightgrey;');
             } else if (trident_status == 'no-response') {
-                tsi.attr('style', 'color: red;'); 
+                tsi.attr('style', 'color: red;');
             } else if (trident_status == 'network-unreachable') {
-                tsi.attr('style', 'color: yellow;'); 
+                tsi.attr('style', 'color: yellow;');
             }
+
+            // escalate network-unreachable / no-response beyond the small status
+            // dot -- easy to miss during a live race -- with a banner and a beep
+            // on the transition into a degraded state (not on every poll)
+            let was_degraded = (trident_status_prev == 'network-unreachable' || trident_status_prev == 'no-response');
+            let is_degraded = (trident_status == 'network-unreachable' || trident_status == 'no-response');
+            if (is_degraded && !was_degraded) {
+                chipreader_alert_beep();
+            }
+            update_chipreader_alert_banner(trident_status);
+            trident_status_prev = trident_status;
         }
     });
 
@@ -180,6 +192,35 @@ $( function() {
     // ask tm reader what are the connected comports
     get_comports();
 });
+
+// show/hide the hard-to-miss chip reader connectivity banner (see chipreader-alert-banner in style.css)
+function update_chipreader_alert_banner(status) {
+    let banner = $('#chipreader-alert-banner');
+    if (status == 'network-unreachable') {
+        banner.text('Chip reader A: network unreachable').show();
+    } else if (status == 'no-response') {
+        banner.text('Chip reader A: not responding').show();
+    } else {
+        banner.hide();
+    }
+}
+
+// audible alert when a chip reader transitions into a degraded state
+function chipreader_alert_beep() {
+    try {
+        let ctx = new (window.AudioContext || window.webkitAudioContext)();
+        let osc = ctx.createOscillator();
+        let gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.2;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+    } catch (e) {
+        // audio not available in this browser/context, ignore
+    }
+}
 
 // check whether connected to time machine periodically
 function checkConnected(asyncprocess) {

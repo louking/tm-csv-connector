@@ -98,6 +98,9 @@ def get_results_filters():
     comports.sort()
     
     with prehtml:
+        # hidden by default; results.js shows/hides this on trident status changes
+        div(id='chipreader-alert-banner', _class='chipreader-alert-banner')
+
         with div(style='float: right;'):
             button('Undo Clear', id='undo-clear-button', _class='filter-item ui-button',
                    style='display:none; margin-left: 4px;')

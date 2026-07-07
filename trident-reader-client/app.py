@@ -6,6 +6,7 @@ from logging import basicConfig, getLogger, INFO, DEBUG, LoggerAdapter
 from requests import post
 from requests import codes
 from traceback import format_exception_only
+import socket
 
 # pypi
 from websockets.server import serve
@@ -43,6 +44,25 @@ pending_count = 0
 
 # stop_reader flag
 stop_reader = False
+
+# set immediately before a user-requested close raises ReaderClosed, so
+# reader_thread() can tell "user clicked disconnect" apart from "connection
+# was lost unexpectedly" and only auto-retry the latter
+user_closed = False
+
+# true while reader_thread() is alive (actively connected or auto-retrying),
+# guards against a duplicate 'open' opcode spawning a second thread
+reader_thread_running = False
+
+# seconds to wait between auto-reconnect attempts after an unexpected drop
+RECONNECT_WAIT = 5
+
+# TCP keepalive timing -- short enough to notice a half-dead connection
+# (reader rebooted without sending FIN/RST) within tens of seconds, since a
+# bare ping success can't tell a live socket from a stale one
+KEEPALIVE_IDLE_SEC = 10
+KEEPALIVE_INTERVAL_SEC = 5
+KEEPALIVE_COUNT = 3
 
 # save latest raceid
 raceid = 0
@@ -113,8 +133,45 @@ def check_update_status(newstatus, immediate=False):
         if respdata['status'] != 'success':
             log.error(f'error sending to backend: response = {respdata["error"]}')
 
+def enable_keepalive(writer):
+    """enable short-interval TCP keepalive on the reader socket
+
+    A bare ping3 success only proves the reader's network stack answers
+    ICMP, not that this specific telnet socket is still recognized by the
+    peer -- if the reader reboots without ever sending FIN/RST, reads just
+    time out forever while ping keeps reporting 'connected'. TCP keepalive
+    makes the OS itself detect that and surface it as a real connection
+    close (reader.at_eof() / writer.connection_closed), which is what
+    triggers auto-reconnect.
+
+    Args:
+        writer (StreamWriter): writer for the just-opened connection
+    """
+    try:
+        sock = writer.transport.get_extra_info('socket')
+        if sock is None:
+            log.warning('trident reader: could not get raw socket, keepalive not enabled')
+            return
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    except OSError as e:
+        log.warning(f'trident reader: failed to enable SO_KEEPALIVE: {e}')
+        return
+
+    try:
+        if hasattr(socket, 'TCP_KEEPIDLE') and hasattr(socket, 'TCP_KEEPINTVL') and hasattr(socket, 'TCP_KEEPCNT'):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, KEEPALIVE_IDLE_SEC)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, KEEPALIVE_INTERVAL_SEC)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, KEEPALIVE_COUNT)
+        elif hasattr(socket, 'SIO_KEEPALIVE_VALS'):
+            # older Windows: no per-probe-count control, idle/interval in ms
+            sock.ioctl(socket.SIO_KEEPALIVE_VALS, (1, KEEPALIVE_IDLE_SEC * 1000, KEEPALIVE_INTERVAL_SEC * 1000))
+        else:
+            log.warning('trident reader: no keepalive timing control on this platform, using OS defaults')
+    except OSError as e:
+        log.warning(f'trident reader: failed to tune keepalive timing: {e}')
+
 async def shell(reader, writer):
-    global stop_reader
+    global stop_reader, user_closed
 
     log.info(f'trident telnet shell entered')
     readloop = get_event_loop()
@@ -130,6 +187,7 @@ async def shell(reader, writer):
             if stop_reader:
                 log.info('trident reader reader stopped')
                 stop_reader = False
+                user_closed = True
                 raise ReaderClosed
             
             # read anything which came in, but don't wait too long
@@ -186,20 +244,54 @@ async def shell(reader, writer):
         return
 
 def reader_thread(ipaddr, fport, logging_path):
+    """connect to the trident reader, and keep reconnecting on unexpected drops
+
+    Runs until the user explicitly disconnects (stop_reader / user_closed),
+    retrying with a fixed backoff any time the connection is lost or can't be
+    established in the first place (e.g., reader still powering on).
+
+    Args:
+        ipaddr (str): reader IP address
+        fport (int): reader telnet port
+        logging_path (str): unused, reserved for future use
+    """
+    global stop_reader, user_closed, reader_thread_running
+
     log.info(f'in reader_thread')
     readloop = new_event_loop()
     set_event_loop(readloop)
-    
+
+    reader_thread_running = True
     try:
-        coro = open_connection(ipaddr, fport, shell=shell)
-        reader, writer = readloop.run_until_complete(coro)
-        readloop.run_until_complete(writer.protocol.waiter_closed)
-    
-    except Exception as e:
-        # report exception
-        exc = ''.join(format_exception_only(type(e), e))
-        log.error(f'exception occurred opening connection - {exc}')
-        
+        while True:
+            user_closed = False
+            try:
+                coro = open_connection(ipaddr, fport, shell=shell)
+                reader, writer = readloop.run_until_complete(coro)
+                enable_keepalive(writer)
+                readloop.run_until_complete(writer.protocol.waiter_closed)
+
+            except Exception as e:
+                # report exception
+                exc = ''.join(format_exception_only(type(e), e))
+                log.error(f'exception occurred opening connection - {exc}')
+
+            if user_closed:
+                log.info('trident reader closed by user request')
+                break
+
+            if stop_reader:
+                # disconnect requested while there was no live connection to catch it
+                log.info('trident reader closed by user request during reconnect wait')
+                stop_reader = False
+                break
+
+            log.info(f'trident reader connection lost unexpectedly; retrying in {RECONNECT_WAIT}s')
+            readloop.run_until_complete(sleep(RECONNECT_WAIT))
+
+    finally:
+        reader_thread_running = False
+
     log.info('exiting reader_thread()')
     
 async def controller(websocket):
@@ -218,11 +310,14 @@ async def controller(websocket):
         
         # backend opened the connection
         if opcode == 'open':
-            ipaddr = event['ipaddr']
-            fport = event['fport']
-            logging_path = event['loggingpath']
-            readloop_threadid = Thread(target=reader_thread, args=(ipaddr, fport, logging_path)).start()
-            log.info('controller returned from Thread')
+            if reader_thread_running:
+                log.info('reader_thread already running (connected or auto-retrying); ignoring open')
+            else:
+                ipaddr = event['ipaddr']
+                fport = event['fport']
+                logging_path = event['loggingpath']
+                readloop_threadid = Thread(target=reader_thread, args=(ipaddr, fport, logging_path)).start()
+                log.info('controller returned from Thread')
         
         # backend closed the connection
         elif opcode == 'close':
