@@ -458,7 +458,7 @@ function trident_cdbuttonclick() {
         }
     } else {
         try {
-            msg = JSON.stringify({opcode: 'open', ipaddr: $(this).attr('ipaddr'), fport: $(this).attr('fport'), loggingpath: ''});
+            msg = JSON.stringify({opcode: 'open', ipaddr: $(this).attr('ipaddr'), fport: $(this).attr('fport'), raceid: raceid, loggingpath: ''});
             trident.send(msg);
         } catch(e) {
             alert('Cannot connect: chip reader client not reachable');

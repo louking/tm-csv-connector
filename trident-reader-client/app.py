@@ -310,6 +310,11 @@ async def controller(websocket):
         
         # backend opened the connection
         if opcode == 'open':
+            global raceid
+            # open carries the current raceid -- use it, as after a client restart the
+            # browser may reconnect and send open without a separate raceid opcode
+            if event.get('raceid'):
+                raceid = event['raceid']
             if reader_thread_running:
                 log.info('reader_thread already running (connected or auto-retrying); ignoring open')
             else:
@@ -326,7 +331,6 @@ async def controller(websocket):
         
         # raceid updated from backend
         elif opcode == 'raceid':
-            global raceid
             raceid = event['raceid']
         
         # browser wants to know if we're connected to trident reader

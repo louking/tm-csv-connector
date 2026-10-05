@@ -214,6 +214,11 @@ async def controller(websocket):
         
         # backend opened the connection
         if opcode == 'open':
+            global raceid
+            # open carries the current raceid -- use it, as after a client restart the
+            # browser may reconnect and send open without a separate raceid opcode
+            if event.get('raceid'):
+                raceid = event['raceid']
             port = event['port']
             logging_path = event['loggingpath']
             readloop_threadid = Thread(target=reader_thread, args=(port, logging_path)).start()
@@ -232,7 +237,6 @@ async def controller(websocket):
         
         # raceid updated from backend
         elif opcode == 'raceid':
-            global raceid
             raceid = event['raceid']
         
         # browser wants to know if we're connected to time machine
