@@ -70,7 +70,7 @@ $( function() {
     tm_reader = new StableWebSocket({
         name: 'reader',
         uri: readeruri,
-        open_callback: function() {tm_websocket_open = true},
+        open_callback: function() {tm_websocket_open = true; send_raceid(tm_reader)},
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
             if (rsp.opcode == 'connection_status') {
@@ -125,7 +125,7 @@ $( function() {
     scanner = new StableWebSocket({
         name: 'scanner',
         uri: scanneruri,
-        open_callback: function() {scanner_websocket_open = true},
+        open_callback: function() {scanner_websocket_open = true; send_raceid(scanner)},
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
             // console.log(`scanner: received ${msg}`);
@@ -142,7 +142,7 @@ $( function() {
     trident = new StableWebSocket({
         name: 'trident',
         uri: tridenturi,
-        open_callback: function() {trident_websocket_open = true},
+        open_callback: function() {trident_websocket_open = true; send_raceid(trident)},
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
             // console.log(`trident: received ${msg}`);
@@ -467,6 +467,17 @@ function trident_cdbuttonclick() {
 }
 
 
+// send the current raceid to a client process, if known; if its websocket isn't open, the client
+// gets the raceid when the websocket reopens (open_callback), or from its next 'open' opcode (#147)
+function send_raceid(asyncprocess) {
+    if (raceid == undefined) return;
+    try {
+        asyncprocess.send(JSON.stringify({opcode: 'raceid', raceid: raceid}));
+    } catch(e) {
+        console.warn(`${asyncprocess.name}: raceid ${raceid} not sent, will resend when websocket reopens`);
+    }
+}
+
 // setParams
 function setParams() {
     // set up for table redraw
@@ -514,11 +525,11 @@ function setParams() {
                 }
             }
 
-            // send latest raceid to reader, scanner, and trident processes
-            msg = JSON.stringify({opcode: 'raceid', raceid: raceid});
-            tm_reader.send(msg);
-            scanner.send(msg);
-            trident.send(msg);
+            // send latest raceid to reader, scanner, and trident processes -- a client that's down
+            // mustn't block /_setparams; it catches up on reconnect via send_raceid() in open_callback
+            send_raceid(tm_reader);
+            send_raceid(scanner);
+            send_raceid(trident);
 
             return $.ajax( {
                 url: '/_setparams',
