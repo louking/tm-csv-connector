@@ -22,6 +22,8 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 **VS Code task gotcha:** the `docker-compose` task type's `files` key overrides `COMPOSE_FILE` entirely. Tasks in `.vscode/tasks.json` that should rely on `COMPOSE_FILE` from `.env` must omit the `files` key.
 
+**Debugging the clients locally:** the client configs in `.vscode/launch.json` pin both `python` and `debugLauncherPython` to `${workspaceFolder}/.venv/Scripts/python.exe`. `python` is the interpreter the client actually runs under; without `debugLauncherPython`, debugpy's launcher process runs under the editor's default interpreter (`python.defaultInterpreterPath`), so the terminal command line shows the global interpreter even though the client itself runs in `.venv`. Without `python`, the client runs under whatever interpreter the Python extension has selected, which isn't reliably `.venv` (→ `ModuleNotFoundError: requests`). The editor's "Property debugLauncherPython is not allowed" schema warning is harmless — the debugpy extension honors the key.
+
 **Local HTTPS via Caddy:** A separate `caddy-docker` project (`C:\Users\lking\Documents\Lou's Software\projects\caddy-docker\caddy-docker`) runs a Caddy reverse proxy that provides automatic HTTPS for `*.localhost` domains. The app's nginx container listens on port 8080; Caddy forwards `https://tm.localhost` (and `https://tmsim.localhost`) to `host.docker.internal:8080`. If `SERVER_NAME` in `config/tm-csv-connector.cfg` changes, add a matching block to that project's `config/Caddyfile` and reload Caddy.
 
 For simulation mode on the production sim server (no dev bind-mount):

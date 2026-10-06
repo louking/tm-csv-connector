@@ -9,6 +9,10 @@
             "type": "debugpy",
             "request": "launch",
             "module": "tm-reader-client.app",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            // otherwise the debugpy launcher process runs under python.defaultInterpreterPath,
+            // which makes the terminal command line misleadingly show the global interpreter
+            "debugLauncherPython": "${workspaceFolder}/.venv/Scripts/python.exe",
             "justMyCode": false
         },
         {
@@ -16,6 +20,10 @@
             "type": "debugpy",
             "request": "launch",
             "module": "barcode-scanner-client.app",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            // otherwise the debugpy launcher process runs under python.defaultInterpreterPath,
+            // which makes the terminal command line misleadingly show the global interpreter
+            "debugLauncherPython": "${workspaceFolder}/.venv/Scripts/python.exe",
             "justMyCode": false
         },
         {
@@ -23,6 +31,10 @@
             "type": "debugpy",
             "request": "launch",
             "module": "trident-reader-client.app",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            // otherwise the debugpy launcher process runs under python.defaultInterpreterPath,
+            // which makes the terminal command line misleadingly show the global interpreter
+            "debugLauncherPython": "${workspaceFolder}/.venv/Scripts/python.exe",
             "justMyCode": false
         },
         {
