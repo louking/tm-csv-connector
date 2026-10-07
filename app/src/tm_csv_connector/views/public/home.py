@@ -98,7 +98,8 @@ def get_results_filters():
     comports.sort()
     
     with prehtml:
-        # hidden by default; results.js shows/hides these on scanner / trident status changes
+        # hidden by default; results.js shows/hides these on client status changes
+        div(id='tm-alert-banner', _class='client-alert-banner')
         div(id='scanner-alert-banner', _class='client-alert-banner')
         div(id='chipreader-alert-banner', _class='client-alert-banner')
 

@@ -221,7 +221,7 @@ async def controller(websocket):
                 raceid = event['raceid']
             port = event['port']
             logging_path = event['loggingpath']
-            readloop_threadid = Thread(target=reader_thread, args=(port, logging_path)).start()
+            readloop_threadid = Thread(target=reader_thread, args=(port, logging_path), daemon=True).start()
             # readloop = get_event_loop()
             # readloop.run_until_complete(reader(port, logging_path))
             log.info('controller returned from Thread')

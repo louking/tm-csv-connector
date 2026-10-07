@@ -360,7 +360,7 @@ async def controller(websocket):
                 ipaddr = event['ipaddr']
                 fport = event['fport']
                 logging_path = event['loggingpath']
-                readloop_threadid = Thread(target=reader_thread, args=(ipaddr, fport, logging_path)).start()
+                readloop_threadid = Thread(target=reader_thread, args=(ipaddr, fport, logging_path), daemon=True).start()
                 log.info('controller returned from Thread')
         
         # backend closed the connection

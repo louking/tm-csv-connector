@@ -85,7 +85,17 @@ $( function() {
     tm_reader = new StableWebSocket({
         name: 'reader',
         uri: readeruri,
-        open_callback: function() {tm_websocket_open = true; send_raceid(tm_reader)},
+        open_callback: function() {
+            tm_websocket_open = true;
+            update_alert_banner($('#tm-alert-banner'), null);
+            send_raceid(tm_reader);
+        },
+        close_callback: function() {
+            connected = false;
+            cd.text('Connect');
+            client_not_running(tm_websocket_open, $('#tm-alert-banner'),
+                'Time Machine reader client is not running -- results are not being received');
+        },
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
             if (rsp.opcode == 'connection_status') {
@@ -141,6 +151,15 @@ $( function() {
         name: 'scanner',
         uri: scanneruri,
         open_callback: function() {scanner_websocket_open = true; send_raceid(scanner)},
+        close_callback: function() {
+            scanner_connected = false;
+            scanner_status = scanner_status_prev = 'disconnected';
+            scanner_client_port = null;
+            scanner_stopping = false;
+            scd.prop('disabled', false).text('Connect').removeClass('client-reconnecting');
+            client_not_running(scanner_websocket_open, $('#scanner-alert-banner'),
+                'Scanner client is not running -- scans are not being received');
+        },
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
             // console.log(`scanner: received ${msg}`);
@@ -180,6 +199,15 @@ $( function() {
         name: 'trident',
         uri: tridenturi,
         open_callback: function() {trident_websocket_open = true; send_raceid(trident)},
+        close_callback: function() {
+            trident_connected = false;
+            trident_client_status = trident_status = trident_status_prev = 'disconnected';
+            trident_stopping = false;
+            tcd.prop('disabled', false).text('Connect').removeClass('client-reconnecting');
+            $("#chipreader-alert-A").attr('style', 'color: lightgrey;');
+            client_not_running(trident_websocket_open, $('#chipreader-alert-banner'),
+                'Chip reader client is not running -- chip reads are not being received');
+        },
         recv_msg_callback: function(msg) {
             let rsp = JSON.parse(msg);
             // console.log(`trident: received ${msg}`);
@@ -248,6 +276,18 @@ function update_alert_banner(banner, text) {
     } else {
         banner.hide();
     }
+}
+
+// a client's WebSocket closed: the client process isn't running (service stopped or crashed), so nothing
+// answers is_connected and the page would otherwise keep showing its last status. Alert (banner, and a beep
+// the first time) only if the client was running earlier on this page -- one that never ran may not be
+// installed. Called again on each failed reopen attempt; the client's next status reply replaces the banner.
+function client_not_running(was_open, banner, text) {
+    if (!was_open) return;
+    if (!banner.is(':visible') || banner.text() != text) {
+        client_alert_beep();
+    }
+    update_alert_banner(banner, text);
 }
 
 // status from a client's is_connected response; older clients only report connected

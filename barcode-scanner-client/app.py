@@ -414,7 +414,7 @@ async def controller(websocket):
                 stop_reader = False
                 reader_port = event['port']
                 logging_path = event['loggingpath']
-                readloop_threadid = Thread(target=reader_thread, args=(logging_path,)).start()
+                readloop_threadid = Thread(target=reader_thread, args=(logging_path,), daemon=True).start()
                 log.info('controller returned from Thread')
         
         # backend closed the connection
