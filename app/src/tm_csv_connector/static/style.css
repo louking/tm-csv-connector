@@ -520,8 +520,8 @@
       }
   }
 
-  /* hard-to-miss banner for chip reader connectivity failures, see results.js chipreader-alert-banner */
-  .chipreader-alert-banner {
+  /* hard-to-miss banner for scanner / chip reader connectivity failures, see results.js update_alert_banner() */
+  .client-alert-banner {
       display: none;
       width: 100%;
       box-sizing: border-box;
@@ -533,4 +533,17 @@
       background-color: #ff9800; /* orange */
       border: 1px solid #c66900;
       border-radius: 4px;
+  }
+  /* connect/disconnect button while the client is auto-retrying a lost connection, see results.js */
+  button.ui-button.client-reconnecting {
+      color: black;
+      background: #ff9800; /* orange, matches .client-alert-banner */
+      border-color: #c66900;
+  }
+
+  /* Stopping... while a stop request waits for the client's current attempt to end, see results.js
+     (jquery-ui buttons don't grey out on the disabled attribute alone) */
+  button.ui-button:disabled {
+      opacity: 0.5;
+      cursor: default;
   }

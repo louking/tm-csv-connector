@@ -213,6 +213,17 @@ The view has the following controls:
         <https://timemachine.org/tmwci_user_s_guide.pdf>`_ for information on
         how to set up the communication.
 
+    :Scanner / Chip Reader Connect:
+        connect or disconnect the barcode scanner or chip reader. If the
+        connection is lost, **tmtility** keeps trying to reconnect: the button
+        turns orange and reads **Stop Reconnecting**, an orange banner appears
+        above the controls, and a short beep sounds. While the banner shows,
+        scans or chip reads are not being received. The banner clears once the
+        device reconnects (a scanner may need to be switched back on, or its
+        trigger pulled). Click **Stop Reconnecting** to stop trying. The button
+        reads **Stopping...** until the current connection attempt ends, which
+        can take up to about 20 seconds for the chip reader.
+
     :Clear All:
         removes all results and scanned bibs for the current race. Intended for
         use after pre-race data flow testing — once test results have been cleared

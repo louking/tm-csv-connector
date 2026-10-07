@@ -15,6 +15,14 @@ var ccinterval, scanner_ccinterval, trident_ccinterval, start_time_interval;
 // remember if connected, websockets open
 var connected, scanner_connected, trident_connected, trident_status;
 var trident_status_prev = null;
+// client status ('connected', 'connecting', 'reconnecting', 'disconnected'), see client_status()
+var scanner_status, trident_client_status;
+var scanner_status_prev = null;
+// set when a stop is sent while connecting/reconnecting -- it takes effect only when the client's current
+// attempt gives up (up to ~21s for the chip reader), so the button shows Stopping... until then
+var scanner_stopping = false, trident_stopping = false;
+// port the scanner client is connected to or retrying, null if not running
+var scanner_client_port = null;
 var tm_websocket_open = false;
 var scanner_websocket_open = false;
 var trident_websocket_open = false;
@@ -29,6 +37,13 @@ const CHECK_CONNECTED_WAIT = 3000;
 const CHECK_INITIALIZED_WAIT = 1000;
 const GET_COMPORTS_WAIT = 1000;
 const REOPEN_SOCKET_WAIT = 5000;
+
+// chip reader statuses which show the alert banner (and beep on the transition into one)
+const CHIPREADER_ALERTS = {
+    'network-unreachable': 'Chip reader A: network unreachable',
+    'no-response':         'Chip reader A: not responding',
+    'reconnecting':        'Chip reader A: connection lost, reconnecting',
+};
 
 // bluetooth type mapping
 const bluetooth_select_id = {
@@ -130,11 +145,33 @@ $( function() {
             let rsp = JSON.parse(msg);
             // console.log(`scanner: received ${msg}`);
             scanner_connected = rsp.connected;
-            if (rsp.connected) {
+            scanner_status = client_status(rsp);
+            scanner_client_port = rsp.port;
+            if (!is_retrying(scanner_status)) scanner_stopping = false;
+            scd.prop('disabled', scanner_stopping);
+            if (scanner_status == 'connected') {
                 scd.text('Disconnect');
+            } else if (scanner_stopping) {
+                scd.text('Stopping...');
+            } else if (scanner_switches_port()) {
+                scd.text('Connect');
+            } else if (scanner_status == 'connecting') {
+                scd.text('Stop Connecting');
+            } else if (scanner_status == 'reconnecting') {
+                scd.text('Stop Reconnecting');
             } else {
                 scd.text('Connect');
             }
+            scd.toggleClass('client-reconnecting', scanner_status == 'reconnecting');
+
+            // a dropped scanner is silent -- scans just stop arriving -- so escalate with a
+            // banner and a beep on the transition into reconnecting (not on every poll)
+            if (scanner_status == 'reconnecting' && scanner_status_prev != 'reconnecting') {
+                client_alert_beep();
+            }
+            update_alert_banner($('#scanner-alert-banner'), scanner_status == 'reconnecting' ?
+                'Scanner: connection lost, reconnecting -- scans are not being received' : null);
+            scanner_status_prev = scanner_status;
         }
     });
 
@@ -147,13 +184,24 @@ $( function() {
             let rsp = JSON.parse(msg);
             // console.log(`trident: received ${msg}`);
             trident_connected = rsp.connected;
-            if (rsp.connected) {
+            trident_client_status = client_status(rsp);
+            if (!is_retrying(trident_client_status)) trident_stopping = false;
+            tcd.prop('disabled', trident_stopping);
+            if (trident_client_status == 'connected') {
                 tcd.text('Disconnect');
+            } else if (trident_stopping) {
+                tcd.text('Stopping...');
+            } else if (trident_client_status == 'connecting') {
+                tcd.text('Stop Connecting');
+            } else if (trident_client_status == 'reconnecting') {
+                tcd.text('Stop Reconnecting');
             } else {
                 tcd.text('Connect');
             }
-            
-            trident_status = rsp.detailedstatus;
+            tcd.toggleClass('client-reconnecting', trident_client_status == 'reconnecting');
+
+            // detailedstatus stays 'disconnected' while the client auto-retries, so surface that separately
+            trident_status = trident_client_status == 'reconnecting' ? 'reconnecting' : rsp.detailedstatus;
             tsi = $("#chipreader-alert-A")
             if (trident_status == 'connected') {
                 tsi.attr('style', 'color: limegreen;');
@@ -163,17 +211,17 @@ $( function() {
                 tsi.attr('style', 'color: red;');
             } else if (trident_status == 'network-unreachable') {
                 tsi.attr('style', 'color: yellow;');
+            } else if (trident_status == 'reconnecting') {
+                tsi.attr('style', 'color: orange;');
             }
 
-            // escalate network-unreachable / no-response beyond the small status
+            // escalate network-unreachable / no-response / reconnecting beyond the small status
             // dot -- easy to miss during a live race -- with a banner and a beep
             // on the transition into a degraded state (not on every poll)
-            let was_degraded = (trident_status_prev == 'network-unreachable' || trident_status_prev == 'no-response');
-            let is_degraded = (trident_status == 'network-unreachable' || trident_status == 'no-response');
-            if (is_degraded && !was_degraded) {
-                chipreader_alert_beep();
+            if (CHIPREADER_ALERTS[trident_status] && !CHIPREADER_ALERTS[trident_status_prev]) {
+                client_alert_beep();
             }
-            update_chipreader_alert_banner(trident_status);
+            update_alert_banner($('#chipreader-alert-banner'), CHIPREADER_ALERTS[trident_status]);
             trident_status_prev = trident_status;
         }
     });
@@ -193,20 +241,34 @@ $( function() {
     get_comports();
 });
 
-// show/hide the hard-to-miss chip reader connectivity banner (see chipreader-alert-banner in style.css)
-function update_chipreader_alert_banner(status) {
-    let banner = $('#chipreader-alert-banner');
-    if (status == 'network-unreachable') {
-        banner.text('Chip reader A: network unreachable').show();
-    } else if (status == 'no-response') {
-        banner.text('Chip reader A: not responding').show();
+// show a hard-to-miss client connectivity banner (see client-alert-banner in style.css) with text, or hide it if no text
+function update_alert_banner(banner, text) {
+    if (text) {
+        banner.text(text).show();
     } else {
         banner.hide();
     }
 }
 
-// audible alert when a chip reader transitions into a degraded state
-function chipreader_alert_beep() {
+// status from a client's is_connected response; older clients only report connected
+function client_status(rsp) {
+    return rsp.status || (rsp.connected ? 'connected' : 'disconnected');
+}
+
+// true if the client is running but not connected, i.e., a first attempt or auto-retrying
+function is_retrying(status) {
+    return status == 'connecting' || status == 'reconnecting';
+}
+
+// true if clicking Connect while the scanner client is connecting/reconnecting would switch it to a
+// newly selected port, rather than the click stopping the retries
+function scanner_switches_port() {
+    return (scanner_status == 'connecting' || scanner_status == 'reconnecting')
+        && scannerport != null && scanner_client_port != null && scannerport != scanner_client_port;
+}
+
+// audible alert when a client transitions into a degraded state
+function client_alert_beep() {
     try {
         let ctx = new (window.AudioContext || window.webkitAudioContext)();
         let osc = ctx.createOscillator();
@@ -427,10 +489,15 @@ function cdbuttonclick() {
 
 function scanner_cdbuttonclick() {
     var msg;
-    if (scanner_connected) {
+    // close also stops the client's auto-retry loop (#151), unless Connect would switch ports
+    if (scanner_connected || (is_retrying(scanner_status) && !scanner_switches_port())) {
         try {
             msg = JSON.stringify({opcode: 'close'});
             scanner.send(msg);
+            if (!scanner_connected) {
+                scanner_stopping = true;
+                scd.text('Stopping...').prop('disabled', true);
+            }
         } catch(e) {
             alert('Cannot disconnect: scanner client not reachable');
         }
@@ -449,10 +516,15 @@ function scanner_cdbuttonclick() {
 // #82 needs work here and elsewhere
 function trident_cdbuttonclick() {
     var msg;
-    if (trident_connected) {
+    // close also stops the client's auto-retry loop (#151)
+    if (trident_connected || is_retrying(trident_client_status)) {
         try {
             msg = JSON.stringify({opcode: 'close'});
             trident.send(msg);
+            if (!trident_connected) {
+                trident_stopping = true;
+                tcd.text('Stopping...').prop('disabled', true);
+            }
         } catch(e) {
             alert('Cannot disconnect: chip reader client not reachable');
         }

@@ -1,6 +1,7 @@
 # standard
 from asyncio import run, Future, get_event_loop, new_event_loop, set_event_loop, sleep, wait_for, TimeoutError
 from threading import Thread
+from time import sleep as blocking_sleep
 from json import loads, dumps
 from logging import basicConfig, getLogger, INFO, DEBUG, LoggerAdapter
 from requests import post
@@ -53,6 +54,10 @@ user_closed = False
 # true while reader_thread() is alive (actively connected or auto-retrying),
 # guards against a duplicate 'open' opcode spawning a second thread
 reader_thread_running = False
+
+# true once reader_thread() has had an attempt fail or a connection drop, so client_status()
+# can tell a first connect attempt ('connecting') apart from auto-retrying ('reconnecting')
+retrying = False
 
 # seconds to wait between auto-reconnect attempts after an unexpected drop
 RECONNECT_WAIT = 5
@@ -236,12 +241,38 @@ async def shell(reader, writer):
                     raise ReaderClosed
                     
 
-    except (ReaderClosed, ConnectionAbortedError) as e:
+    # OSError covers ConnectionAbortedError and e.g. WinError 121 (semaphore timeout) when the
+    # network drops; without it the cleanup is skipped and connected stays True while retrying
+    except (ReaderClosed, OSError) as e:
+        if not isinstance(e, ReaderClosed):
+            log.info(f'trident reader connection lost: {e}')
         reader.feed_eof()
         writer.close()
         connected = False
         check_update_status('disconnected', immediate=True)
         return
+
+def client_status():
+    """connection status for the browser, see #151
+
+    detailedstatus only reflects the live connection; while auto-retrying it stays 'disconnected'
+
+    Returns:
+        str: 'connected', 'connecting' (first attempt in progress), 'reconnecting' (auto-retrying
+            after a failed attempt or lost connection), or 'disconnected' (not running, e.g., user disconnected)
+    """
+    if connected:
+        return 'connected'
+    if reader_thread_running:
+        return 'reconnecting' if retrying else 'connecting'
+    return 'disconnected'
+
+def wait_for_retry():
+    """wait RECONNECT_WAIT seconds before the next connect attempt, returning early if the user disconnects"""
+    for _ in range(RECONNECT_WAIT * 10):
+        if stop_reader:
+            return
+        blocking_sleep(0.1)
 
 def reader_thread(ipaddr, fport, logging_path):
     """connect to the trident reader, and keep reconnecting on unexpected drops
@@ -255,15 +286,22 @@ def reader_thread(ipaddr, fport, logging_path):
         fport (int): reader telnet port
         logging_path (str): unused, reserved for future use
     """
-    global stop_reader, user_closed, reader_thread_running
+    global stop_reader, user_closed, reader_thread_running, retrying, connected
 
     log.info(f'in reader_thread')
     readloop = new_event_loop()
     set_event_loop(readloop)
 
     reader_thread_running = True
+    retrying = False
     try:
         while True:
+            if stop_reader:
+                # disconnect requested while there was no live connection to catch it
+                log.info('trident reader closed by user request while reconnecting')
+                stop_reader = False
+                break
+
             user_closed = False
             try:
                 coro = open_connection(ipaddr, fport, shell=shell)
@@ -280,14 +318,12 @@ def reader_thread(ipaddr, fport, logging_path):
                 log.info('trident reader closed by user request')
                 break
 
-            if stop_reader:
-                # disconnect requested while there was no live connection to catch it
-                log.info('trident reader closed by user request during reconnect wait')
-                stop_reader = False
-                break
-
-            log.info(f'trident reader connection lost unexpectedly; retrying in {RECONNECT_WAIT}s')
-            readloop.run_until_complete(sleep(RECONNECT_WAIT))
+            # not connected while retrying, even if shell() didn't get to clean up
+            connected = False
+            retrying = True
+            if not stop_reader:
+                log.info(f'trident reader connection lost unexpectedly; retrying in {RECONNECT_WAIT}s')
+                wait_for_retry()
 
     finally:
         reader_thread_running = False
@@ -318,6 +354,9 @@ async def controller(websocket):
             if reader_thread_running:
                 log.info('reader_thread already running (connected or auto-retrying); ignoring open')
             else:
+                global stop_reader
+                # clear any stale close sent while nothing was running, so it can't stop the new thread
+                stop_reader = False
                 ipaddr = event['ipaddr']
                 fport = event['fport']
                 logging_path = event['loggingpath']
@@ -325,9 +364,10 @@ async def controller(websocket):
                 log.info('controller returned from Thread')
         
         # backend closed the connection
+        # (also cancels auto-retrying, #151)
         elif opcode == 'close':
-            global stop_reader
-            stop_reader = True
+            if reader_thread_running:
+                stop_reader = True
         
         # raceid updated from backend
         elif opcode == 'raceid':
@@ -335,7 +375,7 @@ async def controller(websocket):
         
         # browser wants to know if we're connected to trident reader
         elif opcode == 'is_connected':
-            await websocket.send(dumps({'connected': connected, 'detailedstatus': detailedstatus}))
+            await websocket.send(dumps({'connected': connected, 'detailedstatus': detailedstatus, 'status': client_status()}))
 
 async def main():
     async with serve(controller, host="localhost", port=8083):

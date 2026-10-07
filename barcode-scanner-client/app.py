@@ -2,6 +2,7 @@
 from sys import stdout
 from asyncio import run, Future, Protocol, sleep, get_event_loop, new_event_loop, set_event_loop
 from threading import Thread
+from time import sleep as blocking_sleep
 from json import loads, dumps
 from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatter, LoggerAdapter
 from logging.handlers import TimedRotatingFileHandler
@@ -61,6 +62,10 @@ user_closed = False
 # true while reader_thread() is alive (actively connected or auto-retrying),
 # guards against a duplicate 'open' opcode spawning a second thread
 reader_thread_running = False
+
+# true once reader_thread() has had an attempt fail or a connection drop, so client_status()
+# can tell a first connect attempt ('connecting') apart from auto-retrying ('reconnecting')
+retrying = False
 
 # port reader_thread() opens on each attempt; an 'open' received while auto-retrying
 # updates this, so the operator can switch scanners without the loop retrying the old port
@@ -302,6 +307,26 @@ async def reader(port, logging_path):
     except ReaderClosed:
         return
 
+def client_status():
+    """connection status for the browser, see #151
+
+    Returns:
+        str: 'connected', 'connecting' (first attempt in progress), 'reconnecting' (auto-retrying
+            after a failed attempt or lost link), or 'disconnected' (not running, e.g., user disconnected)
+    """
+    if connected:
+        return 'connected'
+    if reader_thread_running:
+        return 'reconnecting' if retrying else 'connecting'
+    return 'disconnected'
+
+def wait_for_retry():
+    """wait RECONNECT_WAIT seconds before the next open attempt, returning early if the user disconnects"""
+    for _ in range(RECONNECT_WAIT * 10):
+        if stop_reader:
+            return
+        blocking_sleep(0.1)
+
 def reader_thread(logging_path):
     """open the barcode scanner port, and keep reopening it if the Bluetooth link is lost
 
@@ -313,15 +338,22 @@ def reader_thread(logging_path):
     Args:
         logging_path (str): passed to protocol, currently unused
     """
-    global stop_reader, user_closed, reader_thread_running, connected
+    global stop_reader, user_closed, reader_thread_running, connected, retrying
 
     log.info(f'in reader_thread')
     readloop = new_event_loop()
     set_event_loop(readloop)
 
     reader_thread_running = True
+    retrying = False
     try:
         while True:
+            if stop_reader:
+                # disconnect requested while there was no open port to catch it
+                log.info('barcode scanner closed by user request while reconnecting')
+                stop_reader = False
+                break
+
             user_closed = False
             port = reader_port
             try:
@@ -338,15 +370,11 @@ def reader_thread(logging_path):
                 log.info('barcode scanner closed by user request')
                 break
 
-            if stop_reader:
-                # disconnect requested while there was no open port to catch it
-                log.info('barcode scanner closed by user request during reconnect wait')
-                stop_reader = False
-                break
-
             connected = False
-            log.info(f'barcode scanner not connected; retrying in {RECONNECT_WAIT}s')
-            run(sleep(RECONNECT_WAIT))
+            retrying = True
+            if not stop_reader:
+                log.info(f'barcode scanner not connected; retrying in {RECONNECT_WAIT}s')
+                wait_for_retry()
 
     finally:
         reader_thread_running = False
@@ -381,23 +409,32 @@ async def controller(websocket):
                 else:
                     log.info('reader_thread already running (connected or auto-retrying); ignoring open')
             else:
+                global stop_reader
+                # clear any stale close sent while nothing was running, so it can't stop the new thread
+                stop_reader = False
                 reader_port = event['port']
                 logging_path = event['loggingpath']
                 readloop_threadid = Thread(target=reader_thread, args=(logging_path,)).start()
                 log.info('controller returned from Thread')
         
         # backend closed the connection
+        # (also cancels auto-retrying, #151)
         elif opcode == 'close':
-            global stop_reader
-            stop_reader = True
-        
+            if reader_thread_running:
+                stop_reader = True
+
         # raceid updated from backend
         elif opcode == 'raceid':
             raceid = event['raceid']
-        
+
         # browser wants to know if we're connected to barcode scanner
+        # port lets the browser tell whether Connect would switch ports while connecting/reconnecting
         elif opcode == 'is_connected':
-            await websocket.send(dumps({'connected': connected}))
+            await websocket.send(dumps({
+                'connected': connected,
+                'status': client_status(),
+                'port': reader_port if reader_thread_running else None,
+            }))
 
 async def main():
     async with serve(controller, host="localhost", port=8082):
