@@ -26,6 +26,10 @@ var scanner_client_port = null;
 var tm_websocket_open = false;
 var scanner_websocket_open = false;
 var trident_websocket_open = false;
+// set when a client's WebSocket closes while its device was connected or being connected, i.e., the client
+// crashed or was restarted mid-use; it comes back disconnected (#150 item 2), so keep an alert up until the
+// operator reconnects (#153)
+var tm_device_lost = false, scanner_device_lost = false, trident_device_lost = false;
 
 // form, port parameters
 var raceid, logdir;
@@ -91,6 +95,7 @@ $( function() {
             send_raceid(tm_reader);
         },
         close_callback: function() {
+            tm_device_lost = tm_device_lost || connected;
             connected = false;
             cd.text('Connect');
             client_not_running(tm_websocket_open, $('#tm-alert-banner'),
@@ -103,9 +108,12 @@ $( function() {
                 connected = rsp.connected;
                 if (rsp.connected) {
                     cd.text('Disconnect');
+                    tm_device_lost = false;
                 } else {
                     cd.text('Connect');
                 }    
+                client_restarted_alert($('#tm-alert-banner'), tm_device_lost && !connected ?
+                    'Time Machine reader client restarted -- click Connect to resume receiving results' : null);
             
             // what are the current devices? this comes in when the view is initialized
             } else if (rsp.opcode == 'available_devices') {
@@ -152,6 +160,7 @@ $( function() {
         uri: scanneruri,
         open_callback: function() {scanner_websocket_open = true; send_raceid(scanner)},
         close_callback: function() {
+            scanner_device_lost = scanner_device_lost || scanner_connected || is_retrying(scanner_status);
             scanner_connected = false;
             scanner_status = scanner_status_prev = 'disconnected';
             scanner_client_port = null;
@@ -188,8 +197,14 @@ $( function() {
             if (scanner_status == 'reconnecting' && scanner_status_prev != 'reconnecting') {
                 client_alert_beep();
             }
-            update_alert_banner($('#scanner-alert-banner'), scanner_status == 'reconnecting' ?
-                'Scanner: connection lost, reconnecting -- scans are not being received' : null);
+            if (scanner_status != 'disconnected') scanner_device_lost = false;
+            if (scanner_status == 'reconnecting') {
+                update_alert_banner($('#scanner-alert-banner'),
+                    'Scanner: connection lost, reconnecting -- scans are not being received');
+            } else {
+                client_restarted_alert($('#scanner-alert-banner'), scanner_device_lost ?
+                    'Scanner client restarted -- click Connect to resume receiving scans' : null);
+            }
             scanner_status_prev = scanner_status;
         }
     });
@@ -200,6 +215,7 @@ $( function() {
         uri: tridenturi,
         open_callback: function() {trident_websocket_open = true; send_raceid(trident)},
         close_callback: function() {
+            trident_device_lost = trident_device_lost || trident_connected || is_retrying(trident_client_status);
             trident_connected = false;
             trident_client_status = trident_status = trident_status_prev = 'disconnected';
             trident_stopping = false;
@@ -249,7 +265,13 @@ $( function() {
             if (CHIPREADER_ALERTS[trident_status] && !CHIPREADER_ALERTS[trident_status_prev]) {
                 client_alert_beep();
             }
-            update_alert_banner($('#chipreader-alert-banner'), CHIPREADER_ALERTS[trident_status]);
+            if (trident_client_status != 'disconnected') trident_device_lost = false;
+            if (CHIPREADER_ALERTS[trident_status]) {
+                update_alert_banner($('#chipreader-alert-banner'), CHIPREADER_ALERTS[trident_status]);
+            } else {
+                client_restarted_alert($('#chipreader-alert-banner'), trident_device_lost ?
+                    'Chip reader client restarted -- click Connect to resume receiving chip reads' : null);
+            }
             trident_status_prev = trident_status;
         }
     });
@@ -290,6 +312,20 @@ function client_not_running(was_open, banner, text) {
     update_alert_banner(banner, text);
 }
 
+// a client is running again after a crash or restart but its device is disconnected (#153): show text in its
+// banner, beeping on the transition into it, or hide the banner if text is null
+function client_restarted_alert(banner, text) {
+    if (text && (!banner.is(':visible') || banner.text() != text)) {
+        client_alert_beep();
+    }
+    update_alert_banner(banner, text);
+}
+
+// true if a port has been selected; the "select port" option's value is the string 'null'
+function port_selected(p) {
+    return p != null && p !== '' && p !== 'null';
+}
+
 // status from a client's is_connected response; older clients only report connected
 function client_status(rsp) {
     return rsp.status || (rsp.connected ? 'connected' : 'disconnected');
@@ -304,7 +340,7 @@ function is_retrying(status) {
 // newly selected port, rather than the click stopping the retries
 function scanner_switches_port() {
     return (scanner_status == 'connecting' || scanner_status == 'reconnecting')
-        && scannerport != null && scanner_client_port != null && scannerport != scanner_client_port;
+        && port_selected(scannerport) && scanner_client_port != null && scannerport != scanner_client_port;
 }
 
 // audible alert when a client transitions into a degraded state
@@ -515,7 +551,7 @@ function cdbuttonclick() {
         } catch(e) {
             alert('Cannot disconnect: reader client not reachable');
         }
-    } else if (port != null) {
+    } else if (port_selected(port)) {
         try {
             msg = JSON.stringify({opcode: 'open', port: port, raceid: raceid, loggingpath: ''});
             tm_reader.send(msg);
@@ -523,7 +559,7 @@ function cdbuttonclick() {
             alert('Cannot connect: reader client not reachable');
         }
     } else {
-        alert('set port first');
+        alert('Select a Time Machine port first');
     }
 }
 
@@ -541,7 +577,7 @@ function scanner_cdbuttonclick() {
         } catch(e) {
             alert('Cannot disconnect: scanner client not reachable');
         }
-    } else if (scannerport != null) {
+    } else if (port_selected(scannerport)) {
         try {
             msg = JSON.stringify({opcode: 'open', port: scannerport, raceid: raceid, loggingpath: ''});
             scanner.send(msg);
@@ -549,7 +585,7 @@ function scanner_cdbuttonclick() {
             alert('Cannot connect: scanner client not reachable');
         }
     } else {
-        alert('set port first');
+        alert('Select a scanner port first');
     }
 }
 
