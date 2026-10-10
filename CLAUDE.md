@@ -41,13 +41,13 @@ flask db upgrade          # apply pending migrations
 flask db migrate -m "..."  # generate a new migration
 ```
 
-`app.py` (not `run.py`) is the entry point for flask CLI commands — it sets `init_for_operation=False` so migrations work before tables exist.
+The app container's startup script, `app/src/dbupgrade_and_run.sh`, runs `flask db upgrade` (retrying until the db is up) before starting the app, so installs apply new migrations automatically on start. Generate migrations with `flask db migrate` in the running container rather than writing them by hand. `app.py` (not `run.py`) is the entry point for flask CLI commands — it sets `init_for_operation=False` so migrations work before tables exist.
 
 **Ad hoc SQL against the local DB:** put the SQL in a file and pipe it in. `docker exec -i tm-csv-connector-db-1 sh -c 'mysql -uroot -p"$(cat /run/secrets/db-password)" tm-csv-connector' < query.sql`. The database name has hyphens, so quote it with backticks inside SQL. `scannedbib.order` is a reserved word and also needs backticks.
 
 ## Building and Releasing
 
-**Version:** the app version is `APP_VER` in `.env` (e.g., `1.8.0.dev1`), which is gitignored. So a version bump never shows in `git status`. By convention, a release commit holds the rebuilt artifacts (`dist/` zip, `install/` exes) with the bare version as its message (e.g., `1.7.1.dev2`), separate from the source commits. Use a minor bump for new operator-visible behavior, a patch bump for fixes only. Exception: if the current minor release hasn't been distributed to anyone yet, a new feature can go out as a patch of it (e.g., #155 shipped in 1.8.1). While a release build is running, `git add`/`git commit` can fail with `fatal: unable to write new index file`, with no `index.lock` present (seen twice, 2026-10-07 and 2026-10-09). Retrying a moment later works; files already staged stay staged.
+**Version:** the app version is `APP_VER` in `.env` (e.g., `1.8.0.dev1`), which is gitignored. So a version bump never shows in `git status`. By convention, a release commit holds the rebuilt artifacts (`dist/` zip, `install/` exes) with the bare version as its message (e.g., `1.7.1.dev2`), separate from the source commits. Final (non-dev) releases also get a git tag with the bare version on their build commit (e.g., `1.8.0`); dev builds aren't tagged. Use a minor bump for new operator-visible behavior, a patch bump for fixes only. Exception: if the current minor release hasn't been distributed to anyone yet, a new feature can go out as a patch of it (e.g., #155 shipped in 1.8.1). While a release build is running, `git add`/`git commit` can fail with `fatal: unable to write new index file`, with no `index.lock` present (seen twice, 2026-10-07 and 2026-10-09). Retrying a moment later works; files already staged stay staged.
 
 ### Full release pipeline (run in sequence via VS Code "Build/Push/Release" task)
 
