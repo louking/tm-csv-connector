@@ -259,11 +259,6 @@ the **Confirm** button.
 
     Results view
 
-.. figure:: images/results-view-scanner.*
-    :align: center
-
-    Results view with Barcode Scanner Connected
-
 .. figure:: images/results-edit-inline.*
     :align: center
 
