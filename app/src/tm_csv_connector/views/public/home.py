@@ -10,7 +10,7 @@ from os.path import join
 # pypi
 from flask import render_template, session, current_app, url_for, abort
 from flask.views import MethodView
-from dominate.tags import div, button, span, select, option, p, i, input_
+from dominate.tags import div, button, span, select, option, p, i, input_, label
 from dominate.tags import table, thead, tbody, tr, th, td
 from dominate.util import text
 from sqlalchemy import update, and_, select as sqlselect
@@ -161,6 +161,13 @@ def get_results_filters():
                                 option(port)
         
                 div(button("placeholder", id="scanner-connect-disconnect", _class='filter-item ui-button'), _class='filter')
+
+                # ignore a bib scanned twice in a row (#155); Clear All turns this on
+                current_race = next((r for r in races if r.id == current_race_id), None)
+                with div(_class='filter', style='margin-top: 4px;'):
+                    debounce_attrs = {'checked': 'checked'} if current_race and current_race.debounce_scans else {}
+                    input_(id='debounce-scans', type='checkbox', **debounce_attrs)
+                    label('Ignore repeat scans', _for='debounce-scans')
         
             with td().add(div(_class='filter-item')):
                 # Chip Readers
@@ -183,7 +190,6 @@ def get_results_filters():
                             )
 
             with td().add(div(_class='filter-item')):
-                current_race = next((r for r in races if r.id == current_race_id), None)
                 current_start_time = time2asc(current_race.start_time) \
                     if current_race and current_race.start_time is not None else ''
                 with span(_class='filter'):

@@ -87,11 +87,11 @@ class NormalPostBibApi(PostBibApi):
         return scannedbib
 
     def is_duplicate_bib(self, msg, bibno):
-        """returns true if the bibno was just scanned, and the race is in progress"""
+        """returns true if the bibno was just scanned, and the race has debounce_scans set"""
         if bibno == BLANK_BIBNO:
             return False
         race = Race.query.get(msg['raceid'])
-        if not race or not race.resultssnapshots:
+        if not race or not race.debounce_scans:
             return False
         last = ScannedBib.query.filter_by(race_id=msg['raceid']).order_by(ScannedBib.order.desc()).first()
         return last is not None and last.bibno == bibno
@@ -255,6 +255,10 @@ class ClearResultsApi(MethodView):
                 race.next_scannedbib_id = None
                 db.session.flush()
 
+            # clearing is the pre-race step, so start ignoring repeat scans (#155)
+            if race:
+                race.debounce_scans = True
+
             # Results hold the FK to ScannedBib, so delete them first
             Result.query.filter_by(race_id=raceid).delete(synchronize_session=False)
             db.session.flush()
@@ -264,7 +268,7 @@ class ClearResultsApi(MethodView):
             clearfile()
 
             unlock(filelock)
-            return jsonify(status='success')
+            return jsonify(status='success', debounce_scans=bool(race and race.debounce_scans))
 
         except Exception as e:
             unlock(filelock)
@@ -483,9 +487,10 @@ class SetParamsApi(MethodView):
             output_result = {'status' : 'success'}
             session.permanent = True
 
-            # let the browser refresh its Start Time field for the newly selected race
+            # let the browser refresh its Start Time field and Ignore Repeat Scans checkbox for the newly selected race
             race = Race.query.filter_by(id=form.get('raceid')).one_or_none()
             output_result['start_time'] = time2asc(race.start_time) if race and race.start_time is not None else ''
+            output_result['debounce_scans'] = bool(race and race.debounce_scans)
 
             return jsonify(output_result)
 
@@ -540,14 +545,46 @@ setracestarttime_api = SetRaceStartTimeApi.as_view('_setracestarttime')
 bp.add_url_rule('/_setracestarttime', view_func=setracestarttime_api, methods=['POST'])
 
 
+class SetRaceDebounceScansApi(MethodView):
+    """set race.debounce_scans from the results view's Ignore Repeat Scans checkbox (#155)"""
+
+    def post(self):
+        try:
+            raceid = request.form['raceid']
+            debounce_scans = request.form['debounce_scans'] == 'true'
+
+            race = Race.query.filter_by(id=raceid).one_or_none()
+            if not race:
+                return jsonify(status='fail', error='invalid race')
+
+            race.debounce_scans = debounce_scans
+            db.session.commit()
+
+            return jsonify(status='success', debounce_scans=race.debounce_scans)
+
+        except Exception as e:
+            # report exception
+            exc = ''.join(format_exception_only(type(e), e))
+            output_result = {'status' : 'fail', 'error': 'exception occurred:<br>{}'.format(exc)}
+
+            # roll back database updates and close transaction
+            db.session.rollback()
+            current_app.logger.error(format_exc())
+            return jsonify(output_result)
+
+setracedebouncescans_api = SetRaceDebounceScansApi.as_view('_setracedebouncescans')
+bp.add_url_rule('/_setracedebouncescans', view_func=setracedebouncescans_api, methods=['POST'])
+
+
 class GetRaceStartTimeApi(MethodView):
-    """poll race.start_time, e.g. to pick up the value auto-set from the first live GUNTIME marker"""
+    """poll race.start_time, e.g. to pick up the value auto-set from the first live GUNTIME marker;
+    also returns race.debounce_scans, which Clear All sets"""
 
     def get(self):
         raceid = request.args.get('raceid')
         race = Race.query.filter_by(id=raceid).one_or_none() if raceid else None
         start_time = time2asc(race.start_time) if race and race.start_time is not None else ''
-        return jsonify(start_time=start_time)
+        return jsonify(start_time=start_time, debounce_scans=bool(race and race.debounce_scans))
 
 getracestarttime_api = GetRaceStartTimeApi.as_view('_getracestarttime')
 bp.add_url_rule('/_getracestarttime', view_func=getracestarttime_api, methods=['GET'])

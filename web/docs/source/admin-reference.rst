@@ -224,12 +224,19 @@ The view has the following controls:
         reads **Stopping...** until the current connection attempt ends, which
         can take up to about 20 seconds for the chip reader.
 
+    :Ignore repeat scans:
+        when checked, a bib scanned twice in a row is recorded only once, so an
+        accidental double scan doesn't add an extra scanned bib. **Clear All**
+        checks this automatically. Uncheck it to test the data path by scanning
+        the same bib more than once, and make sure it's checked again before the
+        race starts. The setting is saved separately for each race.
+
     :Clear All:
         removes all results and scanned bibs for the current race. Intended for
         use after pre-race data flow testing — once test results have been cleared
         from the Time Machine and RaceDay Scoring, click **Clear All** to clean up
         **tmtility** as well. A snapshot is saved automatically to allow the
-        operation to be undone.
+        operation to be undone. **Clear All** also checks **Ignore repeat scans**.
 
     :Undo Clear:
         restores the results and scanned bibs removed by the most recent **Clear

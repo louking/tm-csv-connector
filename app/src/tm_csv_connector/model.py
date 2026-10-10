@@ -121,6 +121,8 @@ class Race(Base):
     name        = Column(Text)
     date        = Column(Date)
     start_time  = Column(Double) # seconds since midnight
+    # ignore a bib scanned twice in a row; set by Clear All, toggled from the results view (#155)
+    debounce_scans = Column(Boolean, default=False)
     results     = relationship('Result', back_populates='race', cascade='all, delete, delete-orphan')
     scannedbibs = relationship('ScannedBib', back_populates='race', foreign_keys=[ScannedBib.race_id], cascade='all, delete, delete-orphan')
     chipreads   = relationship('ChipRead', back_populates='race', foreign_keys=[ChipRead.race_id], cascade='all, delete, delete-orphan')

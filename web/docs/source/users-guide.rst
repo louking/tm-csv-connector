@@ -180,7 +180,8 @@ barcode scanner through **tmtility** to RaceDay Scoring.
 * trigger a few test finishes on the Time Machine and confirm they appear in the
   :ref:`Results view`
 * if a barcode scanner is in use, scan a few test bibs and confirm they appear
-  in the Scanned Bib No column
+  in the Scanned Bib No column. If **Ignore repeat scans** is checked, a bib
+  scanned twice in a row appears only once; uncheck it to test with the same bib
 * click **Confirm** on the last test result to write the results to the csv file
 * confirm RaceDay Scoring receives those test results via the csv file
 
@@ -189,7 +190,8 @@ Once verified, clear the test data from all systems:
 * on the Time Machine, clear the time and reset results
 * in RaceDay Scoring, delete the test reads
 * in **tmtility**, on the :ref:`Results view`, click **Clear All** to remove the
-  test results and scanned bibs
+  test results and scanned bibs. This also checks **Ignore repeat scans**, so
+  accidental double scans during the race are recorded only once
 
 .. note::
     If you need to undo the **Clear All**, click **Undo Clear** (visible immediately

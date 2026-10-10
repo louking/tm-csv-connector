@@ -70,6 +70,7 @@ $( function() {
     tcd.on('click', trident_cdbuttonclick);
 
     $('#set-start-time-button').on('click', set_start_time_click);
+    $('#debounce-scans').on('change', debounce_scans_change);
 
     $('#race').select2({
         placeholder: 'select a race',
@@ -692,6 +693,9 @@ function setParams() {
                 if (json.start_time !== undefined && document.activeElement !== $('#start-time')[0]) {
                     $('#start-time').val(json.start_time);
                 }
+                if (json.debounce_scans !== undefined) {
+                    $('#debounce-scans').prop('checked', json.debounce_scans);
+                }
             }
             else {
                 alert(json.error);
@@ -730,13 +734,34 @@ function refresh_start_time() {
 
     $.getJSON('/_getracestarttime', {raceid: raceid}, function(json) {
         $('#start-time').val(json.start_time);
+        $('#debounce-scans').prop('checked', json.debounce_scans);
+    });
+}
+
+// update race.debounce_scans from the Ignore repeat scans checkbox (#155)
+function debounce_scans_change() {
+    let checkbox = $('#debounce-scans');
+    let value = checkbox.prop('checked');
+    $.ajax({
+        url: '/_setracedebouncescans',
+        type: 'post',
+        dataType: 'json',
+        data: {raceid: raceid, debounce_scans: value},
+        success: function(json) {
+            if (json.status == 'success') {
+                checkbox.prop('checked', json.debounce_scans);
+            } else {
+                checkbox.prop('checked', !value);
+                alert(json.error);
+            }
+        }
     });
 }
 
 function results_clear_all() {
     let nrows = _dt_table.rows().count();
     let noun = nrows === 1 ? 'result' : 'results';
-    if (!confirm(`Clear all ${nrows} test ${noun} for this race? Use Undo Clear to restore.`)) {
+    if (!confirm(`Clear all ${nrows} test ${noun} for this race? This also turns on Ignore repeat scans. Use Undo Clear to restore.`)) {
         return;
     }
 
@@ -751,6 +776,7 @@ function results_clear_all() {
         success: function(json) {
             if (json.status == 'success') {
                 $('#undo-clear-button').show();
+                $('#debounce-scans').prop('checked', json.debounce_scans);
                 refresh_table_data(_dt_table, resturl);
             } else {
                 alert(json.error);
