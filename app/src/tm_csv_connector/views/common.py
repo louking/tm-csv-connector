@@ -14,6 +14,7 @@ from flask.views import MethodView
 from dominate.tags import div, button, span, p
 from dominate.util import text
 from sqlalchemy import select as sqlselect
+from sqlalchemy.orm import joinedload
 
 # homegrown
 from ..model import db, Result, ScannedBib, Setting
@@ -38,12 +39,17 @@ def scanned_bibno(dbrow):
         with scannedbib:
             with span(style="margin-left: 2px;"):
                 # actions processed in api.ScanActionApi.post()
+                # act on pointerdown so a table refresh between press and release can't swallow the
+                # press; the click is still stopped so it doesn't toggle row selection (#156)
                 button('Use', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {use_state}",
-                        onclick=f'scan_action(event, {{action: "use", resultid: {dbrow.id}, scanid: {scanid}}})')
+                        onpointerdown=f'scan_action(event, {{action: "use", resultid: {dbrow.id}, scanid: {scanid}}})',
+                        onclick='event.stopPropagation()')
                 button('Ins', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {ins_state}",
-                        onclick=f'scan_action(event, {{action: "insert", resultid: {dbrow.id}, scanid: {scanid}}})')
+                        onpointerdown=f'scan_action(event, {{action: "insert", resultid: {dbrow.id}, scanid: {scanid}}})',
+                        onclick='event.stopPropagation()')
                 button('Del', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {del_state}",
-                        onclick=f'scan_action(event, {{action: "delete", resultid: {dbrow.id}, scanid: {scanid}}})')
+                        onpointerdown=f'scan_action(event, {{action: "delete", resultid: {dbrow.id}, scanid: {scanid}}})',
+                        onclick='event.stopPropagation()')
                 text(f'{bibno}')
     
         render = scannedbib.render()
@@ -54,6 +60,8 @@ def get_results_posttablehtml():
     updates_suspended_warning = div()
     with updates_suspended_warning:
         p('display updates suspended - deselect to resume', id='updates-suspended', style='color: white; font-weight: bold; background-color: red; text-align: center; display: none;')
+        # shown by show_scan_action_stale() in results.js (#156)
+        p('row had already changed - scan button press ignored, check the row and press again', id='scan-action-stale', style='color: white; font-weight: bold; background-color: darkorange; text-align: center; display: none;')
     return updates_suspended_warning.render()
 
 def results_validate(action, formdata):
@@ -110,7 +118,9 @@ class ResultsView():
         '''
         # not server table, rows will be handled in nexttablerow()
         # added order_by(Result.place) to ensure the results are in place order
-        query = self.model.query.filter_by(**self.queryparams).filter(*self.queryfilters).order_by(Result.place)
+        # load scannedbib with the results; lazy loading it ran one query per row on every poll (#156)
+        query = (self.model.query.filter_by(**self.queryparams).filter(*self.queryfilters)
+                 .options(joinedload(Result.scannedbib)).order_by(Result.place))
         self.rows = iter(query.all())
 
     def get(self):
@@ -503,7 +513,15 @@ class ScanActionApi(MethodView):
                 error.append(f'Invalid resultid: {resultid}')
             if not thisscannedbib and action in ['use']:
                 error.append(f'Invalid scanid: {scanid}')
-            
+
+            # the button was drawn for a scan this result no longer has, e.g., a repeated Ins/Del
+            # press before the table refreshed; acting on it would shift the scan queue again (#156)
+            if not error and str(thisresult.scannedbib_id) != str(thisscannedbib.id if thisscannedbib else None):
+                current_app.logger.info(f'_scanaction: ignoring stale {action} for resultid={resultid} scanid={scanid}, '
+                                        f'result now has scanid={thisresult.scannedbib_id}')
+                unlock(filelock)
+                return jsonify({'status': 'stale', 'error': 'row had already changed - scan button press ignored'})
+
             if not error:
                 # show success
                 output_result = {'status' : 'success'}

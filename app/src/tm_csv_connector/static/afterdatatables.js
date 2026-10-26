@@ -52,36 +52,61 @@ function afterdatatables() {
         });
 
         editor.on('postCreate', function(e, json, data, id) {
-            let resturl = window.location.pathname + `/rest?since=${last_draw}`;
             last_draw = moment().format();
-            refresh_table_data(_dt_table, resturl, 'full-hold');
+            refresh_results_table();
         });
 
-        function start_updates() {
-            let draw_interval = setInterval(function() {
-                // if (scan_mousedown) return;
-                results_cookie_mutex.promise()
-                    .then(function(mutex) {
-                        mutex.lock();
-                        let resturl = window.location.pathname + `/rest?since=${last_draw}`;
-                        last_draw = moment().format();
-                        refresh_table_data(_dt_table, resturl, 'full-hold');
-                        mutex.unlock();
-                    })
-                    .catch(function(err) {
-                        mutex.unlock();
-                        throw err;
-                    });
-            }, CHECK_TABLE_UPDATE);
+        // Each poll starts only after the previous one finishes, so slow polls can't pile up.
+        // While a row is selected, polling stops and a poll already in flight is discarded,
+        // so the table holds still while the operator works on that row (#156).
+        let updates_suspended = false;
+        let poll_timer = null;
+        let poll_in_flight = false;
 
-            return draw_interval;
+        function schedule_poll() {
+            if (updates_suspended || poll_timer || poll_in_flight) return;
+            poll_timer = setTimeout(poll_updates, CHECK_TABLE_UPDATE);
+        }
+
+        function poll_updates() {
+            poll_timer = null;
+            if (updates_suspended) return;
+            // don't replace a scan button while it's held down
+            if (scan_mousedown) {
+                schedule_poll();
+                return;
+            }
+
+            poll_in_flight = true;
+            // wait out a setParams() in progress (results.js), which holds this mutex
+            results_cookie_mutex.promise()
+                .then(function(mutex) {
+                    last_draw = moment().format();
+                    return refresh_results_table(function() {
+                        return !updates_suspended && !scan_mousedown;
+                    });
+                })
+                .catch(function(err) {
+                    console.error(err);
+                })
+                .finally(function() {
+                    poll_in_flight = false;
+                    schedule_poll();
+                });
+        }
+
+        function start_updates() {
+            updates_suspended = false;
+            schedule_poll();
         }
 
         function stop_updates() {
-            clearInterval(draw_interval);
+            updates_suspended = true;
+            clearTimeout(poll_timer);
+            poll_timer = null;
         }
 
-        let draw_interval = start_updates();
+        start_updates();
 
         _dt_table.on('select.dt', function(e, dt, type, indexes) {
             $('#updates-suspended').show();
@@ -90,13 +115,13 @@ function afterdatatables() {
 
         _dt_table.on('deselect.dt', function(e, dt, type, indexes) {
             $('#updates-suspended').hide();
-            draw_interval = start_updates();
+            start_updates();
         })
 
         // when remove is completed there's no selection, so need to start updates again
         editor.on('remove.dt', function(e, json, indexes) {
             $('#updates-suspended').hide();
-            draw_interval = start_updates();
+            start_updates();
         })
 
         _dt_table.on('click', 'tbody td.bibno_field, tbody td.time_field', function (){

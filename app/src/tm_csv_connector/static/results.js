@@ -629,9 +629,6 @@ function send_raceid(asyncprocess) {
 
 // setParams
 function setParams() {
-    // set up for table redraw
-    let resturl = window.location.pathname + '/rest';
-
     // critical region with update interval (afterdatatables.js)
     results_cookie_mutex.promise()
         .then(function(mutex) {
@@ -689,7 +686,7 @@ function setParams() {
         })
         .then(function (json) {
             if (json.status == 'success') {
-                refresh_table_data(_dt_table, resturl);
+                refresh_results_table();
                 if (json.start_time !== undefined && document.activeElement !== $('#start-time')[0]) {
                     $('#start-time').val(json.start_time);
                 }
@@ -765,8 +762,6 @@ function results_clear_all() {
         return;
     }
 
-    let resturl = window.location.pathname + '/rest';
-
     $.ajax({
         url: '/_clearresults',
         type: 'post',
@@ -777,7 +772,7 @@ function results_clear_all() {
             if (json.status == 'success') {
                 $('#undo-clear-button').show();
                 $('#debounce-scans').prop('checked', json.debounce_scans);
-                refresh_table_data(_dt_table, resturl);
+                refresh_results_table();
             } else {
                 alert(json.error);
             }
@@ -786,8 +781,6 @@ function results_clear_all() {
 }
 
 function results_undo_clear() {
-    let resturl = window.location.pathname + '/rest';
-
     $.ajax({
         url: '/_undoclearresults',
         type: 'post',
@@ -797,7 +790,7 @@ function results_undo_clear() {
         success: function(json) {
             if (json.status == 'success') {
                 $('#undo-clear-button').hide();
-                refresh_table_data(_dt_table, resturl);
+                refresh_results_table();
             } else {
                 alert(json.error);
             }
@@ -805,14 +798,83 @@ function results_undo_clear() {
     });
 }
 
+// Results-page replacement for loutilities refresh_table_data() (#156). It doesn't use
+// loutilities' localStorage rtd_mutex, so slow polls can't pile up behind it. The table
+// is diffed when the response arrives, not before the request, so overlapping refreshes
+// can't apply a stale snapshot. Only rows whose data changed are rewritten, so scan
+// buttons in unchanged rows aren't replaced mid-press.
+//
+// should_apply (optional) is checked when the response arrives; returning false
+// discards it, e.g., a poll that was in flight when a row was selected
+let results_refresh_seq = 0;     // sequence number of the latest refresh sent
+let results_applied_seq = 0;     // sequence number of the latest refresh applied
+function refresh_results_table(should_apply) {
+    let seq = ++results_refresh_seq;
+    let resturl = window.location.pathname + '/rest';
+
+    return $.get(resturl).then(function(respdata) {
+        // drop a response older than one already applied
+        if (seq < results_applied_seq) return;
+        if (should_apply && !should_apply()) return;
+        results_applied_seq = seq;
+
+        let table = _dt_table;
+        let rowId = table.settings()[0].rowId;
+        let currrows = {};
+        table.rows().every(function() {
+            currrows[this.id()] = this;
+        });
+
+        let changed = false;
+        for (let i=0; i<respdata.length; i++) {
+            let resprow = respdata[i];
+            let row = currrows[resprow[rowId]];
+            if (row !== undefined) {
+                if (JSON.stringify(row.data()) !== JSON.stringify(resprow)) {
+                    row.data(resprow);
+                    changed = true;
+                }
+                delete currrows[resprow[rowId]];
+            } else {
+                table.row.add(resprow);
+                changed = true;
+            }
+        }
+
+        // any remaining rows are no longer in the race
+        $.each(currrows, function(id, row) {
+            row.remove();
+            changed = true;
+        });
+
+        if (changed) {
+            table.draw('full-hold');
+        }
+    });
+}
+
+// briefly show that a scan button press was ignored because its row had already changed (#156)
+let scan_action_stale_timer = null;
+function show_scan_action_stale() {
+    $('#scan-action-stale').show();
+    clearTimeout(scan_action_stale_timer);
+    scan_action_stale_timer = setTimeout(function() {
+        $('#scan-action-stale').hide();
+    }, 4000);
+}
+
 // careful, this is specific to normal mode, the function for simulation mode is in resultssim.js
 // the only difference is the ajax url
+// called on pointerdown so a table refresh between press and release can't swallow it (#156)
 function scan_action(e, options) {
     e.stopPropagation();
+    // pointerdown also fires for right and middle buttons
+    if (e.button !== 0) return;
     console.log(`scanaction()`);
 
-    // set up for table redraw
-    let resturl = window.location.pathname + '/rest';
+    // disable this row's buttons until the refresh redraws them, so a repeated press can't
+    // shift the scan queue a second time (#156)
+    $(e.currentTarget).closest('td').find('.scan-action-btn').addClass('ui-state-disabled');
 
     $.ajax( {
         url: '/_scanaction',
@@ -821,11 +883,19 @@ function scan_action(e, options) {
         data: options,
         success: function ( json ) {
             if (json.status == 'success') {
-                refresh_table_data(_dt_table, resturl);
+                refresh_results_table();
+            }
+            else if (json.status == 'stale') {
+                show_scan_action_stale();
+                refresh_results_table();
             }
             else {
                 alert(json.error);
+                refresh_results_table();
             }
+        },
+        error: function() {
+            refresh_results_table();
         }
     } );
 }

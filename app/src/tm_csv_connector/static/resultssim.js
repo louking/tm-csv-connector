@@ -323,8 +323,11 @@ function setParams() {
 
 // careful, this is specific to simulation mode, the function for normal mode is in results.js
 // the only difference is the ajax url
+// called on pointerdown, see scanned_bibno() in views/common.py (#156)
 function scan_action(e, options) {
     e.stopPropagation();
+    // pointerdown also fires for right and middle buttons
+    if (e.button !== 0) return;
     console.log(`scanaction()`);
 
     // set up for table redraw
