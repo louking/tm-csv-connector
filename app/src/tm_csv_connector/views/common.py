@@ -148,7 +148,11 @@ class ResultsView():
                               .order_by(Result.place.desc()).first())
 
                 if lastresult:
-                    last_scannedbib = lastresult.scannedbib
+                    # not lastresult.scannedbib: that lazy load is a plain read from this request's
+                    # snapshot, taken before the lock, which misses a scan inserted since (e.g., by
+                    # Undo Clear) and gives None (#156)
+                    last_scannedbib = (ScannedBib.query.filter_by(id=lastresult.scannedbib_id)
+                                       .populate_existing().with_for_update().one())
                     filters = [ScannedBib.order > last_scannedbib.order] + self.scannedbib_queue_filter
                 else:
                     last_scannedbib = None
