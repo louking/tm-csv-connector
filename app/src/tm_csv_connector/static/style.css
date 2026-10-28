@@ -340,6 +340,13 @@
     font-size: 0.8em;
   }
   
+  /* jQuery UI's .ui-state-disabled sets pointer-events: none, so a click on a disabled scan
+     button would land on the cell and toggle row selection. Keep the click on the button,
+     whose onclick stops it; scan_action() ignores a press on a disabled button (#156) */
+  .scan-action-btn.ui-state-disabled {
+      pointer-events: auto;
+  }
+
   /* TODO: move to loutilities? -- or update the theme */
   /* Interaction states -- copied from pre datatables theme
   ----------------------------------*/

@@ -328,6 +328,8 @@ function scan_action(e, options) {
     e.stopPropagation();
     // pointerdown also fires for right and middle buttons
     if (e.button !== 0) return;
+    // disabled buttons still get the press (style.css), so it can't toggle row selection
+    if ($(e.currentTarget).hasClass('ui-state-disabled')) return;
     console.log(`scanaction()`);
 
     // set up for table redraw

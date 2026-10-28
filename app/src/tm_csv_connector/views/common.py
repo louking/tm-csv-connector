@@ -503,9 +503,12 @@ class ScanActionApi(MethodView):
             # LOCK file access / place change / etc
             lock(filelock)
             
-            # get the relevant records
-            thisresult = Result.query.filter_by(id=resultid).one_or_none()
-            thisscannedbib = ScannedBib.query.filter_by(id=scanid).one_or_none()
+            # get the relevant records; these must be locking reads, which see the latest committed
+            # rows. A plain SELECT reads this transaction's snapshot, taken at the request's first
+            # query (before the lock), so it can miss a scan action committed while this request
+            # waited for the lock, and the stale check below would pass for a stale press (#156)
+            thisresult = Result.query.filter_by(id=resultid).populate_existing().with_for_update().one_or_none()
+            thisscannedbib = ScannedBib.query.filter_by(id=scanid).populate_existing().with_for_update().one_or_none()
             
             # do some error checking
             error = []

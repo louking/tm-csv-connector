@@ -806,9 +806,13 @@ function results_undo_clear() {
 //
 // should_apply (optional) is checked when the response arrives; returning false
 // discards it, e.g., a poll that was in flight when a row was selected
+//
+// hold_rows (optional): while a row is selected, only rewrite rows already in the table;
+// adding new results at the top would push the selected row down. The first poll after
+// the row is deselected adds them.
 let results_refresh_seq = 0;     // sequence number of the latest refresh sent
 let results_applied_seq = 0;     // sequence number of the latest refresh applied
-function refresh_results_table(should_apply) {
+function refresh_results_table(should_apply, hold_rows) {
     let seq = ++results_refresh_seq;
     let resturl = window.location.pathname + '/rest';
 
@@ -820,6 +824,7 @@ function refresh_results_table(should_apply) {
 
         let table = _dt_table;
         let rowId = table.settings()[0].rowId;
+        let update_only = hold_rows && table.rows({selected: true}).count() > 0;
         let currrows = {};
         table.rows().every(function() {
             currrows[this.id()] = this;
@@ -835,17 +840,19 @@ function refresh_results_table(should_apply) {
                     changed = true;
                 }
                 delete currrows[resprow[rowId]];
-            } else {
+            } else if (!update_only) {
                 table.row.add(resprow);
                 changed = true;
             }
         }
 
         // any remaining rows are no longer in the race
-        $.each(currrows, function(id, row) {
-            row.remove();
-            changed = true;
-        });
+        if (!update_only) {
+            $.each(currrows, function(id, row) {
+                row.remove();
+                changed = true;
+            });
+        }
 
         if (changed) {
             table.draw('full-hold');
@@ -870,11 +877,18 @@ function scan_action(e, options) {
     e.stopPropagation();
     // pointerdown also fires for right and middle buttons
     if (e.button !== 0) return;
+    // disabled buttons still get the press (style.css), so it can't toggle row selection
+    if ($(e.currentTarget).hasClass('ui-state-disabled')) return;
     console.log(`scanaction()`);
 
     // disable this row's buttons until the refresh redraws them, so a repeated press can't
     // shift the scan queue a second time (#156)
     $(e.currentTarget).closest('td').find('.scan-action-btn').addClass('ui-state-disabled');
+
+    // keep the selected row in place
+    function refresh() {
+        refresh_results_table(undefined, true);
+    }
 
     $.ajax( {
         url: '/_scanaction',
@@ -883,19 +897,19 @@ function scan_action(e, options) {
         data: options,
         success: function ( json ) {
             if (json.status == 'success') {
-                refresh_results_table();
+                refresh();
             }
             else if (json.status == 'stale') {
                 show_scan_action_stale();
-                refresh_results_table();
+                refresh();
             }
             else {
                 alert(json.error);
-                refresh_results_table();
+                refresh();
             }
         },
         error: function() {
-            refresh_results_table();
+            refresh();
         }
     } );
 }
