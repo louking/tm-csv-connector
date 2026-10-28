@@ -13,7 +13,7 @@ from flask.views import MethodView
 from dominate.tags import div, button, span, select, option, p, i, input_, label
 from dominate.tags import table, thead, tbody, tr, th, td
 from dominate.util import text
-from sqlalchemy import update, and_, select as sqlselect
+from sqlalchemy import update, and_, false, select as sqlselect
 from loutilities.tables import DbCrudApi
 from loutilities.tables import rest_url_for
 from loutilities.timeu import asctime
@@ -219,6 +219,8 @@ class ResultsViewNormal(ResultsView, TmConnectorView):
         race_id = session['_results_raceid'] if '_results_raceid' in session else None
         self.race = Race.query.filter_by(id=race_id).one_or_none()
         self.queryparams['race_id'] = race_id
+        # with no race, show no rows; race_id=None would match every simulation result (#152)
+        self.queryfilters = [] if self.race else [false()]
         # current_app.logger.debug(f'queryparams: {self.queryparams}')
 
     def set_queue_filters(self):

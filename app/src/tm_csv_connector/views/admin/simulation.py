@@ -19,7 +19,7 @@ from dominate.tags import div, button, span, select, option, i, input_
 from flask import request, jsonify, current_app, url_for, session
 from flask_security import current_user
 from flask.views import MethodView
-from sqlalchemy import update, and_, select as sqlselect
+from sqlalchemy import update, and_, false, select as sqlselect
 from loutilities.user.tables import DbCrudApiRolePermissions
 from loutilities.filters import filtercontainerdiv, filterdiv, yadcfoption
 from loutilities.tables import rest_url_for
@@ -108,6 +108,8 @@ class ResultsViewSim(ResultsView, SimConnectorView):
         simulationrun_id = session['_results_simulationrun_id'] if '_results_simulationrun_id' in session else None
         self.simulationrun = SimulationRun.query.filter_by(id=simulationrun_id).one_or_none()
         self.queryparams['simulationrun_id'] = simulationrun_id
+        # with no simulation run, show no rows; simulationrun_id=None would match every race result (#152)
+        self.queryfilters = [] if self.simulationrun else [false()]
         # current_app.logger.debug(f'queryparams: {self.queryparams}')
 
     def set_queue_filters(self):

@@ -520,6 +520,10 @@ class ScanActionApi(MethodView):
                 error.append(f'Invalid resultid: {resultid}')
             if not thisscannedbib and action in ['use']:
                 error.append(f'Invalid scanid: {scanid}')
+            # with no source, the queue filters below would match every row with no race (or no
+            # simulation run), across all of them (#152)
+            if thisresult and not self.get_source(thisresult):
+                error.append(f'result {resultid} has no race or simulation run for this mode')
 
             # the button was drawn for a scan this result no longer has, e.g., a repeated Ins/Del
             # press before the table refreshed; acting on it would shift the scan queue again (#156)
