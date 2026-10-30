@@ -9,6 +9,7 @@ from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatte
 from logging.handlers import TimedRotatingFileHandler
 from requests import post
 from requests import codes
+from requests import RequestException
 from re import split as resplit
 from traceback import format_exception_only
 import ctypes
@@ -51,6 +52,13 @@ stop_reader = False
 
 # queue messages from input protocol for sending to backend
 queued_msgs = []
+
+# backend post timeouts, seconds (connect, read). The read timeout is longer than nginx's default
+# 60s proxy_read_timeout, so a hung app gets a 504 from nginx first (#163)
+POST_TIMEOUT = (5, 75)
+
+# seconds to wait before retrying a failed post, by attempt; the last is repeated until it succeeds
+POST_RETRY_WAITS = [1, 2, 5]
 
 def device_time():
     """local time a device message arrived, to the millisecond, sent with it so the server
@@ -231,21 +239,46 @@ class InputChunkProtocol(Protocol):
         self.logging_path = logging_path
         log.error(f'need to set logging path in logger')
         
-def send_to_backend(data):
+def send_to_backend(data, attempt=0):
     """send data to backend
+
+    A connection error, timeout, or 5xx (e.g., the app container restarting) may mean the message
+    didn't get there, so it's retried. A refusal (4xx, or status other than success) won't succeed
+    on retry, so the message is dropped (#163)
 
     Args:
         data (dict): dict to serialize and send
+        attempt (int): number of earlier failed attempts to send this message
+
+    Returns:
+        bool: True if done with the message (accepted or dropped), False if it should be retried
     """
-    log.debug(f'sending to backend: {data}')
-    rsp = post(backendpost, json=data)
-    if rsp.status_code != codes.ok:
-        log.error(f'error sending to backend: status = {rsp.status_code}')
+    # 'sending to backend' is logged once per message, so the log can be used to count and rebuild them
+    if attempt == 0:
+        log.debug(f'sending to backend: {data}')
     else:
+        log.debug(f'resending to backend (retry {attempt}): {data}')
+    try:
+        rsp = post(backendpost, json=data, timeout=POST_TIMEOUT)
+    except RequestException as e:
+        log.error(f'error sending to backend, will retry: {e}')
+        return False
+
+    if rsp.status_code >= 500:
+        log.error(f'error sending to backend, will retry: status = {rsp.status_code}')
+        return False
+    if rsp.status_code != codes.ok:
+        log.error(f'backend refused message, dropped: status = {rsp.status_code}, message = {data}')
+        return True
+    try:
         respdata = loads(rsp.text)
-        if respdata['status'] != 'success':
-            log.error(f'error sending to backend: response = {respdata["error"]}')
-        
+    except ValueError:
+        log.error(f'backend response not understood, message dropped: response = {rsp.text[:200]}, message = {data}')
+        return True
+    if respdata.get('status') != 'success':
+        log.error(f'backend refused message, dropped: response = {respdata.get("error")}, message = {data}')
+    return True
+
 async def reader(port, logging_path):
     global stop_reader, user_closed, connected
 
@@ -253,6 +286,10 @@ async def reader(port, logging_path):
     readloop = get_event_loop()
     transport, protocol = await create_serial_connection(readloop, InputChunkProtocol, port)
     protocol.set_logging_path(logging_path)
+
+    # retry state for the message at the head of queued_msgs
+    post_attempt = 0
+    next_post_time = readloop.time()
 
     # only Bluetooth ports with a known remote address can be link checked
     btaddr = port_bt_address(port) if bluetoothapis else None
@@ -276,12 +313,18 @@ async def reader(port, logging_path):
             # is read right after it (#157)
             await sleep(0.3)
 
-            # send any queued messages
+            # send queued messages oldest first, one at a time to keep them in order. a message stays at
+            # the head of the queue until the backend accepts or refuses it, and the retry wait doesn't
+            # block this loop, so reading and stop_reader still work while the backend is down (#163)
             global queued_msgs
-            if queued_msgs:
-                while len(queued_msgs) > 0:
-                    msg = queued_msgs.pop(0)
-                    send_to_backend(msg)
+            while queued_msgs and readloop.time() >= next_post_time:
+                if send_to_backend(queued_msgs[0], post_attempt):
+                    queued_msgs.pop(0)
+                    post_attempt = 0
+                else:
+                    post_attempt += 1
+                    next_post_time = readloop.time() + POST_RETRY_WAITS[min(post_attempt, len(POST_RETRY_WAITS)) - 1]
+                    log.info(f'{len(queued_msgs)} message(s) waiting to send to backend')
 
 
             # check the Bluetooth link, debounced so a transient blip doesn't force a reopen
