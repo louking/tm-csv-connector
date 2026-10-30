@@ -20,10 +20,15 @@ from sqlalchemy.orm import joinedload
 from ..model import db, Result, ScannedBib, Setting
 from ..fileformat import filelock, refreshfile, lock, unlock
 from ..times import asc2time, time2asc
+from ..resultslog import log_results_event, commit_results_event, msg_device_time
 
 class ParameterError(Exception): pass
 
 BLANK_BIBNO = '0000' # blank bibno, used to indicate no bibno was scanned
+
+# results log events for operator actions are named for their buttons, e.g., New, Edit, Delete, Use;
+# events not caused by the operator are lower case, e.g., result, scan (#157)
+SCANACTION_EVENTS = {'use': 'Use', 'insert': 'Ins', 'delete': 'Del'}
 
 def scanned_bibno(dbrow):
     bibno = dbrow.scannedbib.bibno if dbrow.scannedbib else ''
@@ -208,9 +213,28 @@ class ResultsView():
             self._error='cannot delete result which has scanned bib assigned - use Ins first'
             raise ParameterError('cannot delete result which has scanned bib assigned - use Ins first')
             
+        log_results_event('Delete', result=thisresult, scannedbib=thisresult.scannedbib,
+                          old_bibno=thisresult.bibno, old_time=thisresult.time)
+
         # if edit for previously confirmed entry is done, this will cause the file to be rewritten
         self.check_confirmed(thisid)
         return super().deleterow(thisid)
+
+    def updaterow(self, thisid, formdata):
+        # inline edit; subclasses handle Confirm without calling this
+        # NOTE: self.result is set by the subclass's call to check_confirmed(), and is the row being updated
+        old_bibno, old_time, old_tmpos = self.result.bibno, self.result.time, self.result.tmpos
+        thisrow = super().updaterow(thisid, formdata)
+
+        # form values are strings, and an empty field may replace None
+        def changed(old, new):
+            return ('' if old is None else str(old)) != ('' if new is None else str(new))
+        info = f'TM Pos {old_tmpos} -> {self.result.tmpos}' if changed(old_tmpos, self.result.tmpos) else None
+        if changed(old_bibno, self.result.bibno) or self.result.time != old_time or info:
+            log_results_event('Edit', result=self.result, tmpos=old_tmpos,
+                              old_bibno=old_bibno, new_bibno=self.result.bibno,
+                              old_time=old_time, new_time=self.result.time, info=info)
+        return thisrow
     
     def editor_method_postcommit(self, form):
         # LOCK file access
@@ -242,6 +266,7 @@ class ResultsView():
                 filters.append(Result.place>thisresult.place)
                 next_result = Result.query.filter_by(**self.queryparams).filter(*filters).order_by(Result.place).first()
                 thisresult.had_scannedbib = next_result and next_result.had_scannedbib
+                log_results_event('New', result=thisresult, new_bibno=thisresult.bibno, new_time=thisresult.time)
             
             # commit again
             db.session.commit()
@@ -335,6 +360,8 @@ class PostResultApi(MethodView):
                 
                 current_app.logger.debug(f'{self.__class__.__name__}: add(result)')
                 db.session.add(result)
+                log_results_event('result', result=result, new_bibno=result.bibno, new_time=result.time,
+                                  device_time=msg_device_time(msg), info='keypad bib' if opcode == 'select' else None)
             
             # how did this happen?
             else:
@@ -425,6 +452,11 @@ class PostBibApi(MethodView):
                 # returns true if the bibno was just scanned, and the race is in progress
                 if self.is_duplicate_bib(msg, bibno):
                     current_app.logger.info(f'ignoring duplicate bib scan: {bibno}')
+                    # not added to the session, just identifies the race for the log
+                    ignored = self.new_scannedbib()
+                    ignored.bibno = bibno
+                    log_results_event('scan ignored', scannedbib=ignored, device_time=msg_device_time(msg),
+                                      info='same bib as the previous scan')
                     db.session.commit()
                     unlock(filelock)
                     return jsonify(status='success')
@@ -435,6 +467,7 @@ class PostBibApi(MethodView):
                 
                 db.session.add(scannedbib)
                 db.session.flush()
+                log_results_event('scan', scannedbib=scannedbib, device_time=msg_device_time(msg), info=f'scan {order}')
                 
             # how did this happen?
             else:
@@ -496,6 +529,8 @@ class ScanActionApi(MethodView):
     """update scan queue based on user action
     """
     def post(self):
+        # identifies the row in the log, also if the action fails
+        logfields = None
         try:
             # options from home.scanned_bibno()
             options = request.form
@@ -530,6 +565,11 @@ class ScanActionApi(MethodView):
             if not error and str(thisresult.scannedbib_id) != str(thisscannedbib.id if thisscannedbib else None):
                 current_app.logger.info(f'_scanaction: ignoring stale {action} for resultid={resultid} scanid={scanid}, '
                                         f'result now has scanid={thisresult.scannedbib_id}')
+                # locking read, as above; a lazy load of thisresult.scannedbib could miss a newer scan
+                nowscannedbib = (ScannedBib.query.filter_by(id=thisresult.scannedbib_id)
+                                 .populate_existing().with_for_update().one_or_none())
+                commit_results_event(f'{SCANACTION_EVENTS[action]} stale', result=thisresult, scannedbib=thisscannedbib,
+                                     info=f'row now has scan {nowscannedbib.bibno if nowscannedbib else "(none)"}')
                 unlock(filelock)
                 return jsonify({'status': 'stale', 'error': 'row had already changed - scan button press ignored'})
 
@@ -541,7 +581,14 @@ class ScanActionApi(MethodView):
                 thissource = self.get_source(thisresult)
                 thisplace = thisresult.place
 
-                # TODO: is there any way to log this action so it can be imported into a simulation, i.e., without scan or result id?
+                # log by place, TM position, and bib, not ids, so a race can be analyzed or replayed (#157, #110)
+                logfields = dict(race_id=thisresult.race_id, simulationrun_id=thisresult.simulationrun_id,
+                                 place=thisplace, tmpos=thisresult.tmpos,
+                                 scanbibno=thisscannedbib.bibno if thisscannedbib else None)
+                if action == 'use':
+                    log_results_event('Use', old_bibno=thisresult.bibno, new_bibno=thisscannedbib.bibno, **logfields)
+                elif action in SCANACTION_EVENTS:
+                    log_results_event(SCANACTION_EVENTS[action], **logfields)
 
                 # handle cases 
                 match action:
@@ -635,6 +682,10 @@ class ScanActionApi(MethodView):
             
             else:
                 output_result = {'status' : 'success', 'error': error}
+                # logged only if the result has a race or simulation run
+                if thisresult:
+                    commit_results_event(f'{SCANACTION_EVENTS.get(action, action)} refused', result=thisresult,
+                                         scannedbib=thisscannedbib, info='; '.join(error))
                 
             # UNLOCK file access
             unlock(filelock)
@@ -653,4 +704,8 @@ class ScanActionApi(MethodView):
             # roll back database updates and close transaction
             db.session.rollback()
             current_app.logger.error(format_exc())
+
+            # the action was rolled back, so log that it failed
+            if logfields:
+                commit_results_event(f'{SCANACTION_EVENTS.get(action, action)} failed', info=exc.strip(), **logfields)
             return jsonify(output_result)

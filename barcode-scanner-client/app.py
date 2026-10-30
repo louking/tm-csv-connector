@@ -2,6 +2,7 @@
 from sys import stdout
 from asyncio import run, Future, Protocol, sleep, get_event_loop, new_event_loop, set_event_loop
 from threading import Thread
+from datetime import datetime
 from time import sleep as blocking_sleep
 from json import loads, dumps
 from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatter, LoggerAdapter
@@ -50,6 +51,11 @@ stop_reader = False
 
 # queue messages from input protocol for sending to backend
 queued_msgs = []
+
+def device_time():
+    """local time a device message arrived, to the millisecond, sent with it so the server
+    can log it; posts lag arrival by the queue's polling and earlier posts (#157)"""
+    return datetime.now().isoformat(timespec='milliseconds')
 
 # save latest raceid
 raceid = 0
@@ -216,22 +222,11 @@ class InputChunkProtocol(Protocol):
             try:
                 log.debug(f'barcode scanner msg processed: {msg}')
                 # each msg is a bib number
-                queued_msgs.append({'opcode':'scannedbib', 'raceid': raceid, 'bibno': msg})
+                queued_msgs.append({'opcode':'scannedbib', 'raceid': raceid, 'bibno': msg, 'device_time': device_time()})
 
             except ValueError:
                 log.error(f'could not decode message: {msg}')
-        
-        # stop callbacks again immediately
-        self.pause_reading()
 
-    def pause_reading(self):
-        # This will stop the callbacks to data_received
-        self.transport.pause_reading()
-
-    def resume_reading(self):
-        # This will start the callbacks to data_received again with all data that has been received in the meantime.
-        self.transport.resume_reading()
-    
     def set_logging_path(self, logging_path):
         self.logging_path = logging_path
         log.error(f'need to set logging path in logger')
@@ -276,6 +271,9 @@ async def reader(port, logging_path):
                 transport.close()
                 raise ReaderClosed
 
+            # reading isn't paused (unlike the pyserial-asyncio chunk example), so data_received() runs and
+            # stamps device_time as data arrives during this sleep; data arriving during a blocking post
+            # is read right after it (#157)
             await sleep(0.3)
 
             # send any queued messages
@@ -285,7 +283,6 @@ async def reader(port, logging_path):
                     msg = queued_msgs.pop(0)
                     send_to_backend(msg)
 
-            protocol.resume_reading()
 
             # check the Bluetooth link, debounced so a transient blip doesn't force a reopen
             if btaddr is not None and readloop.time() - last_link_check >= LINK_CHECK_INTERVAL:

@@ -274,6 +274,83 @@ the **Confirm** button.
 
     Full result edit (select row, click Edit)
 
+Results Log view
+======================
+The Results Log view lists everything that changed the results for a race,
+newest first. Use it after a race to see what the Time Machine and barcode
+scanner sent, and what the operator changed. Choose the race in **Race**. It
+starts on the race last chosen on the :ref:`Results view`. Click **CSV** to
+download the log.
+
+Events caused by an operator are named for the button that was used. Events
+received from the Time Machine or the scanner are in lower case.
+
+    :result:
+        a result received from the Time Machine. *Info* reads "keypad bib" when
+        the bib was entered on the Time Machine keypad
+
+    :scan:
+        a bib received from the barcode scanner
+
+    :scan ignored:
+        a scan dropped because **Ignore repeat scans** is checked and the bib
+        is the same as the previous scan
+
+    :Use / Ins / Del:
+        a scanned bib button pressed. *Stale* means the row had already changed,
+        so the press was ignored. *Refused* or *failed* means the press had no
+        effect, and *Info* says why
+
+    :New / Edit / Delete:
+        a result added, edited, or deleted
+
+    :Confirm:
+        results confirmed, up to the place shown
+
+    :Clear All / Undo Clear:
+        all results and scans for the race cleared or restored
+
+    :Set start time / start time:
+        the race start time set on the Results view, or from the chip reader's
+        first gun time marker
+
+    :Ignore repeat scans:
+        **Ignore repeat scans** checked or unchecked
+
+The view has the following columns:
+
+    :Log Time:
+        date and time of the event, to the millisecond
+
+    :Device Time:
+        for a result or scan, the time it was received from the Time Machine or
+        scanner, to the millisecond. *Log Time* is a little later, usually by less
+        than half a second, since each result or scan is sent on to **tmtility**
+        after it's received. Results or scans that come very close together
+        can show the same *Device Time*; they are still in the right order.
+        Blank if the result or scan came from an older version of the client
+        software
+
+    :Place / TM Pos:
+        the result's place and Time Machine position when the event happened
+
+    :Scanned Bib No:
+        the scanned bib involved, if any
+
+    :Old Bib No / New Bib No:
+        the result's bib number before and after the event
+
+    :Old Time / New Time:
+        the result's time before and after the event
+
+    :Info:
+        other details
+
+.. figure:: images/results-log-view.*
+    :align: center
+
+    Results Log view
+
 Settings view
 ======================
 The Settings view is used to update individual settings required by the system.

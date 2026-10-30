@@ -26,6 +26,7 @@ from ..common import PostBibApi, PostResultApi, ScanActionApi, BLANK_BIBNO
 from ...fileformat import filelock, refreshfile, lock, unlock, clearfile
 from ...times import time2asc
 from ...trident import trident2db
+from ...resultslog import log_results_event
 
 TIME_PATTERN = re_compile(r'^(\d{1,2}:)?([0-5]\d:)?[0-5]\d(\.\d{0,2})?$')
 
@@ -256,6 +257,10 @@ class ClearResultsApi(MethodView):
                 db.session.flush()
 
             # clearing is the pre-race step, so start ignoring repeat scans (#155)
+            info = f'{len(results)} results and {len(scannedbibs)} scans cleared'
+            if race and not race.debounce_scans:
+                info += ', ignore repeat scans turned on'
+            log_results_event('Clear All', race_id=raceid, info=info)
             if race:
                 race.debounce_scans = True
 
@@ -321,6 +326,8 @@ class UndoClearResultsApi(MethodView):
                 )
                 db.session.add(r)
 
+            log_results_event('Undo Clear', race_id=raceid,
+                              info=f'{len(results_data)} results and {len(scannedbibs_data)} scans restored')
             db.session.delete(snapshot)
             db.session.commit()
 
@@ -526,7 +533,10 @@ class SetRaceStartTimeApi(MethodView):
             if not race:
                 return jsonify(status='fail', error='invalid race')
 
+            old_start_time = race.start_time
             race.start_time = timesecs(start_time)
+            log_results_event('Set start time', race_id=race.id,
+                              info=f'{time2asc(old_start_time) if old_start_time is not None else "(none)"} -> {time2asc(race.start_time)}')
             db.session.commit()
 
             return jsonify(status='success', start_time=time2asc(race.start_time))
@@ -557,6 +567,8 @@ class SetRaceDebounceScansApi(MethodView):
             if not race:
                 return jsonify(status='fail', error='invalid race')
 
+            if bool(race.debounce_scans) != debounce_scans:
+                log_results_event('Ignore repeat scans', race_id=race.id, info='on' if debounce_scans else 'off')
             race.debounce_scans = debounce_scans
             db.session.commit()
 

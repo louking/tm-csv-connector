@@ -8,7 +8,8 @@ from csv import DictWriter
 from os.path import join
 
 # pypi
-from flask import render_template, session, current_app, url_for, abort
+from flask import render_template, session, current_app, url_for, abort, request
+from flask_security import current_user
 from flask.views import MethodView
 from dominate.tags import div, button, span, select, option, p, i, input_, label
 from dominate.tags import table, thead, tbody, tr, th, td
@@ -23,9 +24,12 @@ from loutilities.filters import filtercontainerdiv, filterdiv, yadcfoption
 from . import bp
 from ...model import db, Race, Result, ScannedBib, BluetoothDevice, BluetoothType
 from ...model import ChipRead, ChipBib, ChipReader, AppLog, Setting
+from ...model import ResultsLog, SimulationRun
 from ...times import asc2time, time2asc
 from ..common import ResultsView, get_results_posttablehtml, results_validate, results_dbmapping, results_formmapping
 from ...fileformat import filecolumns, db2file, filelock, lock, unlock
+from ...resultslog import log_results_event
+from ...roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN
 
 # https://docs.python.org/3/library/datetime.html#datetime.tzinfo
 from datetime import tzinfo
@@ -305,6 +309,8 @@ class ResultsViewNormal(ResultsView, TmConnectorView):
                 .values(is_confirmed=True)
             )
             db.session.flush()
+            log_results_event('Confirm', result=self.result,
+                              info=f'{len(updated)} rows confirmed, up to place {self.result.place}')
 
             # get output file pathname and write updated results to file
             filesetting = Setting.query.filter_by(name='output-file').one_or_none()
@@ -926,3 +932,117 @@ applog_view = TmConnectorView(
 )
 applog_view.register()
 
+
+resultslog_dbattrs = 'id,time,device_time,event,place,tmpos,scanbibno,old_bibno,new_bibno,old_time,new_time,info'.split(',')
+resultslog_formfields = 'rowid,time,device_time,event,place,tmpos,scanbibno,old_bibno,new_bibno,old_time,new_time,info'.split(',')
+resultslog_dbmapping = dict(zip(resultslog_dbattrs, resultslog_formfields))
+resultslog_formmapping = dict(zip(resultslog_formfields, resultslog_dbattrs))
+def ms_datetime(dt):
+    return f'{dt:%Y-%m-%d %H:%M:%S}.{dt.microsecond // 1000:03}' if dt else ''
+resultslog_formmapping['time'] = lambda dbrow: ms_datetime(dbrow.time)
+resultslog_formmapping['device_time'] = lambda dbrow: ms_datetime(dbrow.device_time)
+resultslog_formmapping['old_time'] = lambda dbrow: time2asc(dbrow.old_time) if dbrow.old_time is not None else ''
+resultslog_formmapping['new_time'] = lambda dbrow: time2asc(dbrow.new_time) if dbrow.new_time is not None else ''
+
+def get_resultslog_choices():
+    """races (or simulation runs, in simulation mode) whose log can be shown, newest first
+
+    Returns:
+        [(id, label), ...]
+    """
+    if current_app.config.get('SIMULATION_MODE', False):
+        # only admins get here (ResultsLogView.permission())
+        runs = SimulationRun.query.order_by(SimulationRun.timestarted.desc()).all()
+        return [(r.id, r.usersimstart if r.timestarted and r.user and r.simulation else f'run {r.id}') for r in runs]
+    else:
+        races = Race.query.order_by(Race.date.desc()).all()
+        return [(r.id, r.raceyear) for r in races]
+
+def get_resultslog_source():
+    """the race (or simulation run, in simulation mode) chosen on the Results Log view; defaults to
+    the one last selected on the results view
+
+    Returns:
+        (dict, int): query params for ResultsLog, id of the race or simulation run; ({}, None) if none
+    """
+    simulation_mode = current_app.config.get('SIMULATION_MODE', False)
+    try:
+        source_id = int(request.args.get('source')
+                        or session.get('_results_simulationrun_id' if simulation_mode else '_results_raceid'))
+    except (TypeError, ValueError):
+        return {}, None
+
+    # only one of the choices, so a simulation user can't see another user's run
+    if source_id not in [c[0] for c in get_resultslog_choices()]:
+        return {}, None
+    return {'simulationrun_id' if simulation_mode else 'race_id': source_id}, source_id
+
+def get_resultslog_filters():
+    prehtml = div()
+    with prehtml:
+        source_id = get_resultslog_source()[1]
+        sourcetype = 'Simulation run' if current_app.config.get('SIMULATION_MODE', False) else 'Race'
+        with div(_class='filter'):
+            label(f'{sourcetype} ', _for='resultslog-source')
+            # reload the page for the chosen race; the log is rendered with the page
+            with select(id='resultslog-source', _class='like-select2-sizing',
+                        onchange="location.search = '?source=' + this.value"):
+                if source_id is None:
+                    option(f'select {sourcetype.lower()}', value='', selected=True, disabled=True)
+                for thisid, thislabel in get_resultslog_choices():
+                    if thisid == source_id:
+                        option(thislabel, value=thisid, selected=True)
+                    else:
+                        option(thislabel, value=thisid)
+    return prehtml.render()
+
+class ResultsLogView(TmConnectorView):
+    def permission(self):
+        """in simulation mode, only tmsim and super admins can see the log"""
+        super().permission()
+        if not current_app.config.get('SIMULATION_MODE', False):
+            return True
+        return current_user.has_role(ROLE_TMSIM_ADMIN) or current_user.has_role(ROLE_SUPER_ADMIN)
+
+    def beforequery(self):
+        """show the log for the race (or simulation run) chosen on the page"""
+        self.queryparams, source_id = get_resultslog_source()
+        # with no race or simulation run, show no rows; race_id=None would match every simulation run's log (#152)
+        self.queryfilters = [] if source_id is not None else [false()]
+
+resultslog_view = ResultsLogView(
+    app=bp,  # use blueprint instead of app
+    db=db,
+    model=ResultsLog,
+    template='datatables.jinja2',
+    pagename='Results Log',
+    endpoint='public.resultslog',
+    rule='/resultslog',
+    pretablehtml=get_resultslog_filters,
+    dbmapping=resultslog_dbmapping,
+    formmapping=resultslog_formmapping,
+    servercolumns=None,  # not server side
+    idSrc='rowid',
+    buttons=['csv'],
+    clientcolumns = [
+        {'data': 'time', 'name': 'time', 'label': 'Log Time'},
+        {'data': 'device_time', 'name': 'device_time', 'label': 'Device Time'},
+        {'data': 'event', 'name': 'event', 'label': 'Event'},
+        {'data': 'place', 'name': 'place', 'label': 'Place'},
+        {'data': 'tmpos', 'name': 'tmpos', 'label': 'TM Pos'},
+        {'data': 'scanbibno', 'name': 'scanbibno', 'label': 'Scanned Bib No'},
+        {'data': 'old_bibno', 'name': 'old_bibno', 'label': 'Old Bib No'},
+        {'data': 'new_bibno', 'name': 'new_bibno', 'label': 'New Bib No'},
+        {'data': 'old_time', 'name': 'old_time', 'label': 'Old Time'},
+        {'data': 'new_time', 'name': 'new_time', 'label': 'New Time'},
+        {'data': 'info', 'name': 'info', 'label': 'Info'},
+    ],
+    dtoptions={
+        'order': [['time:name', 'desc']],
+        'scrollCollapse': True,
+        'scrollX': True,
+        'scrollXInner': "100%",
+        'scrollY': True,
+    },
+)
+resultslog_view.register()

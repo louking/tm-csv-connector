@@ -39,6 +39,7 @@ from ...times import asc2time, time2asc
 from ..common import ResultsView, get_results_posttablehtml, results_dbmapping, results_formmapping, results_validate
 from ..common import PostResultApi, PostBibApi, ScanActionApi
 from ...fileformat import filecolumns, db2file, filelock, lock, unlock, fulltime
+from ...resultslog import log_results_event
 
 from ...roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN
 roles_accepted = [ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN]
@@ -194,6 +195,8 @@ class ResultsViewSim(ResultsView, SimConnectorView):
                 .values(is_confirmed=True)
             )
             db.session.flush()
+            log_results_event('Confirm', result=self.result,
+                              info=f'{len(updated)} rows confirmed, up to place {self.result.place}')
 
             # write the updated results to table
             lastresult = db.session.execute(

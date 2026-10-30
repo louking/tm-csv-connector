@@ -10,6 +10,8 @@ from loutilities.timeu import asctime
 
 # homegrown
 from .model import db, ChipBib, ChipRead, Race
+from .resultslog import log_results_event
+from .times import time2asc
 
 datefmt = asctime('%y%m%d')
 timefmt = asctime('%H%M%S')
@@ -188,4 +190,8 @@ def trident2db(raceid, line, source):
                     sqlselect(Race).where(Race.id == raceid)
                 ).one_or_none()
                 if race:
+                    old_start_time = race[0].start_time
                     race[0].start_time = float(time)
+                    log_results_event('start time', race_id=raceid,
+                                      info=f'{time2asc(old_start_time) if old_start_time is not None else "(none)"} -> '
+                                           f'{time2asc(race[0].start_time)} from {source} GUNTIME')

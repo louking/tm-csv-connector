@@ -15,6 +15,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import mapped_column
 from sqlalchemy import text, func
 from sqlalchemy.schema import FetchedValue
+from sqlalchemy.dialects.mysql import DATETIME
 
 # set up database - SQLAlchemy() must be done after app.config SQLALCHEMY_* assignments
 db = SQLAlchemy()
@@ -128,6 +129,7 @@ class Race(Base):
     chipreads   = relationship('ChipRead', back_populates='race', foreign_keys=[ChipRead.race_id], cascade='all, delete, delete-orphan')
     chipbibs    = relationship('ChipBib', back_populates='race', foreign_keys=[ChipBib.race_id], cascade='all, delete, delete-orphan')
     resultssnapshots = relationship('ResultsSnapshot', back_populates='race', cascade='all, delete, delete-orphan')
+    resultslogs = relationship('ResultsLog', back_populates='race', cascade='all, delete, delete-orphan')
     
     # next_scannedbib is set when there are more scanned bibs than there are results
     # OBSOLETE
@@ -298,6 +300,7 @@ class SimulationRun(Base):
     simresults  = relationship('SimulationResult', back_populates='simulationrun', cascade='all, delete, delete-orphan')
     results     = relationship('Result', back_populates='simulationrun', cascade='all, delete, delete-orphan')
     scannedbibs = relationship('ScannedBib', back_populates='simulationrun', foreign_keys=[ScannedBib.simulationrun_id], cascade='all, delete, delete-orphan')
+    resultslogs = relationship('ResultsLog', back_populates='simulationrun', cascade='all, delete, delete-orphan')
 
     # next_scannedbib is set when there are more scanned bibs than there are results
     # OBSOLETE
@@ -354,3 +357,31 @@ class SimulationResult(Base):
                          server_onupdate=FetchedValue()
                          )
 
+class ResultsLog(Base):
+    """one row per scan, result, or operator edit on the results view, so a race can be analyzed
+    afterwards (#157); identifies rows by place, TM position, and bib, not by database id"""
+    __tablename__ = 'resultslog'
+    __table_args__ = (
+        Index('ix_resultslog_race_time', 'race_id', 'time'),
+        Index('ix_resultslog_simrun_time', 'simulationrun_id', 'time'),
+    )
+    id          = Column(Integer(), primary_key=True)
+    # has race_id or simrun_id, but not both
+    race_id     = mapped_column(ForeignKey('race.id'))
+    race        = relationship('Race', back_populates='resultslogs')
+    simulationrun_id = mapped_column(ForeignKey('simulationrun.id'))
+    simulationrun    = relationship('SimulationRun', back_populates='resultslogs')
+    # local time, to the millisecond, so it can be compared with client logs and chip read times
+    time        = Column(DATETIME(fsp=3))
+    # local time the client received a result or scan from its device, if the client sent it;
+    # time - device_time is the post latency
+    device_time = Column(DATETIME(fsp=3))
+    event       = Column(Text)
+    place       = Column(Integer)
+    tmpos       = Column(Integer)
+    scanbibno   = Column(Text)  # scanned bib involved, if any
+    old_bibno   = Column(Text)
+    new_bibno   = Column(Text)
+    old_time    = Column(Float)
+    new_time    = Column(Float)
+    info        = Column(Text)

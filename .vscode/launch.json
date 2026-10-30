@@ -13,6 +13,9 @@
             // otherwise the debugpy launcher process runs under python.defaultInterpreterPath,
             // which makes the terminal command line misleadingly show the global interpreter
             "debugLauncherPython": "${workspaceFolder}/.venv/Scripts/python.exe",
+            // not the default ${workspaceFolder}/.env: its TZ is for the container, and Windows' C runtime
+            // reads TZ=America/New_York as UTC, which makes the client's local times 4-5 hours off
+            "envFile": "${workspaceFolder}/.vscode/clients.env",
             "justMyCode": false
         },
         {
@@ -24,6 +27,9 @@
             // otherwise the debugpy launcher process runs under python.defaultInterpreterPath,
             // which makes the terminal command line misleadingly show the global interpreter
             "debugLauncherPython": "${workspaceFolder}/.venv/Scripts/python.exe",
+            // not the default ${workspaceFolder}/.env: its TZ is for the container, and Windows' C runtime
+            // reads TZ=America/New_York as UTC, which makes the client's local times 4-5 hours off
+            "envFile": "${workspaceFolder}/.vscode/clients.env",
             "justMyCode": false
         },
         {
@@ -35,6 +41,9 @@
             // otherwise the debugpy launcher process runs under python.defaultInterpreterPath,
             // which makes the terminal command line misleadingly show the global interpreter
             "debugLauncherPython": "${workspaceFolder}/.venv/Scripts/python.exe",
+            // not the default ${workspaceFolder}/.env: its TZ is for the container, and Windows' C runtime
+            // reads TZ=America/New_York as UTC, which makes the client's local times 4-5 hours off
+            "envFile": "${workspaceFolder}/.vscode/clients.env",
             "justMyCode": false
         },
         {

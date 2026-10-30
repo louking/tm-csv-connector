@@ -2,6 +2,7 @@
 from sys import stdout
 from asyncio import run, Future, Protocol, sleep, get_event_loop, new_event_loop, set_event_loop
 from threading import Thread
+from datetime import datetime
 from json import loads, dumps
 from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatter, LoggerAdapter
 from logging.handlers import TimedRotatingFileHandler
@@ -46,6 +47,11 @@ stop_reader = False
 
 # queue messages from input protocol for sending to backend
 queued_msgs = []
+
+def device_time():
+    """local time a device message arrived, to the millisecond, sent with it so the server
+    can log it; posts lag arrival by the queue's polling and earlier posts (#157)"""
+    return datetime.now().isoformat(timespec='milliseconds')
 
 # save latest raceid
 raceid = 0
@@ -125,24 +131,15 @@ class InputChunkProtocol(Protocol):
                     # check control character; queue message for handling in the background
                     global queued_msgs
                     if control == PRIMARY:
-                        queued_msgs.append({'opcode': 'primary', 'raceid': raceid, 'pos': pos, 'time': time})
+                        queued_msgs.append({'opcode': 'primary', 'raceid': raceid, 'pos': pos, 'time': time,
+                                            'device_time': device_time()})
                     elif control == SELECT:
                         bib = int(msg[27:32].decode())
-                        queued_msgs.append({'opcode': 'select', 'raceid': raceid, 'pos': pos, 'time': time, 'bibno': bib})
+                        queued_msgs.append({'opcode': 'select', 'raceid': raceid, 'pos': pos, 'time': time, 'bibno': bib,
+                                            'device_time': device_time()})
             except ValueError:
                 log.error(f'could not decode message: {msg}')
-        
-        # stop callbacks again immediately
-        self.pause_reading()
 
-    def pause_reading(self):
-        # This will stop the callbacks to data_received
-        self.transport.pause_reading()
-
-    def resume_reading(self):
-        # This will start the callbacks to data_received again with all data that has been received in the meantime.
-        self.transport.resume_reading()
-    
     def set_logging_path(self, logging_path):
         self.logging_path = logging_path
         log.error(f'need to set logging path in logger')
@@ -177,6 +174,9 @@ async def reader(port, logging_path):
                 transport.close()
                 raise ReaderClosed
             
+            # reading isn't paused (unlike the pyserial-asyncio chunk example), so data_received() runs and
+            # stamps device_time as data arrives during this sleep; data arriving during a blocking post
+            # is read right after it (#157)
             await sleep(0.3)
             
             # send any queued messages
@@ -186,7 +186,6 @@ async def reader(port, logging_path):
                     msg = queued_msgs.pop(0)
                     send_to_backend(msg)
 
-            protocol.resume_reading()
     
     except ReaderClosed:
         return

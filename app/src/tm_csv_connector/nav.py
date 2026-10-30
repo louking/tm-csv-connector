@@ -76,6 +76,11 @@ def nav_menu():
             navbar.items.append(View('Results', 'public.results'))
         else:
             navbar.items.append(View('Results', 'admin.resultssim'))
+        # simulation users don't see the log, only admins
+        if (not current_app.config.get('SIMULATION_MODE', False)
+                or current_user.has_role(ROLE_TMSIM_ADMIN)
+                or current_user.has_role(ROLE_SUPER_ADMIN)):
+            navbar.items.append(View('Results Log', 'public.resultslog'))
         chips = Subgroup('Chips')
         navbar.items.append(chips)
         chips.items.append(View('Chip Reads', 'public.chipreads'))
