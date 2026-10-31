@@ -16,13 +16,13 @@ var ccinterval, scanner_ccinterval, trident_ccinterval, start_time_interval;
 var connected, scanner_connected, trident_connected, trident_status;
 var trident_status_prev = null;
 // client status ('connected', 'connecting', 'reconnecting', 'disconnected'), see client_status()
-var scanner_status, trident_client_status;
-var scanner_status_prev = null;
+var tm_status, scanner_status, trident_client_status;
+var tm_status_prev = null, scanner_status_prev = null;
 // set when a stop is sent while connecting/reconnecting -- it takes effect only when the client's current
 // attempt gives up (up to ~21s for the chip reader), so the button shows Stopping... until then
-var scanner_stopping = false, trident_stopping = false;
-// port the scanner client is connected to or retrying, null if not running
-var scanner_client_port = null;
+var tm_stopping = false, scanner_stopping = false, trident_stopping = false;
+// port the tm reader or scanner client is connected to or retrying, null if not running
+var tm_client_port = null, scanner_client_port = null;
 var tm_websocket_open = false;
 var scanner_websocket_open = false;
 var trident_websocket_open = false;
@@ -96,9 +96,12 @@ $( function() {
             send_raceid(tm_reader);
         },
         close_callback: function() {
-            tm_device_lost = tm_device_lost || connected;
+            tm_device_lost = tm_device_lost || connected || is_retrying(tm_status);
             connected = false;
-            cd.text('Connect');
+            tm_status = tm_status_prev = 'disconnected';
+            tm_client_port = null;
+            tm_stopping = false;
+            cd.prop('disabled', false).text('Connect').removeClass('client-reconnecting');
             client_not_running(tm_websocket_open, $('#tm-alert-banner'),
                 'Time Machine reader client is not running -- results are not being received');
         },
@@ -107,15 +110,40 @@ $( function() {
             if (rsp.opcode == 'connection_status') {
                 // console.log(`reader: received ${msg}`);
                 connected = rsp.connected;
-                if (rsp.connected) {
+                tm_status = client_status(rsp);
+                tm_client_port = rsp.port;
+                if (!is_retrying(tm_status)) tm_stopping = false;
+                cd.prop('disabled', tm_stopping);
+                if (tm_status == 'connected') {
                     cd.text('Disconnect');
-                    tm_device_lost = false;
+                } else if (tm_stopping) {
+                    cd.text('Stopping...');
+                } else if (tm_switches_port()) {
+                    cd.text('Connect');
+                } else if (tm_status == 'connecting') {
+                    cd.text('Stop Connecting');
+                } else if (tm_status == 'reconnecting') {
+                    cd.text('Stop Reconnecting');
                 } else {
                     cd.text('Connect');
-                }    
-                client_restarted_alert($('#tm-alert-banner'), tm_device_lost && !connected ?
-                    'Time Machine reader client restarted -- click Connect to resume receiving results' : null);
-            
+                }
+                cd.toggleClass('client-reconnecting', tm_status == 'reconnecting');
+
+                // the Time Machine is the primary results source, so a failed or lost connection gets a
+                // banner and a beep on the transition into reconnecting, as the scanner does (#154)
+                if (tm_status == 'reconnecting' && tm_status_prev != 'reconnecting') {
+                    client_alert_beep();
+                }
+                if (tm_status != 'disconnected') tm_device_lost = false;
+                if (tm_status == 'reconnecting') {
+                    update_alert_banner($('#tm-alert-banner'),
+                        'Time Machine: not connected, reconnecting -- results are not being received');
+                } else {
+                    client_restarted_alert($('#tm-alert-banner'), tm_device_lost ?
+                        'Time Machine reader client restarted -- click Connect to resume receiving results' : null);
+                }
+                tm_status_prev = tm_status;
+
             // what are the current devices? this comes in when the view is initialized
             } else if (rsp.opcode == 'available_devices') {
                 // https://select2.org/programmatic-control/add-select-clear-items
@@ -337,6 +365,12 @@ function is_retrying(status) {
     return status == 'connecting' || status == 'reconnecting';
 }
 
+// true if clicking Connect while the tm reader client is connecting/reconnecting would switch it to a
+// newly selected port, rather than the click stopping the retries
+function tm_switches_port() {
+    return is_retrying(tm_status) && port_selected(port) && tm_client_port != null && port != tm_client_port;
+}
+
 // true if clicking Connect while the scanner client is connecting/reconnecting would switch it to a
 // newly selected port, rather than the click stopping the retries
 function scanner_switches_port() {
@@ -545,10 +579,15 @@ class StableWebSocket {
 
 function cdbuttonclick() {
     var msg;
-    if (connected) {
+    // close also stops the client's auto-retry loop (#154), unless Connect would switch ports
+    if (connected || (is_retrying(tm_status) && !tm_switches_port())) {
         try {
             msg = JSON.stringify({opcode: 'close'});
             tm_reader.send(msg);
+            if (!connected) {
+                tm_stopping = true;
+                cd.text('Stopping...').prop('disabled', true);
+            }
         } catch(e) {
             alert('Cannot disconnect: reader client not reachable');
         }

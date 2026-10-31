@@ -1,8 +1,9 @@
 # standard
 from sys import stdout
 from asyncio import run, Future, Protocol, sleep, get_event_loop, new_event_loop, set_event_loop
-from threading import Thread
+from threading import Thread, Lock, Event
 from datetime import datetime
+from time import sleep as blocking_sleep
 from json import loads, dumps
 from logging import basicConfig, getLogger, INFO, DEBUG, StreamHandler, Formatter, LoggerAdapter
 from logging.handlers import TimedRotatingFileHandler
@@ -10,13 +11,19 @@ from requests import post
 from requests import codes
 from requests import RequestException
 from serial.tools.list_ports import comports
+from traceback import format_exception_only
+import ctypes
+from ctypes import wintypes
 
 # pypi
 from websockets import connect, ConnectionClosed
 from websockets.server import serve
-from serial_asyncio import create_serial_connection
+from serial import serial_for_url
+from serial_asyncio import connection_for_serial
 
 class ReaderClosed(Exception): pass
+class LinkLost(Exception): pass
+class OpenTimeout(Exception): pass
 
 basicConfig(
     format='%(asctime)s %(name)s %(levelname)s: %(message)s',
@@ -63,6 +70,179 @@ def device_time():
 
 # save latest raceid
 raceid = 0
+
+# set when the user explicitly disconnects (stop_reader honored inside reader()), so
+# reader_thread() can tell "user clicked disconnect" apart from "link was lost" and
+# only auto-retry the latter (#154, same as barcode-scanner-client #146)
+user_closed = False
+
+# true while reader_thread() is alive (actively connected or auto-retrying),
+# guards against a duplicate 'open' opcode spawning a second thread
+reader_thread_running = False
+
+# true once reader_thread() has had an attempt fail or a connection drop, so client_status()
+# can tell a first connect attempt ('connecting') apart from auto-retrying ('reconnecting')
+retrying = False
+
+# port reader_thread() opens on each attempt; an 'open' received while auto-retrying
+# updates this, so the operator can switch ports without the loop retrying the old one
+reader_port = None
+
+# seconds to wait between auto-reconnect attempts after the link is lost
+RECONNECT_WAIT = 5
+
+# seconds to wait for the serial port to open before giving up on the attempt. A good Bluetooth
+# open has taken 3-5s, but one has also hung with no error until the Time Machine was power-cycled (#154)
+OPEN_TIMEOUT = 15
+
+# opens still hung after their attempt gave up, see PortOpener. Each is a thread blocked in the
+# open, so stop retrying when there are this many
+MAX_HUNG_OPENS = 3
+hung_opens = []
+
+# Bluetooth link checking -- when a Bluetooth SPP device powers off, Windows keeps the
+# virtual COM port open and pyserial raises nothing. See barcode-scanner-client, #146
+LINK_CHECK_INTERVAL = 2     # seconds between link checks
+LINK_DOWN_COUNT = 3         # consecutive "down" checks before the link is declared lost
+
+class SYSTEMTIME(ctypes.Structure):
+    _fields_ = [(n, wintypes.WORD) for n in ('wYear', 'wMonth', 'wDayOfWeek', 'wDay', 'wHour', 'wMinute', 'wSecond', 'wMilliseconds')]
+
+class BLUETOOTH_DEVICE_INFO(ctypes.Structure):
+    _fields_ = [
+        ('dwSize', wintypes.DWORD),
+        ('Address', ctypes.c_ulonglong),
+        ('ulClassofDevice', wintypes.ULONG),
+        ('fConnected', wintypes.BOOL),
+        ('fRemembered', wintypes.BOOL),
+        ('fAuthenticated', wintypes.BOOL),
+        ('stLastSeen', SYSTEMTIME),
+        ('stLastUsed', SYSTEMTIME),
+        ('szName', wintypes.WCHAR * 248),
+    ]
+
+try:
+    bluetoothapis = ctypes.WinDLL('BluetoothApis.dll')
+except (AttributeError, OSError) as e:
+    log.warning(f'Bluetooth API not available, Time Machine link checking disabled: {e}')
+    bluetoothapis = None
+
+def port_bt_address(port):
+    """get the remote Bluetooth address for a Bluetooth virtual COM port
+
+    HWID format is BTHENUM\\{uuid}_LOCALMFG&...\\...&<MACADDR>_C...; see get_comports
+
+    Args:
+        port (str): COM port name, e.g., COM3
+
+    Returns:
+        int | None: address for BluetoothGetDeviceInfo, or None if not a Bluetooth port with a remote address
+    """
+    for c in comports():
+        if c.device != port:
+            continue
+        try:
+            hwaddr = c.hwid.split('\\')[2].split('&')[3].split('_')[0]
+            if hwaddr != '000000000000':
+                return int(hwaddr, 16)
+        except (IndexError, ValueError):
+            pass
+    return None
+
+def bt_link_up(address):
+    """check whether Windows reports a live Bluetooth link to the device
+
+    Args:
+        address (int): Bluetooth address from port_bt_address()
+
+    Returns:
+        bool | None: link state, or None if it couldn't be determined
+    """
+    info = BLUETOOTH_DEVICE_INFO()
+    info.dwSize = ctypes.sizeof(info)
+    info.Address = address
+    rc = bluetoothapis.BluetoothGetDeviceInfo(None, ctypes.byref(info))
+    if rc != 0:
+        return None
+    # fConnected is nonzero (e.g., 32), not necessarily 1, when connected
+    return info.fConnected != 0
+
+class PortOpener:
+    """open a serial port in its own thread, so an open that hangs can be given up on (#154)
+
+    The thread is a daemon, not an executor thread, since asyncio.run() waits for executor threads
+    when it finishes. If an open completes after it was given up on, the port is closed, so it
+    doesn't hold the port against later attempts.
+
+    Args:
+        port (str): port to open
+    """
+    def __init__(self, port):
+        self.port = port
+        self.lock = Lock()
+        self.done = Event()
+        self.serial = None
+        self.error = None
+        self.abandoned = False
+        Thread(target=self._open, daemon=True).start()
+
+    def _open(self):
+        try:
+            ser = serial_for_url(self.port)
+        except Exception as e:
+            self.error = e
+            self.done.set()
+            return
+        with self.lock:
+            if self.abandoned:
+                log.info(f'{self.port} open completed after it was given up on; closing it')
+                ser.close()
+            else:
+                self.serial = ser
+        self.done.set()
+
+    def abandon(self):
+        """give up on the open; returns False if it had already completed, so the caller can use it"""
+        with self.lock:
+            if self.serial is not None:
+                return False
+            self.abandoned = True
+            return True
+
+async def open_port(port):
+    """open port, giving up after OPEN_TIMEOUT or when the user disconnects
+
+    Args:
+        port (str): port to open
+
+    Raises:
+        OpenTimeout: the open didn't complete in time, or stop_reader was set while waiting
+        Exception: whatever the open raised
+
+    Returns:
+        Serial: the open port
+    """
+    global hung_opens
+    hung_opens = [o for o in hung_opens if not o.done.is_set()]
+    if len(hung_opens) >= MAX_HUNG_OPENS:
+        raise OpenTimeout(f'{len(hung_opens)} earlier opens are still hung -- power-cycle the Time Machine, '
+                          f'or restart the TmReader service')
+
+    opener = PortOpener(port)
+    loop = get_event_loop()
+    start = loop.time()
+    while not opener.done.is_set():
+        waited = loop.time() - start
+        if stop_reader or waited >= OPEN_TIMEOUT:
+            if opener.abandon():
+                hung_opens.append(opener)
+                raise OpenTimeout(f'gave up after {waited:.1f}s' + (' (user disconnected)' if stop_reader else ''))
+            break
+        await sleep(0.1)
+
+    if opener.error:
+        raise opener.error
+    return opener.serial
 
 class LoggerAdapter(LoggerAdapter):
     """Add connection ID and client IP address to websockets logs."""
@@ -193,10 +373,22 @@ def send_to_backend(data, attempt=0):
     return True
 
 async def reader(port, logging_path):
+    global stop_reader, user_closed, connected
+
     log.info(f'time machine async reader started with port {port}')
     readloop = get_event_loop()
-    transport, protocol = await create_serial_connection(readloop, InputChunkProtocol, port)
+    # a hung open raises OpenTimeout instead of blocking forever (#154)
+    serial_instance = await open_port(port)
+    transport, protocol = await connection_for_serial(readloop, InputChunkProtocol, serial_instance)
     protocol.set_logging_path(logging_path)
+
+    # only Bluetooth ports with a known remote address can be link checked
+    btaddr = port_bt_address(port) if bluetoothapis else None
+    if btaddr is None:
+        log.info(f'{port} is not a Bluetooth port with a remote address, link checking disabled')
+    last_link_check = readloop.time()
+    link_down_count = 0
+    link_up = None
 
     # retry state for the message at the head of queued_msgs
     post_attempt = 0
@@ -204,10 +396,10 @@ async def reader(port, logging_path):
 
     try:
         while True:
-            global stop_reader
             if stop_reader:
                 log.info('time machine reader stopped')
                 stop_reader = False
+                user_closed = True
                 transport.close()
                 raise ReaderClosed
             
@@ -229,17 +421,99 @@ async def reader(port, logging_path):
                     next_post_time = readloop.time() + POST_RETRY_WAITS[min(post_attempt, len(POST_RETRY_WAITS)) - 1]
                     log.info(f'{len(queued_msgs)} message(s) waiting to send to backend')
 
-    
+            # check the Bluetooth link, debounced so a transient blip doesn't force a reopen
+            if btaddr is not None and readloop.time() - last_link_check >= LINK_CHECK_INTERVAL:
+                last_link_check = readloop.time()
+                this_link_up = bt_link_up(btaddr)
+                if this_link_up != link_up:
+                    log.info(f'time machine Bluetooth link state: {this_link_up}')
+                    link_up = this_link_up
+                if this_link_up == False:
+                    link_down_count += 1
+                    if link_down_count >= LINK_DOWN_COUNT:
+                        log.warning('time machine Bluetooth link lost; closing port')
+                        transport.close()
+                        connected = False
+                        raise LinkLost
+                else:
+                    link_down_count = 0
+
     except ReaderClosed:
         return
 
-def reader_thread(port, logging_path):
+def client_status():
+    """connection status for the browser, see #151, #154
+
+    Returns:
+        str: 'connected', 'connecting' (first attempt in progress), 'reconnecting' (auto-retrying
+            after a failed attempt or lost link), or 'disconnected' (not running, e.g., user disconnected)
+    """
+    if connected:
+        return 'connected'
+    if reader_thread_running:
+        return 'reconnecting' if retrying else 'connecting'
+    return 'disconnected'
+
+def wait_for_retry():
+    """wait RECONNECT_WAIT seconds before the next open attempt, returning early if the user disconnects"""
+    for _ in range(RECONNECT_WAIT * 10):
+        if stop_reader:
+            return
+        blocking_sleep(0.1)
+
+def reader_thread(logging_path):
+    """open the Time Machine port, and keep reopening it if the open fails or hangs, or the link is lost
+
+    Runs until the user explicitly disconnects (stop_reader / user_closed), retrying with a fixed
+    backoff, as barcode-scanner-client does (#146, #154). Each attempt opens reader_port, which
+    controller() may change while auto-retrying.
+
+    Args:
+        logging_path (str): passed to protocol, currently unused
+    """
+    global stop_reader, user_closed, reader_thread_running, connected, retrying
+
     log.info(f'in reader_thread')
     readloop = new_event_loop()
     set_event_loop(readloop)
-    run(reader(port, logging_path))
+
+    reader_thread_running = True
+    retrying = False
+    try:
+        while True:
+            if stop_reader:
+                # disconnect requested while there was no open port to catch it
+                log.info('time machine closed by user request while reconnecting')
+                stop_reader = False
+                break
+
+            user_closed = False
+            port = reader_port
+            try:
+                run(reader(port, logging_path))
+
+            except LinkLost:
+                pass
+
+            except Exception as e:
+                exc = ''.join(format_exception_only(type(e), e))
+                log.error(f'exception occurred opening {port} - {exc}')
+
+            if user_closed:
+                log.info('time machine closed by user request')
+                break
+
+            connected = False
+            retrying = True
+            if not stop_reader:
+                log.info(f'time machine not connected; retrying in {RECONNECT_WAIT}s')
+                wait_for_retry()
+
+    finally:
+        reader_thread_running = False
+
     log.info('exiting reader_thread()')
-    
+
 async def controller(websocket):
     """server for control commands
 
@@ -256,34 +530,45 @@ async def controller(websocket):
         
         # backend opened the connection
         if opcode == 'open':
-            global raceid
+            global reader_port, raceid, stop_reader
             # open carries the current raceid -- use it, as after a client restart the
             # browser may reconnect and send open without a separate raceid opcode
             if event.get('raceid'):
                 raceid = event['raceid']
-            port = event['port']
-            logging_path = event['loggingpath']
-            readloop_threadid = Thread(target=reader_thread, args=(port, logging_path), daemon=True).start()
-            # readloop = get_event_loop()
-            # readloop.run_until_complete(reader(port, logging_path))
-            log.info('controller returned from Thread')
-        
+            # one reader thread at a time; before #154 each Connect while an open hung started another
+            if reader_thread_running:
+                if event['port'] != reader_port and not connected:
+                    log.info(f'auto-retrying; switching port from {reader_port} to {event["port"]}')
+                    reader_port = event['port']
+                else:
+                    log.info('reader_thread already running (connected or auto-retrying); ignoring open')
+            else:
+                # clear any stale close sent while nothing was running, so it can't stop the new thread
+                stop_reader = False
+                reader_port = event['port']
+                logging_path = event['loggingpath']
+                readloop_threadid = Thread(target=reader_thread, args=(logging_path,), daemon=True).start()
+                log.info('controller returned from Thread')
+
         # backend closed the connection
+        # (also cancels auto-retrying, #154)
         elif opcode == 'close':
-            # readloop = get_event_loop()
-            # readloop.stop()
-            # readloop.close()
-            # readloop = None
-            global stop_reader
-            stop_reader = True
-        
+            if reader_thread_running:
+                stop_reader = True
+
         # raceid updated from backend
         elif opcode == 'raceid':
             raceid = event['raceid']
-        
+
         # browser wants to know if we're connected to time machine
+        # port lets the browser tell whether Connect would switch ports while connecting/reconnecting
         elif opcode == 'is_connected':
-            await websocket.send(dumps({'opcode': 'connection_status', 'connected': connected}))
+            await websocket.send(dumps({
+                'opcode': 'connection_status',
+                'connected': connected,
+                'status': client_status(),
+                'port': reader_port if reader_thread_running else None,
+            }))
 
         # browser wants to know available com ports
         elif opcode == 'get_comports':
