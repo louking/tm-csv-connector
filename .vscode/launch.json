@@ -66,17 +66,10 @@
             "justMyCode": false
         },
         {
-            "name": "Chrome Normal Mode",
+            "name": "Chrome",
             "request": "launch",
             "type": "chrome",
             "url": "http://tm.localhost",
-            "webRoot": "${workspaceFolder}/app/src/tm_csv_connector/"
-        },
-        {
-            "name": "Chrome Simulation Mode",
-            "request": "launch",
-            "type": "chrome",
-            "url": "http://tmsim.localhost",
             "webRoot": "${workspaceFolder}/app/src/tm_csv_connector/"
         },
         // this doesn't seem to work -- get alert, 'Invalid message: either "program", "module", or "code" needs to be specified'
