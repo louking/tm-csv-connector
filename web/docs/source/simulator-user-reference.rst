@@ -13,7 +13,7 @@ Results view in simulator mode is used to control the playback of simulation
 events and practice using the **tmtility** user interface which would be seen on
 race day.
 
-The standard Results view controls and display is found at :ref:`**tmtility** operation (scanner connected)`
+The standard Results view controls and display is found at :ref:`**tmtility** Operation`
 
 The view has the following simulation controls:
 

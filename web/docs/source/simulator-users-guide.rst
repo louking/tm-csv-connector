@@ -10,7 +10,7 @@ controlled using the playback controls to play, pause, stop, speed up, and slow
 down the simulation. 
 
 After using the controls to start a simulation, the view operates as described in
-:ref:`**tmtility** operation (scanner connected)`
+:ref:`**tmtility** Operation`
 
 The user can also view previous simulation runs and their results.
 
