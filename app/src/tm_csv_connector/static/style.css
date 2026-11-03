@@ -514,6 +514,43 @@
       background-color: #99FF99;  /*green*/
   }
 
+  /* duplicate and unknown bibs, flagged in ResultsView.set_bib_flags() (#158) */
+  /* only flags; they don't block Confirm */
+  table.dataTable tbody tr.dup-bib td.bibno_field,
+  table.dataTable tbody tr.unknown-bib td.bibno_field,
+  table.dataTable tbody tr.dup-scan td.scanned_bibno_field
+  {
+      background-color: #ff8a80;  /*light red*/
+      font-weight: bold;
+  }
+  /* label the flag after the cell's contents, except while the cell is being edited inline */
+  /* data-dup is the places of the other results with the same bib or scan, set in resultscommon.js */
+  table.dataTable tbody tr.dup-bib td.bibno_field:not(:has(input))::after,
+  table.dataTable tbody tr.unknown-bib td.bibno_field:not(:has(input))::after,
+  table.dataTable tbody tr.dup-scan td.scanned_bibno_field::after
+  {
+      font-size: smaller;
+  }
+  table.dataTable tbody tr.dup-bib td.bibno_field:not(:has(input))::after,
+  table.dataTable tbody tr.dup-scan td.scanned_bibno_field::after
+  {
+      content: " dup at " attr(data-dup);
+  }
+  table.dataTable tbody tr.unknown-bib td.bibno_field:not(:has(input))::after
+  {
+      content: " not in race";
+  }
+  table.dataTable tbody tr.dup-bib.unknown-bib td.bibno_field:not(:has(input))::after
+  {
+      content: " dup at " attr(data-dup) ", not in race";
+  }
+  /* briefly outline the cell a right-click jumped to */
+  table.dataTable tbody td.dup-jump-target
+  {
+      outline: 3px solid #1565c0;  /*blue*/
+      outline-offset: -3px;
+  }
+
   /* scanned bib buttons */
   .scannedbib button {
     margin-right: 3px;

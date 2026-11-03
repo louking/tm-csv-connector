@@ -314,6 +314,32 @@ To confirm a set of results
 * the :fas:`not-equal` column for the row shows :fas:`not-equal`, which means
   the Scanned Bib No doesn't equal the Bib No
 
+It also flags bib numbers which are probably wrong. The cell is shown in red,
+with a short label after the bib number:
+
+* **dup at** in the Bib No column: the same Bib No is on another result in the
+  race (both results are flagged). The label gives the Place of the other
+  result, e.g., **dup at 14**.
+* **not in race** in the Bib No column: the Bib No isn't in the race's chip to
+  bib map. This is checked only if a chip to bib file was imported for the race
+  (see :ref:`Chip/Bib Map view`).
+* **dup at** in the Scanned Bib No column: the same bib was scanned more than
+  once in the race, e.g., a runner whose bib was scanned twice, with another
+  runner scanned in between (all the scans are flagged). The label gives the
+  Place of the other scans.
+
+If a bib is on more than three other results, the label shows the first three,
+followed by **…**.
+
+To go to the other result, right-click the flagged cell. The table scrolls to
+the result with the next Place in the label, and outlines its cell in blue for
+a moment. Right-click that cell to go to the next one, and so on; after the
+last, it goes back to the first. The row isn't selected, so the table keeps
+updating.
+
+These are only warnings. **Confirm** isn't blocked, and doesn't ask about them,
+so check the flagged rows before confirming.
+
 Results view Data Flow
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -368,6 +394,41 @@ Wrong bib number recorded
 Example
 
 .. figure:: images/results-bad-select.*
+    :align: center
+
+|
+
+Correction
+
+* on the yellow (:fas:`not-equal`) row, click **Use** button to use the scanned bib number
+
+Same bib number recorded twice
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Example
+
+.. figure:: images/results-duplicate-bib.*
+    :align: center
+
+|
+
+Both results with the bib number are flagged **dup at**, with the Place of the
+other one. Right-click a flagged Bib No to go to the other result.
+
+Correction
+
+* on the yellow (:fas:`not-equal`) row, click **Use** button to use the scanned bib number
+
+Bib number not in race
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+This is flagged only if a chip to bib file was imported for the race. It often
+means a digit was dropped when the bib number was entered on the Time Machine
+keypad.
+
+Example
+
+.. figure:: images/results-not-in-race.*
     :align: center
 
 |
@@ -443,7 +504,7 @@ Example
 
 Correction
 
-* on the yellow (:fas:`not-equal`) row with the duplicate scanned bib, click **Del** button to delete the extra scanned bib
+* both scans of the bib are flagged **dup at**; on the yellow (:fas:`not-equal`) row with the duplicate scanned bib, click **Del** button to delete the extra scanned bib
 
 Bib Barcode Scanner Operation
 --------------------------------

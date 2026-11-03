@@ -126,7 +126,63 @@ class ResultsView():
         # load scannedbib with the results; lazy loading it ran one query per row on every poll (#156)
         query = (self.model.query.filter_by(**self.queryparams).filter(*self.queryfilters)
                  .options(joinedload(Result.scannedbib)).order_by(Result.place))
-        self.rows = iter(query.all())
+        rows = query.all()
+        self.rows = iter(rows)
+        self.set_bib_flags(rows)
+
+    def known_bibs(self):
+        """override to return the set of bibs in the race, as normalized by bibkey(), or None if unknown
+
+        Returns:
+            set or None
+        """
+        return None
+
+    def set_bib_flags(self, rows):
+        """flag duplicate and unknown bibs, shown by row classes in nexttablerow() (#158)
+
+        These are only flags; they don't block Confirm
+
+        Args:
+            rows ([Result]): all the results shown in the view
+        """
+        def bibkey(bibno):
+            # keypad bibs are ints, scans have had leading 0's removed; treat 0 as no bib
+            return str(bibno).strip().lstrip('0') if bibno is not None else ''
+
+        def scankey(row):
+            return bibkey(row.scannedbib.bibno) if row.scannedbib and row.scannedbib.bibno != BLANK_BIBNO else ''
+
+        # a Bib No on more than one result, or a bib scanned more than once, e.g., A, B, A, which the
+        # per-race debounce doesn't catch (#155); flag all of them
+        # rows are in place order, so the place lists are too
+        bibplaces = {}
+        scanplaces = {}
+        for row in rows:
+            for key, places in [(bibkey(row.bibno), bibplaces), (scankey(row), scanplaces)]:
+                if key:
+                    places.setdefault(key, []).append(row.place)
+
+        known = self.known_bibs()
+        self.bib_flags = {}
+        # for each flagged row, the places of the other results with the same bib or scan, shown in
+        # the flag's label and used to jump between them (resultscommon.js)
+        self.dup_places = {}
+        for row in rows:
+            flags = []
+            dups = {}
+            bib = bibkey(row.bibno)
+            if bib and len(bibplaces[bib]) > 1:
+                flags.append('dup-bib')
+                dups['bib'] = [p for p in bibplaces[bib] if p != row.place]
+            if bib and known is not None and bib not in known:
+                flags.append('unknown-bib')
+            scan = scankey(row)
+            if scan and len(scanplaces[scan]) > 1:
+                flags.append('dup-scan')
+                dups['scan'] = [p for p in scanplaces[scan] if p != row.place]
+            self.bib_flags[row.id] = flags
+            self.dup_places[row.id] = dups
 
     def get(self):
         # manage scanned bib queue before get
@@ -192,17 +248,50 @@ class ResultsView():
         return super().get()
 
     def nexttablerow(self):
-        """add result_confirmed class to row if is_confirmed
+        """add confirmed class to row if is_confirmed, and the bib flags from set_bib_flags()
 
         Returns:
             dict: row dict
         """
         row = super().nexttablerow()
-        
-        if row['is_confirmed']:
-            row['DT_RowClass'] = 'confirmed'
-
+        self.add_row_flags(row)
         return row
+
+    def add_row_flags(self, row):
+        """add the row classes and dup_places to a row dict, after set_bib_flags()
+
+        Args:
+            row (dict): row dict, from self.dte.get_response_data()
+        """
+        # always include a class: DataTables removes classes from an earlier DT_RowClass only
+        # when the new data has one, so a flag that clears needs a nonempty DT_RowClass
+        classes = ['result-row'] + self.bib_flags.get(row['rowid'], [])
+        if row['is_confirmed']:
+            classes.append('confirmed')
+        row['DT_RowClass'] = ' '.join(classes)
+        row['dup_places'] = self.dup_places.get(row['rowid'], {})
+
+    def refresh_response_flags(self):
+        """re-render the editor's response rows with their bib flags (#158)
+
+        The response rows are rendered before editor_method_postcommit(), so they have no flags,
+        and their places are from before it recalculated them. The row being edited is selected,
+        which stops the table updates, so without this its flags would stay stale until the
+        operator deselected it. Other rows still update after the row is deselected.
+        """
+        if not self._responsedata:
+            return
+        rows = (self.model.query.filter_by(**self.queryparams).filter(*self.queryfilters)
+                .options(joinedload(Result.scannedbib)).populate_existing().order_by(Result.place).all())
+        self.set_bib_flags(rows)
+        byid = {row.id: row for row in rows}
+        responsedata = []
+        for row in self._responsedata:
+            if row['rowid'] in byid:
+                row = self.dte.get_response_data(byid[row['rowid']])
+                self.add_row_flags(row)
+            responsedata.append(row)
+        self._responsedata = responsedata
     
     def deleterow(self, thisid):
         # don't allow delete if this result has a scanned bib assigned
@@ -288,12 +377,14 @@ class ResultsView():
 
             # UNLOCK file access
             unlock(filelock)
-            
+
         except:
             db.session.rollback()
             # UNLOCK file access
             unlock(filelock)
             raise
+
+        self.refresh_response_flags()
 
 
 class PostResultApi(MethodView):

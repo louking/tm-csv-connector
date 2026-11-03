@@ -59,7 +59,8 @@ Chip/Bib Map view
 
 **Navigation:** Chips > Chip/Bib Map
 
-The :ref:`Chip Reads view` displays bib numbers based on this table. The csv file to import must contain columns chip and bib.
+The :ref:`Chip Reads view` displays bib numbers based on this table. The :ref:`Results view` flags
+a Bib No which isn't in this table as **not in race**. The csv file to import must contain columns chip and bib.
 
     :race:
         race/year the chip is associated with

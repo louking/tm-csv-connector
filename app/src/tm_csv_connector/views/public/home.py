@@ -227,6 +227,14 @@ class ResultsViewNormal(ResultsView, TmConnectorView):
         self.queryfilters = [] if self.race else [false()]
         # current_app.logger.debug(f'queryparams: {self.queryparams}')
 
+    def known_bibs(self):
+        """the race's bibs, from its Chip2Bib import, or None if there wasn't one (#158)"""
+        if not self.race:
+            return None
+        # runs every poll; loading only the bib column is ~3x faster than loading the rows
+        bibs = ChipBib.query.with_entities(ChipBib.bib).filter_by(race_id=self.race.id).all()
+        return {str(bib) for (bib,) in bibs if bib is not None} or None
+
     def set_queue_filters(self):
         """sets queue filters
 
