@@ -5,6 +5,11 @@ function afterdatatables() {
     // A draw between mousedown and mouseup destroys the button element so the click event
     // never fires and scan_action() is never called. Block any draw while a button is held.
     let scan_mousedown = false;
+    // a draw blocked by the guard is redone when the button is released. The scan action's own
+    // refresh can arrive while the button is still held (the buttons act on pointerdown), and
+    // its draw would otherwise be lost: rows added by it wouldn't show, and the dup labels
+    // (#158), which are set on draw, would stay stale until the next change
+    let draw_blocked = false;
     $(document).on('mousedown', '.scan-action-btn', function() {
         scan_mousedown = true;
         console.log('scan-action-btn mousedown: draw guard ON');
@@ -16,12 +21,17 @@ function afterdatatables() {
         setTimeout(function() {
             scan_mousedown = false;
             console.log('scan-action-btn mouseup: draw guard OFF');
+            if (draw_blocked) {
+                draw_blocked = false;
+                _dt_table.draw('full-hold');
+            }
         }, 0);
     });
     // preDraw.dt (camelCase) is the correct DataTables event name; returning false cancels the draw.
     _dt_table.on('preDraw.dt', function() {
         if (scan_mousedown) {
             console.log('preDraw.dt: draw blocked by scan-action-btn guard');
+            draw_blocked = true;
             return false;
         }
     });
