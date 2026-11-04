@@ -65,13 +65,13 @@ There are two pytest suites (#166). Neither touches the dev database, the real o
    .venv/scripts/activate; pyinstaller --noconfirm --distpath install barcode-scanner-client/app.py -n barcode-scanner
    .venv/scripts/activate; pyinstaller --noconfirm --distpath install trident-reader-client/app.py -n trident-reader
    ```
-   Requires a `.venv` in the repo root with PyInstaller and the client dependencies.
+   Requires a `.venv` in the repo root with PyInstaller and the client dependencies. Since PyInstaller 6 (1.9.0.dev3, #168), each client's dependencies are in `install/<client>/_internal/`, with only the `.exe` beside it. The NSSM scripts use only the `.exe` path. `.gitignore`'s `*.py[cod]` also matches `.pyd`, and `*.json` matches some dist-info files, so git's copy of `install/` lacks those files. The release zip is built from the working tree, so it's complete. Check bundle contents in `dist/tm-csv-connector.zip`, not in git. The zip's paths use backslashes.
 
 2. **Build docs** (must run before building the Docker image):
    ```powershell
    cd web/docs; ../../.venv/scripts/activate; ./make html
    ```
-   This local build uses the Sphinx pins in `app/requirements.txt` (the `.venv`'s list). Read the Docs installs from `web/docs/requirements.txt` instead, with the Python set in `.readthedocs.yaml`. When the Sphinx packages are upgraded, repin that file to match the `.venv`. Also check that the Read the Docs Python meets Sphinx's `Requires-Python`: Sphinx 9.1 needs 3.12 or later.
+   This local build uses the Sphinx pins in `app/requirements.txt` (the `.venv`'s list). Read the Docs installs from `web/docs/requirements.txt` instead, with the Python set in `.readthedocs.yaml`. When the Sphinx packages are upgraded, repin that file to match the `.venv`. Also check that the Read the Docs Python meets Sphinx's `Requires-Python`: Sphinx 9.1 needs 3.12 or later. Read the Docs builds each push to `main`. To check the result without logging in, fetch `https://readthedocs.org/api/v2/build/?project__slug=tm-csv-connector&limit=1`, which needs no auth. It returns the build's `commit` and `success`, plus each command's output. The JSON is UTF-8, so on Windows open it with `encoding='utf-8'`.
 
 3. **Build and push Docker image** (includes sim compose overlay so both modes are baked in):
    ```powershell
