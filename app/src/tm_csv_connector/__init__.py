@@ -180,14 +180,18 @@ def create_app(config_obj, configfiles=None, init_for_operation=True):
         # see https://github.com/pallets/flask-sqlalchemy/blob/706982bb8a096220d29e5cef156950237753d89f/flask_sqlalchemy/__init__.py#L990
         # use binds if defined
         if 'SQLALCHEMY_BINDS' in app.config and app.config['SQLALCHEMY_BINDS']:
+            # map each table to its bind's engine (Flask-SQLAlchemy 3.1 removed db.get_binds())
+            binds = {table: db.engines[bind_key]
+                     for bind_key, metadata in db.metadatas.items()
+                     for table in metadata.tables.values()}
             db.session = scoped_session(sessionmaker(autocommit=False,
                                                     autoflush=False,
-                                                    binds=db.get_binds()
+                                                    binds=binds
                                                     ))
         else:
             db.session = scoped_session(sessionmaker(autocommit=False,
                                                     autoflush=False,
-                                                    bind=db.get_engine(),
+                                                    bind=db.engine,
                                                     ))
         db.query = db.session.query_property()
 
