@@ -27,7 +27,7 @@ from ...model import ChipRead, ChipBib, ChipReader, AppLog, Setting
 from ...model import ResultsLog, SimulationRun
 from ...times import asc2time, time2asc
 from ..common import ResultsView, get_results_posttablehtml, results_validate, results_dbmapping, results_formmapping
-from ...fileformat import filecolumns, db2file, filelock, lock, unlock
+from ...fileformat import filecolumns, db2file, filelock, lock, unlock, output_dir
 from ...resultslog import log_results_event
 from ...roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN
 
@@ -323,7 +323,7 @@ class ResultsViewNormal(ResultsView, TmConnectorView):
             # get output file pathname and write updated results to file
             filesetting = Setting.query.filter_by(name='output-file').one_or_none()
             if filesetting:
-                filepath = join('/output_dir', filesetting.value)
+                filepath = join(output_dir(), filesetting.value)
 
                 # write to the file
                 with open(filepath, mode='a') as f:

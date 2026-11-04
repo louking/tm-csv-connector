@@ -18,7 +18,7 @@ from sqlalchemy.orm import joinedload
 
 # homegrown
 from ..model import db, Result, ScannedBib, Setting
-from ..fileformat import filelock, refreshfile, lock, unlock
+from ..fileformat import filelock, refreshfile, lock, unlock, output_dir
 from ..times import asc2time, time2asc
 from ..resultslog import log_results_event, commit_results_event, msg_device_time
 
@@ -423,7 +423,7 @@ class PostResultApi(MethodView):
             # get output file pathname
             filesetting = Setting.query.filter_by(name='output-file').one_or_none()
             if filesetting:
-                filepath = join('/output_dir', filesetting.value)
+                filepath = join(output_dir(), filesetting.value)
 
             # handle messages from tm-reader-client
             opcode = msg.pop('opcode', None)

@@ -38,7 +38,7 @@ from ...model import etype_type
 from ...times import asc2time, time2asc
 from ..common import ResultsView, get_results_posttablehtml, results_dbmapping, results_formmapping, results_validate
 from ..common import PostResultApi, PostBibApi, ScanActionApi
-from ...fileformat import filecolumns, db2file, filelock, lock, unlock, fulltime
+from ...fileformat import filecolumns, db2file, filelock, lock, unlock, fulltime, output_dir
 from ...resultslog import log_results_event
 
 from ...roles import ROLE_SUPER_ADMIN, ROLE_TMSIM_ADMIN
@@ -225,7 +225,7 @@ class ResultsViewSim(ResultsView, SimConnectorView):
                 # get output file pathname and write updated results to file
                 filesetting = Setting.query.filter_by(name='output-file').one_or_none()
                 if filesetting:
-                    filepath = join('/output_dir', filesetting.value)
+                    filepath = join(output_dir(), filesetting.value)
 
                     # write to the file
                     with open(filepath, mode='a') as f:

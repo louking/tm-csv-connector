@@ -25,6 +25,11 @@ filecolumns = ['pos', 'bibno', 'time']
 # provide lock for file update and multirow/multitable database manipulation
 filelock = Lock()
 
+def output_dir():
+    """directory the output csv file is written in; the tests set OUTPUT_DIR so they don't write
+    the real file, which syncthing copies to the RDS laptop (#166)"""
+    return current_app.config.get('OUTPUT_DIR', '/output_dir')
+
 # lock/unlock functions
 def lock(thelock):
     thelock.acquire()
@@ -102,7 +107,7 @@ def clearfile():
     """
     filesetting = Setting.query.filter_by(name='output-file').one_or_none()
     if filesetting:
-        filepath = join('/output_dir', filesetting.value)
+        filepath = join(output_dir(), filesetting.value)
         open(filepath, mode='w').close()
 
 def refreshfile(rows):
@@ -115,7 +120,7 @@ def refreshfile(rows):
     """
     filesetting = Setting.query.filter_by(name='output-file').one_or_none()
     if filesetting:
-        filepath = join('/output_dir', filesetting.value)
+        filepath = join(output_dir(), filesetting.value)
         
         # create temporary file
         from tempfile import TemporaryDirectory
