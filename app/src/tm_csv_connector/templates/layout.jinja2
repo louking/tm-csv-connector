@@ -35,7 +35,10 @@
         {% endif %}
 
         {% if current_user.name %}
-            <a href="{{ url_for('security.logout') }}" class="ui-button">log out</a>
+            {# Flask-Security-Too 5.9 accepts only POST for logout (SECURITY_LOGOUT_METHODS) #}
+            <form method="post" action="{{ url_for('security.logout') }}" style="display: inline;">
+                <button type="submit" class="ui-button">log out</button>
+            </form>
         {% else %}
             <a href="{{ url_for('security.login') }}" class="ui-button">log in</a>
         {% endif %}
