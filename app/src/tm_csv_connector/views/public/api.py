@@ -228,6 +228,7 @@ class ClearResultsApi(MethodView):
             results_data = [
                 {
                     'tmpos': r.tmpos, 'place': r.place, 'bibno': r.bibno,
+                    'bibno_before_use': r.bibno_before_use,
                     'time': r.time, 'is_confirmed': r.is_confirmed,
                     'had_scannedbib': r.had_scannedbib,
                     'scannedbib_id': r.scannedbib_id,
@@ -319,6 +320,8 @@ class UndoClearResultsApi(MethodView):
                     tmpos=r_d['tmpos'],
                     place=r_d['place'],
                     bibno=r_d['bibno'],
+                    # snapshots from before #161 don't have it
+                    bibno_before_use=r_d.get('bibno_before_use'),
                     time=r_d['time'],
                     is_confirmed=r_d['is_confirmed'],
                     had_scannedbib=r_d['had_scannedbib'],

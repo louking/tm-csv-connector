@@ -163,9 +163,12 @@ class Result(Base):
     scannedbib    = relationship('ScannedBib', back_populates='result')
     had_scannedbib = Column(Boolean, default=False)
     bibno        = Column(Text)
+    # Bib No before the last Use, '' if it was blank; None when there's nothing to undo. Cleared by
+    # Undo, an inline Bib No edit, Ins/Del moving a different scan onto the row, and Confirm (#161)
+    bibno_before_use = Column(Text)
     time         = Column(Float)
     is_confirmed = Column(Boolean, default=False)
-    
+
     # track last update - https://docs.sqlalchemy.org/en/20/dialects/mysql.html#mysql-timestamp-onupdate
     update_time = Column(DateTime,
                          server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),

@@ -272,6 +272,11 @@ The following cases are considered
 
 All of these cases can be corrected in **tmtility**.
 
+After **Use**, the row shows **Undo** in its place. Click **Undo** to put back
+the Bib No the row had before **Use**, for example if **Use** was clicked on the
+wrong row. **Undo** goes away when the row is confirmed, when its Bib No is
+edited, or when **Ins** or **Del** moves a different scanned bib onto it.
+
 .. note::
 
     **tmtility** allows the Bib No and Time to be edited. However when using the

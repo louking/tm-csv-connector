@@ -192,7 +192,8 @@ class ResultsViewSim(ResultsView, SimConnectorView):
             db.session.execute(
                 update(Result)
                 .where(Result.id.in_([r.id for r in updated]))
-                .values(is_confirmed=True)
+                # a confirmed row has no Undo, and keeps none if it's edited later (#161)
+                .values(is_confirmed=True, bibno_before_use=None)
             )
             db.session.flush()
             log_results_event('Confirm', result=self.result,

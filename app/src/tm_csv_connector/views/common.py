@@ -28,7 +28,11 @@ BLANK_BIBNO = '0000' # blank bibno, used to indicate no bibno was scanned
 
 # results log events for operator actions are named for their buttons, e.g., New, Edit, Delete, Use;
 # events not caused by the operator are lower case, e.g., result, scan (#157)
-SCANACTION_EVENTS = {'use': 'Use', 'insert': 'Ins', 'delete': 'Del'}
+SCANACTION_EVENTS = {'use': 'Use', 'undo': 'Undo', 'insert': 'Ins', 'delete': 'Del'}
+
+def can_undo_use(dbrow):
+    """True if the row's last Use can be undone (#161)"""
+    return dbrow.bibno_before_use is not None and not dbrow.is_confirmed
 
 def scanned_bibno(dbrow):
     bibno = dbrow.scannedbib.bibno if dbrow.scannedbib else ''
@@ -46,9 +50,16 @@ def scanned_bibno(dbrow):
                 # actions processed in api.ScanActionApi.post()
                 # act on pointerdown so a table refresh between press and release can't swallow the
                 # press; the click is still stopped so it doesn't toggle row selection (#156)
-                button('Use', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {use_state}",
-                        onpointerdown=f'scan_action(event, {{action: "use", resultid: {dbrow.id}, scanid: {scanid}}})',
-                        onclick='event.stopPropagation()')
+                # after a Use, Use would be disabled since the bib matches the scan; show Undo in its place (#161)
+                if can_undo_use(dbrow):
+                    button('Undo', type='button', _class="ui-button ui-corner-all ui-widget scan-action-btn",
+                            title=f'restore Bib No {dbrow.bibno_before_use}' if dbrow.bibno_before_use else 'restore blank Bib No',
+                            onpointerdown=f'scan_action(event, {{action: "undo", resultid: {dbrow.id}, scanid: {scanid}}})',
+                            onclick='event.stopPropagation()')
+                else:
+                    button('Use', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {use_state}",
+                            onpointerdown=f'scan_action(event, {{action: "use", resultid: {dbrow.id}, scanid: {scanid}}})',
+                            onclick='event.stopPropagation()')
                 button('Ins', type='button', _class=f"ui-button ui-corner-all ui-widget scan-action-btn {ins_state}",
                         onpointerdown=f'scan_action(event, {{action: "insert", resultid: {dbrow.id}, scanid: {scanid}}})',
                         onclick='event.stopPropagation()')
@@ -319,6 +330,9 @@ class ResultsView():
         def changed(old, new):
             return ('' if old is None else str(old)) != ('' if new is None else str(new))
         info = f'TM Pos {old_tmpos} -> {self.result.tmpos}' if changed(old_tmpos, self.result.tmpos) else None
+        # an inline Bib No edit replaces what Undo would restore (#161)
+        if changed(old_bibno, self.result.bibno):
+            self.result.bibno_before_use = None
         if changed(old_bibno, self.result.bibno) or self.result.time != old_time or info:
             log_results_event('Edit', result=self.result, tmpos=old_tmpos,
                               old_bibno=old_bibno, new_bibno=self.result.bibno,
@@ -644,7 +658,7 @@ class ScanActionApi(MethodView):
             error = []
             if not thisresult:
                 error.append(f'Invalid resultid: {resultid}')
-            if not thisscannedbib and action in ['use']:
+            if not thisscannedbib and action in ['use', 'undo']:
                 error.append(f'Invalid scanid: {scanid}')
             # with no source, the queue filters below would match every row with no race (or no
             # simulation run), across all of them (#152)
@@ -659,8 +673,19 @@ class ScanActionApi(MethodView):
                 # locking read, as above; a lazy load of thisresult.scannedbib could miss a newer scan
                 nowscannedbib = (ScannedBib.query.filter_by(id=thisresult.scannedbib_id)
                                  .populate_existing().with_for_update().one_or_none())
-                commit_results_event(f'{SCANACTION_EVENTS[action]} stale', result=thisresult, scannedbib=thisscannedbib,
+                commit_results_event(f'{SCANACTION_EVENTS.get(action, action)} stale', result=thisresult, scannedbib=thisscannedbib,
                                      info=f'row now has scan {nowscannedbib.bibno if nowscannedbib else "(none)"}')
+                unlock(filelock)
+                return jsonify({'status': 'stale', 'error': 'row had already changed - scan button press ignored'})
+
+            # the button was drawn before the row's Use state changed, e.g., a repeated Use or Undo press;
+            # a second Use would save the scanned bib as the bib to restore (#161)
+            if not error and ((action == 'use' and (thisresult.bibno == thisscannedbib.bibno or can_undo_use(thisresult)))
+                              or (action == 'undo' and not can_undo_use(thisresult))):
+                current_app.logger.info(f'_scanaction: ignoring stale {action} for resultid={resultid} scanid={scanid}, '
+                                        f'bibno={thisresult.bibno} bibno_before_use={thisresult.bibno_before_use}')
+                commit_results_event(f'{SCANACTION_EVENTS[action]} stale', result=thisresult, scannedbib=thisscannedbib,
+                                     info=f'row now has Bib No {thisresult.bibno or "(blank)"}')
                 unlock(filelock)
                 return jsonify({'status': 'stale', 'error': 'row had already changed - scan button press ignored'})
 
@@ -678,6 +703,9 @@ class ScanActionApi(MethodView):
                                  scanbibno=thisscannedbib.bibno if thisscannedbib else None)
                 if action == 'use':
                     log_results_event('Use', old_bibno=thisresult.bibno, new_bibno=thisscannedbib.bibno, **logfields)
+                elif action == 'undo':
+                    log_results_event('Undo', old_bibno=thisresult.bibno, new_bibno=thisresult.bibno_before_use or None,
+                                      **logfields)
                 elif action in SCANACTION_EVENTS:
                     log_results_event(SCANACTION_EVENTS[action], **logfields)
 
@@ -685,7 +713,14 @@ class ScanActionApi(MethodView):
                 match action:
                     # use the scanned bibno as bibno
                     case 'use':
+                        # keep the bib for Undo; '' for a blank bib, since None means nothing to undo (#161)
+                        thisresult.bibno_before_use = thisresult.bibno if thisresult.bibno is not None else ''
                         thisresult.bibno = thisscannedbib.bibno
+
+                    # restore the bib from before the last Use (#161)
+                    case 'undo':
+                        thisresult.bibno = thisresult.bibno_before_use or None
+                        thisresult.bibno_before_use = None
                     
                     # insert blank scanned bibno before current result
                     # shift scanned bibnos to later results
@@ -712,6 +747,8 @@ class ScanActionApi(MethodView):
                             for r in later_results:
                                 r.scannedbib = next(scannedbibs)
                                 r.had_scannedbib = True
+                                # a different scan is on the row now, so its Use no longer applies (#161)
+                                r.bibno_before_use = None
                                 
                         # stop when there are some results for which scanned bibs have not been assigned
                         except StopIteration:
@@ -724,6 +761,7 @@ class ScanActionApi(MethodView):
                             **self.get_source_dict(thissource),
                         )
                         thisresult.scannedbib = scannedbib
+                        thisresult.bibno_before_use = None
                         
                     
                     # delete scanned bibno from current result
@@ -745,6 +783,8 @@ class ScanActionApi(MethodView):
                             for r in results:
                                 r.scannedbib = next(scannedbibs)
                                 r.had_scannedbib = True # probably not necessary as we're shifting earlier
+                                # a different scan is on the row now, so its Use no longer applies (#161)
+                                r.bibno_before_use = None
                         
                         # we ran out of scanned bibs
                         except StopIteration:
@@ -752,6 +792,7 @@ class ScanActionApi(MethodView):
                             # one scanned bib from the queue
                             r.scannedbib = None
                             r.had_scannedbib = False
+                            r.bibno_before_use = None
                                         
                         # delete the scanned bib from the table
                         if thisscannedbib:

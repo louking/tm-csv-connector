@@ -297,8 +297,9 @@ received from the Time Machine or the scanner are in lower case.
         a scan dropped because **Ignore repeat scans** is checked and the bib
         is the same as the previous scan
 
-    :Use / Ins / Del:
-        a scanned bib button pressed. *Stale* means the row had already changed,
+    :Use / Undo / Ins / Del:
+        a scanned bib button pressed. For **Undo**, *Old Bib No* is the scanned
+        bib and *New Bib No* is the bib put back. *Stale* means the row had already changed,
         so the press was ignored. *Refused* or *failed* means the press had no
         effect, and *Info* says why
 
