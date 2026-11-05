@@ -12,6 +12,19 @@ if ($null -eq $installedJsVersion -or $installedJsVersion -ne $expectedJsVersion
     }
 }
 
+# Remove files left in the client folders by releases built with PyInstaller 5 (before 1.9.0).
+# Each client folder now holds only <client>.exe and _internal; extracting the zip doesn't delete
+# the old files. The clients must be stopped first (./disable-all), or their files are locked.
+foreach ($client in 'tm-reader', 'barcode-scanner', 'trident-reader') {
+    if (Test-Path "./$client/_internal") {
+        $stale = Get-ChildItem "./$client" | Where-Object { $_.Name -notin "$client.exe", '_internal' }
+        if ($stale) {
+            Write-Host "Removing $($stale.Count) old files and folders from $client..."
+            $stale | Remove-Item -Recurse -Force -ErrorAction Continue
+        }
+    }
+}
+
 ./publish-utilities
 ./edit-env
 ./set-db-passwords
