@@ -7,9 +7,13 @@ CLAUDE.md for how to run them.
 
 The app is created once per run, in normal mode. Each test starts with empty tables, except the
 users and roles that create_app() set up.
+
+`--sim` runs the simulation-mode tests in tests/sim instead (#167). The blueprints and db.session are
+module-level, so a run can create only one app, in one mode. Without `--sim`, tests/sim is skipped.
 '''
 # standard
 import os
+from pathlib import Path
 
 # pypi
 import pytest
@@ -21,6 +25,30 @@ TEST_DBNAME = 'tm-csv-connector-test'
 CONFIGFILE = '/config/tm-csv-connector.cfg'
 # kept between tests: create_app() sets up the default user, and requests log in as that user
 KEEP_TABLES = {'user', 'role', 'roles_users'}
+SIMDIR = Path(__file__).parent / 'sim'
+
+def pytest_addoption(parser):
+    parser.addoption('--sim', action='store_true',
+                     help='run the simulation-mode tests in tests/sim, instead of the normal-mode tests')
+
+def in_simdir(path):
+    return path == SIMDIR or SIMDIR in path.parents
+
+def pytest_configure(config):
+    # without --sim, tests/sim would be skipped silently
+    if not config.getoption('sim') and any(in_simdir(Path(a.split('::')[0]).resolve()) for a in config.args):
+        raise pytest.UsageError('the tests in tests/sim run in simulation mode: add --sim')
+
+def pytest_ignore_collect(collection_path, config):
+    """collect only tests/sim with --sim, and everything else without it"""
+    sim_path = in_simdir(collection_path)
+    if config.getoption('sim'):
+        # the directories above tests/sim must be collected to reach it
+        if not sim_path and collection_path not in SIMDIR.parents:
+            return True
+    elif sim_path:
+        return True
+    return None
 
 def root_url(dbname=None):
     with open('/run/secrets/db-password') as f:
@@ -42,8 +70,8 @@ def create_test_database():
     engine.dispose()
 
 class TestConfig:
-    """the dev cfg's [app] section, with the test database and normal mode"""
-    def __init__(self, output_dir):
+    """the dev cfg's [app] section, with the test database, in normal or simulation mode"""
+    def __init__(self, output_dir, simulation_mode=False):
         from tm_csv_connector.settings import Config
         for key in dir(Config):
             if key.isupper():
@@ -51,7 +79,11 @@ class TestConfig:
         for key, value in getitems(CONFIGFILE, 'app').items():
             setattr(self, key, value)
         self.SQLALCHEMY_DATABASE_URI = root_url(TEST_DBNAME).render_as_string(hide_password=False)
-        self.SIMULATION_MODE = False
+        self.SIMULATION_MODE = simulation_mode
+        if simulation_mode:
+            # these come from the sim overlay's secrets, which the dev container doesn't have
+            self.USER_SUPERADMIN_PW = 'test super-admin password'
+            self.SECURITY_PASSWORD_SALT = 'test salt'
         self.TESTING = True
         self.WTF_CSRF_ENABLED = False
         self.SQLALCHEMY_ECHO = False
@@ -62,13 +94,18 @@ def output_dir(tmp_path_factory):
     return tmp_path_factory.mktemp('output_dir')
 
 @pytest.fixture(scope='session')
-def app(output_dir):
+def simulation_mode(request):
+    return request.config.getoption('sim')
+
+@pytest.fixture(scope='session')
+def app(output_dir, simulation_mode):
     # the sim overlay sets SIMULATION_MODE in the container's environment, which create_app() honors
     os.environ.pop('SIMULATION_MODE', None)
     create_test_database()
 
     from tm_csv_connector import create_app
-    app = create_app(TestConfig(output_dir), init_for_operation=True)
+    app = create_app(TestConfig(output_dir, simulation_mode), init_for_operation=True)
+    assert app.config['SIMULATION_MODE'] == simulation_mode
     # the dev cfg must not have leaked the real database in
     assert TEST_DBNAME in app.config['SQLALCHEMY_DATABASE_URI']
     return app
