@@ -221,9 +221,13 @@ class ClearResultsApi(MethodView):
 
             lock(filelock)
 
-            # serialize current data into a snapshot before deleting
-            results = Result.query.filter_by(race_id=raceid).order_by(Result.place).all()
-            scannedbibs = ScannedBib.query.filter_by(race_id=raceid).order_by(ScannedBib.order).all()
+            # serialize current data into a snapshot before deleting. These must be locking reads: a
+            # plain read uses the snapshot taken before the lock, so a result or scan posted while
+            # this request waited would be deleted below without being saved (#167)
+            results = (Result.query.filter_by(race_id=raceid).populate_existing().with_for_update()
+                       .order_by(Result.place).all())
+            scannedbibs = (ScannedBib.query.filter_by(race_id=raceid).populate_existing().with_for_update()
+                           .order_by(ScannedBib.order).all())
 
             results_data = [
                 {
@@ -297,7 +301,8 @@ class UndoClearResultsApi(MethodView):
 
             lock(filelock)
 
-            snapshot = ResultsSnapshot.query.filter_by(race_id=raceid).one_or_none()
+            # locking read, so a Clear All committed while this request waited is seen (#167)
+            snapshot = ResultsSnapshot.query.filter_by(race_id=raceid).populate_existing().with_for_update().one_or_none()
             if not snapshot:
                 unlock(filelock)
                 return jsonify(status='fail', error='no snapshot to restore')
