@@ -237,7 +237,8 @@ async def shell(reader, writer):
                 connected = not (reader.at_eof() or writer.connection_closed)
                 if not connected:
                     log.info('discovered connection closed; stopping trident reader')
-                    stop_reader = False
+                    # leave stop_reader alone: a close that arrived with the drop must still stop
+                    # reader_thread()'s retry loop, which checks it before each attempt (#167)
                     raise ReaderClosed
                     
 

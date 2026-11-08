@@ -1,7 +1,8 @@
 '''pytest setup for the client tests (#166)
 
 These run on Windows in the repo's .venv, not in the app container, and need no devices or backend:
-device bytes go through a pyserial loop:// port, and posts go to a fake. See CLAUDE.md.
+device bytes go through a pyserial loop:// port, and posts go to a fake. trident-reader-client's tests
+(test_trident.py, #167) use a fake chip reader on localhost instead. See CLAUDE.md.
 
 Each test gets a freshly loaded copy of the client module, since the clients keep their state
 (raceid, queued_msgs, stop_reader, ...) in module globals.
@@ -11,7 +12,7 @@ from importlib.util import spec_from_file_location, module_from_spec
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
-from json import dumps
+from json import dumps, loads
 from asyncio import run, new_event_loop, set_event_loop
 from itertools import count
 
@@ -38,6 +39,10 @@ def tm():
 @pytest.fixture
 def scanner():
     return load_client('barcode-scanner-client')
+
+@pytest.fixture
+def trident():
+    return load_client('trident-reader-client')
 
 def wait_until(condition, timeout=5.0, interval=0.02):
     """wait for condition() to be true; returns its last value"""
@@ -114,3 +119,25 @@ class LoopReader:
         self.module.stop_reader = True
         self.thread.join(timeout=5)
         assert not self.thread.is_alive(), 'reader did not stop'
+
+class FakeWebSocket:
+    """the browser's side of a client's WebSocket"""
+    def __init__(self, *events):
+        self.events = [dumps(e) for e in events]
+        self.sent = []
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self.events:
+            raise StopAsyncIteration
+        return self.events.pop(0)
+
+    async def send(self, message):
+        self.sent.append(loads(message))
+
+def control(module, *events):
+    ws = FakeWebSocket(*events)
+    run(module.controller(ws))
+    return ws.sent

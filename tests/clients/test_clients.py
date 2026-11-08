@@ -4,14 +4,13 @@ in order with retries (#163), the TM open timeout (#154), and the reconnect loop
 # standard
 from asyncio import run
 from threading import Event, Thread
-from json import dumps, loads
 from time import sleep
 
 # pypi
 import pytest
 
 # homegrown
-from conftest import wait_until, Response, FakeBackend, connection_refused, LoopReader
+from conftest import wait_until, Response, FakeBackend, connection_refused, LoopReader, control
 
 # device bytes, from the client logs
 TM_RESULT = b'\x1711 246 0246 01:03:01.03 \r\n'
@@ -221,28 +220,6 @@ def test_open_error_raised(tm):
         run(tm.open_port('COM9'))
 
 # reconnect loop and status, through the WebSocket controller
-
-class FakeWebSocket:
-    """the browser's side of a client's WebSocket"""
-    def __init__(self, *events):
-        self.events = [dumps(e) for e in events]
-        self.sent = []
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if not self.events:
-            raise StopAsyncIteration
-        return self.events.pop(0)
-
-    async def send(self, message):
-        self.sent.append(loads(message))
-
-def control(module, *events):
-    ws = FakeWebSocket(*events)
-    run(module.controller(ws))
-    return ws.sent
 
 def status(module):
     reply = control(module, {'opcode': 'is_connected'})[0]
