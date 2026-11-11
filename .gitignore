@@ -179,3 +179,6 @@ dist-stage-js/
 
 # external javascript
 js/
+
+# local notes (not committed)
+/local-notes/

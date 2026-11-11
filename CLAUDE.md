@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Cross-repo documentation:** `louking/fsrc-tech` (local checkout: `C:\Users\lking\Documents\Lou's Software\projects\fsrc-tech\fsrc-tech`) is an LLM-oriented wiki summarizing the whole FSRC tech ecosystem; `docs/applications/tmtility.md` there is a curated summary of *this* repo that links back to this file as the authoritative source (per fsrc-tech's own `CLAUDE.md`, it deliberately doesn't duplicate detail in full — just enough to orient someone reading fsrc-tech first). When a change here adds meaningful new architecture detail, a gotcha, or a notable release-process change to this file, also pull a high-value summary into that page and add an entry to fsrc-tech's `CHANGELOG.md`. Write the summary as current behavior plus what to do. Leave out incident narrative, bench observations, and superseded theories. Per fsrc-tech's own `CLAUDE.md`, that kind of process narrative belongs in its dated `CHANGELOG.md`, not on the page. Leave those fsrc-tech edits uncommitted — they're reviewed, committed, and pushed separately from the fsrc-tech repo.
 
+**Local notes:** `local-notes/` is git-ignored and holds personal notes that aren't committed, e.g., `race-laptop-replacement-session.md`, an export of the session on replacing the race laptop and on a USB Bluetooth adapter with an external antenna for range. The same convention is used in fsrc-tech.
+
 ## Running the App
 
 The app runs in Docker. For local development:
@@ -73,7 +75,7 @@ There are two pytest suites (#166). Neither touches the dev database, the real o
    ```powershell
    cd web/docs; ../../.venv/scripts/activate; ./make html
    ```
-   This local build uses the Sphinx pins in `app/requirements.txt` (the `.venv`'s list). Read the Docs installs from `web/docs/requirements.txt` instead, with the Python set in `.readthedocs.yaml`. When the Sphinx packages are upgraded, repin that file to match the `.venv`. Also check that the Read the Docs Python meets Sphinx's `Requires-Python`: Sphinx 9.1 needs 3.12 or later. Read the Docs builds each push to `main`. To check the result without logging in, fetch `https://readthedocs.org/api/v2/build/?project__slug=tm-csv-connector&limit=1`, which needs no auth. It returns the build's `commit` and `success`, plus each command's output. The JSON is UTF-8, so on Windows open it with `encoding='utf-8'`.
+   This local build uses the Sphinx pins in `app/requirements.txt` (the `.venv`'s list). Read the Docs installs from `web/docs/requirements.txt` instead, with the Python set in `.readthedocs.yaml`. When the Sphinx packages are upgraded, repin that file to match the `.venv`. Also check that the Read the Docs Python meets Sphinx's `Requires-Python`: Sphinx 9.1 needs 3.12 or later. Read the Docs builds each push to `main`. To check the result without logging in, fetch `https://readthedocs.org/api/v2/build/?project__slug=tm-csv-connector&limit=1`, which needs no auth. It returns the build's `commit` and `success`, plus each command's output. Check `state` first: until it's `finished`, `commit` is null and `success` is already `true`. The JSON is UTF-8, so on Windows open it with `encoding='utf-8'`.
 
 3. **Build and push Docker image** (includes sim compose overlay so both modes are baked in):
    ```powershell
