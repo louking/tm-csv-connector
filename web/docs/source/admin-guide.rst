@@ -12,25 +12,105 @@ runs under Docker. Both together make the app known as **tmtility**.
 Installation
 ======================
 
-Docker Installation
+Software to Install
 -----------------------
 
-See https://docs.docker.com/desktop/install/windows-install/
-for installation of Docker before installing this application.
+The **tmtility** laptop needs the following. Everything else (the device clients, the
+web app, and its database) comes in the app's zip files or runs under Docker.
 
-Install wsl. You may need to enable virtualization. See https://aka.ms/enablevirtualization for details.
+* **WSL** (Windows Subsystem for Linux), which Docker Desktop needs. In PowerShell
+  **Run as Administrator**:
 
-.. code-block:: shell
+  .. code-block:: shell
 
-    wsl --install
+      wsl --install
 
-Follow instructions in https://docs.docker.com/get-docker/
+  You may need to enable virtualization in the BIOS. See https://aka.ms/enablevirtualization
+  for details.
 
-* install Docker Desktop Installer (https://docs.docker.com/desktop/install/windows-install/)
+* **Docker Desktop**, from https://docs.docker.com/desktop/install/windows-install/
 
   .. note::
 
-    the application is a Linux container, so ignore all the stuff about windows containers on the webpage
+    the application uses Linux containers, so ignore the instructions about Windows containers
+
+  Docker Desktop doesn't have to start when you sign in to Windows. If it doesn't, start it
+  before using **tmtility** (see :ref:`users-guide-tm-connection`); the app starts with it.
+
+* **Syncthing**, to copy the output file to the RaceDay Scoring laptop. See
+  :ref:`sync results to rds`.
+
+* **Google Chrome**, the recommended browser for **tmtility**
+
+Then install the app (see `App Installation`_) and pair the Bluetooth devices (see
+`Bluetooth Pairing`_).
+
+
+App Installation
+---------------------
+* download both of the following files (``tm-csv-connector-js.zip`` contains vendor JavaScript
+  and is required for a fresh install; it rarely changes after that):
+
+  * https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
+  * https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector-js.zip
+
+  .. note:: your browser may want to scan each file for malware/virus. let it
+
+* extract files from ``tm-csv-connector.zip`` into the directory you want the app to run from
+* place ``tm-csv-connector-js.zip`` (do not extract it) into that same directory — the install
+  procedure will extract it automatically
+* start powershell **Run as Administrator**, and navigate to this directory
+
+    .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
+
+* before you execute these commands for the first time, you'll need to do the following
+
+  * edit ``C:\Windows\System32\Drivers\etc\hosts`` and add the line ``127.0.0.1 tm.localhost``.
+    You'll need to restart the laptop before the browser sees it.
+  * allow PowerShell scripts to run
+
+    .. code-block:: shell
+
+      Set-ExecutionPolicy Bypass CurrentUser # type y to accept
+
+    for details see https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy
+
+  * log in to Docker
+
+    .. code-block:: shell
+
+      docker login # then enter your credentials
+
+* run the install procedure
+
+    .. code-block:: shell
+
+        ./install
+
+  * if you see something similar to the following, type *a* for Yes to All
+
+      .. code-block:: shell
+
+          The package(s) come(s) from a package source that is not marked as trusted.
+          Are you sure you want to install software from
+          'https://onegetcdn.azureedge.net/providers/nuget-2.8.5.208.package.swidtag'?
+          [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "N"):
+
+  * enter directory names for the output csv file, and for the logging files (full path)
+  * enter the host path for rsync source (local directory that contains leaderboard html files to sync)
+  * enter rsync destination host, user, and path (for optional leaderboard sync to a web server; press Enter to skip if not using this feature)
+  * enter passwords for root and app database users -- accepting the defaults are fine
+
+  .. note:: you can see the values of these later by navigating to ``config/db`` in the installation directory
+
+* the first time it's run, it takes a bit of time for the app to create the database, etc
+* with Chrome, navigate to http://tm.localhost:8080/
+* navigate to Settings view (this only has to be done once)
+
+  * add New setting, Setting=output-file, Value=tm-data.csv # or whatever filename you want the output put in
+
+* set up Syncthing to share the output directory with the RaceDay Scoring laptop (see
+  :ref:`sync results to rds`)
 
 
 Bluetooth Pairing
@@ -126,66 +206,6 @@ Now you need to determine the device's Bluetooth Hardware address.
   with this), and the **Type** field should be set to the type of device you
   just connected. The **HW Addr** field should be set to the Bluetooth Hardware
   address you just copied.
-
-
-
-
-
-
-App Installation
----------------------
-* download both of the following files (``tm-csv-connector-js.zip`` contains vendor JavaScript
-  and is required for a fresh install; it rarely changes after that):
-
-  * https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector.zip
-  * https://github.com/louking/tm-csv-connector/blob/main/dist/tm-csv-connector-js.zip
-
-  .. note:: your browser may want to scan each file for malware/virus. let it
-
-* extract files from ``tm-csv-connector.zip`` into the directory you want the app to run from
-* place ``tm-csv-connector-js.zip`` (do not extract it) into that same directory — the install
-  procedure will extract it automatically
-* start powershell **Run as Administrator**, and navigate to this directory
-
-    .. note:: you'll have to accept the User Account Control challenge, which may be seen elsewhere on the taskbar
-
-* before you execute these commands for the first time, you'll need to do the following
-
-  .. code-block:: shell
-
-    edit `c:\Windows\System32\Drivers\etc\hosts`, add 127.0.0.1 tm.localhost
-    # you'll need to restart the laptop for this to be available to browser
-    Set-ExecutionPolicy Bypass [<ExecutionPolicyScope>] # type y to accept
-    # for details see https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy 
-    docker login # then enter your credentials
-
-* run the install procedure
-
-    .. code-block:: shell
-
-        ./install
-
-  * if you see something similar to the following, type *a* for Yes to All
-
-      .. code-block:: shell
-
-          The package(s) come(s) from a package source that is not marked as trusted.
-          Are you sure you want to install software from
-          'https://onegetcdn.azureedge.net/providers/nuget-2.8.5.208.package.swidtag'?
-          [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "N"):
-
-  * enter directory names for the output csv file, and for the logging files (full path)
-  * enter the host path for rsync source (local directory that contains leaderboard html files to sync)
-  * enter rsync destination host, user, and path (for optional leaderboard sync to a web server; press Enter to skip if not using this feature)
-  * enter passwords for root and app database users -- accepting the defaults are fine
-
-  .. note:: you can see the values of these later by navigating to ``config/db`` in the installation directory
-
-* the first time it's run, it takes a bit of time for the app to create the database, etc
-* with your browser, navigate to http://tm.localhost:8080/ 
-* navigate to Settings view (this only has to be done once)
-
-  * add New setting, Setting=output-file, Value=tm-data.csv # or whatever filename you want the output put in
 
 
 App Upgrade

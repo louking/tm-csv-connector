@@ -146,9 +146,13 @@ RaceDay Scoring Setup
 
   * RaceDay Scoring should be active, connected to read from **tmtility**'s configured output file
 
+.. _users-guide-tm-connection:
+
 Time Machine and **tmtility** Connection
 ------------------------------------------------
 
+* on the laptop, start Docker Desktop if it isn't already running, and wait until it
+  shows that the engine is running. **tmtility** starts with it.
 * turn on Time Machine
 
   * set up as normal (Event#)
