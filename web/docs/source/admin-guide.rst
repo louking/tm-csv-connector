@@ -16,7 +16,12 @@ Software to Install
 -----------------------
 
 The **tmtility** laptop needs the following. Everything else (the device clients, the
-web app, and its database) comes in the app's zip files or runs under Docker.
+web app, and its database) comes in the app's zip files or runs under Docker. If you're
+replacing an existing **tmtility** laptop, see `Moving to a New Laptop`_ first.
+
+* edit ``C:\Windows\System32\Drivers\etc\hosts`` (as Administrator) and add the line
+  ``127.0.0.1 tm.localhost``. The browser sees it only after a restart, so do this first;
+  the restart that installing WSL needs covers it.
 
 * **WSL** (Windows Subsystem for Linux), which Docker Desktop needs. In PowerShell
   **Run as Administrator**:
@@ -65,8 +70,7 @@ App Installation
 
 * before you execute these commands for the first time, you'll need to do the following
 
-  * edit ``C:\Windows\System32\Drivers\etc\hosts`` and add the line ``127.0.0.1 tm.localhost``.
-    You'll need to restart the laptop before the browser sees it.
+  * make sure the ``hosts`` file has ``tm.localhost`` (see `Software to Install`_)
   * allow PowerShell scripts to run
 
     .. code-block:: shell
@@ -105,6 +109,9 @@ App Installation
 
 * the first time it's run, it takes a bit of time for the app to create the database, etc
 * with Chrome, navigate to http://tm.localhost:8080/
+* if you're moving from another **tmtility** laptop, stop here and go back to
+  `Moving to a New Laptop`_. The settings, races and Bluetooth devices come from the old
+  laptop's database.
 * navigate to Settings view (this only has to be done once)
 
   * add New setting, Setting=output-file, Value=tm-data.csv # or whatever filename you want the output put in
@@ -268,6 +275,79 @@ App Upgrade
         Set-ExecutionPolicy Bypass CurrentUser # type y to accept
         ./install
 
+
+Backup and Restore
+---------------------
+The database holds the races, results, scanned bibs, chip reads, results log, settings and
+Bluetooth devices. It lives in a Docker volume, not in the install directory, so copying the
+install directory doesn't copy it. Use these steps to back it up, e.g., before an upgrade, or to
+move it to another laptop.
+
+Run the commands in PowerShell, in the install directory, with Docker Desktop running and the app
+enabled. Don't back up during a race.
+
+* back up the database to ``tmtility-backup.sql`` in the install directory
+
+    .. code-block:: shell
+
+        docker compose exec db sh -c 'MYSQL_PWD=$(cat /run/secrets/db-password) mysqldump -uroot --single-transaction --databases tm-csv-connector > /tmp/tmtility-backup.sql'
+        docker compose cp db:/tmp/tmtility-backup.sql ./tmtility-backup.sql
+
+* to restore, put ``tmtility-backup.sql`` in the install directory and run the following. This
+  replaces the database's tables with the backup's. The backup must come from the same release
+  of **tmtility** as the install you restore it to.
+
+    .. code-block:: shell
+
+        docker compose cp ./tmtility-backup.sql db:/tmp/tmtility-backup.sql
+        docker compose exec db sh -c 'MYSQL_PWD=$(cat /run/secrets/db-password) mysql -uroot < /tmp/tmtility-backup.sql'
+        docker compose restart app
+
+
+Moving to a New Laptop
+-------------------------
+To replace the **tmtility** laptop, set up the new laptop on its own first, then move the
+database and switch the RaceDay Scoring sync over. Only the middle steps need both laptops,
+and none of them needs the Time Machine, scanner or chip reader.
+
+On the new laptop, before you need the old one:
+
+#. install the software in `Software to Install`_
+#. install the app as in `App Installation`_, up to the step that says to come back here. Use
+   the same release that's on the old laptop; if the old laptop is behind, upgrade it first
+   (see `App Upgrade`_), so its backup matches.
+#. if you're adding a USB Bluetooth adapter, plug it in and turn off the laptop's internal
+   Bluetooth in Device Manager now, before pairing anything. Windows uses one Bluetooth radio
+   at a time, and devices paired on one radio have to be paired again on another.
+#. pair the Time Machine and barcode scanners with Windows (see `Bluetooth Pairing`_). You
+   don't need to add them in the :ref:`Bluetooth Devices view`; they come with the database,
+   and the app finds their COM ports by their hardware addresses, which don't change.
+
+With both laptops on the same network:
+
+#. in Syncthing, connect the two laptops, and share a new folder (e.g., ``C:\tmtility-transfer``)
+   from the old laptop as **Send Only** to the new laptop as **Receive Only**. A USB stick
+   works too.
+#. on the old laptop, `back up <Backup and Restore_>`_ the database and copy
+   ``tmtility-backup.sql`` into that folder. You can also copy the old laptop's logging
+   directory there to keep past races' client logs.
+#. on the new laptop, copy ``tmtility-backup.sql`` from the folder into the install directory
+   and `restore <Backup and Restore_>`_ it
+#. open http://tm.localhost:8080/ on the new laptop, and check that the races, the Settings view
+   (including **output-file**) and the :ref:`Bluetooth Devices view` came across. On the results
+   page, check that each device's port shows in its port list, and that each connects.
+#. on the old laptop, disable the app, so that it can't write the output file
+
+    .. code-block:: shell
+
+        ./disable-all
+
+#. switch the RaceDay Scoring sync to the new laptop (see :ref:`sync results to rds`). On the
+   new laptop, add the output directory with the same **Folder ID** that the old laptop used,
+   and share it with the RaceDay Scoring laptop. On the RaceDay Scoring laptop, share that
+   folder with the new laptop, and stop sharing it with the old one. RaceDay Scoring's
+   **Folder Path** stays the same.
+#. remove the transfer folder from Syncthing on both laptops
 
 .. _sync results to rds:
 

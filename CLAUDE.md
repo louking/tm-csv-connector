@@ -45,6 +45,8 @@ The app container's startup script, `app/src/dbupgrade_and_run.sh`, runs `flask 
 
 **Ad hoc SQL against the local DB:** put the SQL in a file and pipe it in. `docker exec -i tm-csv-connector-db-1 sh -c 'mysql -uroot -p"$(cat /run/secrets/db-password)" tm-csv-connector' < query.sql`. The database name has hyphens, so quote it with backticks inside SQL. `scannedbib.order` is a reserved word and also needs backticks.
 
+**Backing up and moving the database:** the database lives in the `db-data` Docker volume, so copying an install directory doesn't copy it. The admin guide's **Backup and Restore** (`mysqldump --databases tm-csv-connector` in the `db` container, then `docker compose cp`) and **Moving to a New Laptop** sections cover it. The commands pass the password with `MYSQL_PWD=$(cat /run/secrets/db-password)` rather than `-p"..."`, since Windows PowerShell 5.1 can mangle embedded double quotes passed to `docker`. Restore only into the same release: if the new install is newer, the dump's `DROP TABLE IF EXISTS` leaves the newer release's added tables in place while `alembic_version` goes back, so the next `flask db upgrade` would try to create them again. Tested 2026-11-11 from PowerShell on dev: dump, then restore into a renamed scratch database, gave identical row counts in all 21 tables.
+
 ## Tests
 
 There are two pytest suites (#166). Neither touches the dev database, the real output CSV, or the devices. Run both after a change.
