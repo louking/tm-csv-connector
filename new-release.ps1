@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 #   cfg (written as tm-csv-connector.cfg.example under config/ in the zip):
 #     - SERVER_NAME set to tm.localhost (normal install default)
 #     - SIMULATION_MODE set to False
+#     - DEMO_MODE set to True (so the page isn't labeled "(development)")
 #     - SEND_FILE_MAX_AGE_DEFAULT removed (dev-only setting)
 
 $devEnvContent = Get-Content .env
@@ -22,6 +23,8 @@ $devCfgContent = Get-Content config/tm-csv-connector.cfg
 $distCfgContent = $devCfgContent | ForEach-Object {
     if ($_ -match '^SERVER_NAME:') { "SERVER_NAME: 'tm.localhost'" }
     elseif ($_ -match '^SIMULATION_MODE:') { 'SIMULATION_MODE: False' }
+    # without DEMO_MODE, loutilities labels any *localhost host "(development)"
+    elseif ($_ -match '^DEMO_MODE:') { 'DEMO_MODE: True' }
     elseif ($_ -match '^SEND_FILE_MAX_AGE_DEFAULT:') { }
     else { $_ }
 }

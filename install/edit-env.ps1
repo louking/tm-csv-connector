@@ -1,7 +1,10 @@
 # https://www.reddit.com/r/PowerShell/comments/afztl1/comment/ee4dkws/?utm_source=share&utm_medium=web2x&context=3
 Install-PackageProvider NuGet -ForceBootstrap
 Set-PSRepository PSGallery -InstallationPolicy Trusted
-Install-Module -Name PsIni -Force
+# PsIni 4 renamed Get-IniContent/Out-IniFile to Import-Ini/Export-Ini, so pin the 3.x API used here.
+# Import the pinned version explicitly, since a newer one may also be installed.
+Install-Module -Name PsIni -RequiredVersion 3.1.4 -Force
+Import-Module -Name PsIni -RequiredVersion 3.1.4 -Force
 
 function Set-Path ($path, $prompt) {
     if (-not $path) {
