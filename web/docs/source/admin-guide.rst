@@ -19,6 +19,12 @@ The **tmtility** laptop needs the following. Everything else (the device clients
 web app, and its database) comes in the app's zip files or runs under Docker. If you're
 replacing an existing **tmtility** laptop, see `Moving to a New Laptop`_ first.
 
+* turn off **Smart App Control**: in **Windows Security**, go to **App & browser control** >
+  **Smart App Control settings** and select **Off**. Windows 11 turns it on by itself on a new
+  laptop, and it blocks the app's device clients, which aren't code-signed: the TM reader and
+  chip reader services stay stopped, and Windows shows "part of this app has been blocked".
+  Microsoft Defender Antivirus stays on.
+
 * edit ``C:\Windows\System32\Drivers\etc\hosts`` (as Administrator) and add the line
   ``127.0.0.1 tm.localhost``. The browser sees it only after a restart, so do this first;
   the restart that installing WSL needs covers it.
