@@ -355,7 +355,8 @@ The view has the following columns:
 
 Settings view
 ======================
-The Settings view is used to update individual settings required by the system.
+The Settings view is used to update individual settings required by the system. On the race
+laptop it isn't on the menu, so open it at http://tm.localhost:8080/settings.
 
     :Setting:
         the setting to be edited

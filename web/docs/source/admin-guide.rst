@@ -118,7 +118,7 @@ App Installation
 * if you're moving from another **tmtility** laptop, stop here and go back to
   `Moving to a New Laptop`_. The settings, races and Bluetooth devices come from the old
   laptop's database.
-* navigate to Settings view (this only has to be done once)
+* open the Settings view at http://tm.localhost:8080/settings (it isn't on the menu; this only has to be done once)
 
   * add New setting, Setting=output-file, Value=tm-data.csv # or whatever filename you want the output put in
 
@@ -131,7 +131,8 @@ Bluetooth Pairing
 
 Before using the app, the Time Machine wireless interface or barcode scanner
 needs to be connected to the laptop's bluetooth. These instructions are for
-Windows 11.
+Windows 11. If you're using a USB Bluetooth adapter, set it up first (see
+`Using a USB Bluetooth Adapter`_).
 
 For the Time Machine connection, make sure the Time Machine has the Wireless
 Interface connected, and is powered on. The Wireless Interface LED should be
@@ -166,21 +167,12 @@ configuring the :ref:`Bluetooth Devices view`.
 
 Click **Connect**
 
-To verify the bluetooth connection worked properly, in **Bluetooth and other
-devices settings**, under **Related settings** click **More Bluetooth settings**.
-
-.. figure:: images/win11-add-device-more-settings.*
-    :align: center
-
-|
-
-Under the COM Ports tab, you should see the Outgoing and Incoming ports for the
-device you just connected.
-
-.. figure:: images/win11-bluetooth-settings-more.*
-    :align: center
-
-|
+Windows gives each device paired in SPP mode two serial ports, an outgoing and an incoming one;
+the app finds and uses the outgoing one. To check them, in Device Manager (Windows-x > Device
+Manager) expand **Ports (COM & LPT)**: each device adds two entries named **Standard Serial
+over Bluetooth link (COMn)**. The names don't say which device each port is for. If a device
+is missing from its port list on the results page, check here first: a device that isn't in
+SPP mode (e.g., a scanner in HID or BLE mode) still pairs, but gets no ports.
 
 Now you need to determine the device's Bluetooth Hardware address. 
 
@@ -219,6 +211,51 @@ Now you need to determine the device's Bluetooth Hardware address.
   with this), and the **Type** field should be set to the type of device you
   just connected. The **HW Addr** field should be set to the Bluetooth Hardware
   address you just copied.
+
+
+Using a USB Bluetooth Adapter
+-----------------------------
+A USB Bluetooth adapter with an external antenna, on a USB extension cable, can reach the
+Time Machine and scanner farther than the laptop's internal Bluetooth. Windows uses only one
+Bluetooth radio at a time, and with both on, you can't control which one it uses. So turn the
+internal Bluetooth off, and pair the devices after that: a device paired on one radio has to be
+paired again on the other.
+
+Turn the internal Bluetooth off in the BIOS. Turning it off in Device Manager also works, but a
+driver or Windows update can turn it back on, which the BIOS setting is safe from. Wi-Fi isn't
+affected, even though it's often on the same card as the internal Bluetooth.
+
+On a Dell laptop (menu names vary a little by model):
+
+#. restart the laptop, and press **F2** repeatedly as soon as the Dell logo appears, to open
+   BIOS Setup. If Windows starts instead, restart and try again. **F12** opens a one-time boot
+   menu, which also has **BIOS Setup**.
+#. go to **Connection** (on some models, **Wireless**), then **Wireless Device Enable**
+#. clear the **Bluetooth** check box, and leave **WLAN** (Wi-Fi) checked
+#. select **Apply Changes**, then **Exit**. The laptop restarts into Windows.
+
+On other laptops, look for a Bluetooth or wireless setting in the BIOS's connection,
+wireless or onboard device settings.
+
+Then:
+
+* plug in the adapter. Install its driver if its instructions say to.
+* in Device Manager (Windows-x > Device Manager), expand **Bluetooth** and check that the
+  adapter is listed (e.g., **TP-Link Bluetooth USB Adapter**), with nothing from the internal
+  radio (often named Intel Wireless Bluetooth). Entries named **Microsoft Bluetooth
+  Enumerator**, **Microsoft Bluetooth LE Enumerator** and **Bluetooth Device (RFCOMM Protocol
+  TDI)** are part of Windows and are always there. A model whose BIOS has no Bluetooth setting
+  can turn the internal one off here instead: right-click it and choose **Disable device**.
+* pair the Time Machine and scanners (see `Bluetooth Pairing`_). Their COM ports will change,
+  but their hardware addresses don't, so devices already in the :ref:`Bluetooth Devices view`
+  don't need changing.
+* on the results page, check that each device's port shows in its port list, and that each
+  connects
+
+.. note::
+    Keep the adapter with the laptop. With the internal Bluetooth off, the laptop has no
+    Bluetooth without the adapter. To go back to the internal Bluetooth, check **Bluetooth**
+    in the BIOS again and pair the devices again.
 
 
 App Upgrade
@@ -306,7 +343,7 @@ enabled. Don't back up during a race.
     .. code-block:: shell
 
         docker compose cp ./tmtility-backup.sql db:/tmp/tmtility-backup.sql
-        docker compose exec db sh -c 'MYSQL_PWD=$(cat /run/secrets/db-password) mysql -uroot < /tmp/tmtility-backup.sql'
+        docker compose exec db sh -c 'MYSQL_PWD=$(cat /run/secrets/db-password) mysql -uroot tm-csv-connector < /tmp/tmtility-backup.sql'
         docker compose restart app
 
 
@@ -322,9 +359,8 @@ On the new laptop, before you need the old one:
 #. install the app as in `App Installation`_, up to the step that says to come back here. Use
    the same release that's on the old laptop; if the old laptop is behind, upgrade it first
    (see `App Upgrade`_), so its backup matches.
-#. if you're adding a USB Bluetooth adapter, plug it in and turn off the laptop's internal
-   Bluetooth in Device Manager now, before pairing anything. Windows uses one Bluetooth radio
-   at a time, and devices paired on one radio have to be paired again on another.
+#. if you're adding a USB Bluetooth adapter, set it up now, before pairing anything (see
+   `Using a USB Bluetooth Adapter`_)
 #. pair the Time Machine and barcode scanners with Windows (see `Bluetooth Pairing`_). You
    don't need to add them in the :ref:`Bluetooth Devices view`; they come with the database,
    and the app finds their COM ports by their hardware addresses, which don't change.
@@ -339,7 +375,7 @@ With both laptops on the same network:
    directory there to keep past races' client logs.
 #. on the new laptop, copy ``tmtility-backup.sql`` from the folder into the install directory
    and `restore <Backup and Restore_>`_ it
-#. open http://tm.localhost:8080/ on the new laptop, and check that the races, the Settings view
+#. open http://tm.localhost:8080/ on the new laptop, and check that the races, the Settings view at http://tm.localhost:8080/settings
    (including **output-file**) and the :ref:`Bluetooth Devices view` came across. On the results
    page, check that each device's port shows in its port list, and that each connects.
 #. on the old laptop, disable the app, so that it can't write the output file
