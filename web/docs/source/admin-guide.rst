@@ -53,6 +53,8 @@ replacing an existing **tmtility** laptop, see `Moving to a New Laptop`_ first.
 
 * **Google Chrome**, the recommended browser for **tmtility**
 
+* set the laptop's clock to sync with internet time servers (see `Setting the Laptop Clock`_)
+
 Then install the app (see `App Installation`_) and pair the Bluetooth devices (see
 `Bluetooth Pairing`_).
 
@@ -256,6 +258,47 @@ Then:
     Keep the adapter with the laptop. With the internal Bluetooth off, the laptop has no
     Bluetooth without the adapter. To go back to the internal Bluetooth, check **Bluetooth**
     in the BIOS again and pair the devices again.
+
+Setting the Laptop Clock
+-------------------------
+The device clients stamp each result and scan with the laptop's clock (see the
+:ref:`Results Log view`), and the client logs use it too. The chip reader stamps its reads
+with its own clock, which it sets from GPS. If the laptop's clock is off, its times won't
+line up with the chip reads. Windows syncs its clock only about once a week by default, and
+its time server setting can be wrong: two of our race-day laptops were found about 40 and
+16 seconds off.
+
+To check the clock, open https://time.is in Chrome. It shows how far ahead or behind the
+laptop's clock is.
+
+To set the laptop to sync with several internet time servers, open Command Prompt with
+**Run as administrator** (these commands don't work as written in PowerShell) and run:
+
+.. code-block:: shell
+
+    w32tm /config /manualpeerlist:"time.nist.gov,0x8 us.pool.ntp.org,0x8 time.cloudflare.com,0x8" /syncfromflags:manual /update
+    sc config w32time start= auto
+    net stop w32time
+    net start w32time
+    w32tm /resync /rediscover
+
+``sc config`` makes the Windows Time service start with Windows. If ``w32tm /resync`` says
+"no time data was available", the service hasn't reached the servers yet: wait a minute and
+run it again. Then check that it worked:
+
+.. code-block:: shell
+
+    w32tm /query /source
+    w32tm /query /peers
+
+``/query /source`` should name one of the servers, not **Local CMOS Clock** or
+**Free-running System Clock**, which mean the laptop isn't syncing. ``/query /peers`` lists
+each server's state; one still pending is fine. Check https://time.is again: the clock
+should now be within a fraction of a second.
+
+Syncing needs an internet connection. The race network normally has one, through its
+cellular hotspot, so the laptop keeps syncing at the race. Where there's no cellular
+signal, check the clock at home before race day.
 
 
 App Upgrade
