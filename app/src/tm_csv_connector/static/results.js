@@ -58,6 +58,21 @@ const bluetooth_select_id = {
 // save last draw time
 var last_draw;
 
+// Back-forward cache (#173): leaving the page (e.g., to Chip Reads) can keep it in the cache, which closes its
+// client WebSockets. Back then restores it with its old JavaScript state: the closed sockets would show false
+// "client is not running" banners (#153), and nothing resends the race to the server. Reload instead, which
+// resends the race once the WebSockets open; the clients keep their device connections across a reload.
+var page_hidden = false;
+window.addEventListener('pagehide', function() {
+    page_hidden = true;
+});
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        console.log('page restored from back-forward cache, reloading (#173)');
+        location.reload();
+    }
+});
+
 $( function() {
     cd = $('#connect-disconnect');
     cd.on('click', cdbuttonclick);
@@ -334,7 +349,8 @@ function update_alert_banner(banner, text) {
 // the first time) only if the client was running earlier on this page -- one that never ran may not be
 // installed. Called again on each failed reopen attempt; the client's next status reply replaces the banner.
 function client_not_running(was_open, banner, text) {
-    if (!was_open) return;
+    // the browser closed the WebSockets because the page is being left or cached, not because a client stopped
+    if (!was_open || page_hidden) return;
     if (!banner.is(':visible') || banner.text() != text) {
         client_alert_beep();
     }
@@ -854,11 +870,14 @@ let results_applied_seq = 0;     // sequence number of the latest refresh applie
 function refresh_results_table(should_apply, hold_rows) {
     let seq = ++results_refresh_seq;
     let resturl = window.location.pathname + '/rest';
+    let sent_raceid = raceid;
 
-    return $.get(resturl).then(function(respdata) {
+    return $.get(resturl).then(function(respdata, textStatus, jqXHR) {
         // drop a response older than one already applied
         if (seq < results_applied_seq) return;
         if (should_apply && !should_apply()) return;
+        // rows for the wrong race, or none because the session lost the race: don't show them (#173)
+        if (session_race_mismatch(jqXHR.getResponseHeader(RESULTS_RACE_HEADER), sent_raceid)) return;
         results_applied_seq = seq;
 
         let table = _dt_table;
@@ -897,6 +916,66 @@ function refresh_results_table(should_apply, hold_rows) {
             table.draw('full-hold');
         }
     });
+}
+
+// The results poll's response header gives the server session's race ('' if it has none). The session can
+// lose the page's race while the page stays open (cause unknown, #173), and the table then empties. When
+// that happens, resend the page's race, without race_changed so the CSV isn't rewritten. At most one resend
+// per RACE_RESYNC_MIN_WAIT, so a session that won't keep the race can't cause a loop; a mismatch within that
+// time of a resend shows a banner instead.
+const RESULTS_RACE_HEADER = 'X-Results-Raceid';
+const RACE_RESYNC_MIN_WAIT = 10000;
+let race_resync_in_progress = false;
+let race_resync_last = 0;
+
+// returns true if the server's session race doesn't match the page's, so the response shouldn't be shown
+function session_race_mismatch(server_raceid, sent_raceid) {
+    // no header (not the results poll), page not initialized yet, or the page changed race while the
+    // request was out -- setParams() takes care of that one
+    if (server_raceid === null || sent_raceid == undefined || sent_raceid != raceid) return false;
+    if (server_raceid === String(raceid)) {
+        update_alert_banner($('#race-sync-banner'), null);
+        return false;
+    }
+    if (race_resync_in_progress) return true;
+    if (Date.now() - race_resync_last < RACE_RESYNC_MIN_WAIT) {
+        update_alert_banner($('#race-sync-banner'),
+            'Results table is out of step with the server -- reload the page, and check the Race shown');
+        return true;
+    }
+    console.warn(`server session race '${server_raceid}' doesn't match page race ${raceid}, resending it (#173)`);
+    resync_session_race();
+    return true;
+}
+
+// resend the page's parameters to /_setparams, as setParams() does but without race_changed, then refresh
+function resync_session_race() {
+    race_resync_in_progress = true;
+    race_resync_last = Date.now();
+    let locked = false;
+    // wait out a setParams() in progress, which holds this mutex
+    results_cookie_mutex.promise()
+        .then(function(mutex) {
+            mutex.lock();
+            locked = true;
+            return $.ajax({
+                url: '/_setparams',
+                type: 'post',
+                dataType: 'json',
+                data: {port: port, scannerport: scannerport, raceid: raceid, logdir: logdir},
+            });
+        })
+        .then(function(json) {
+            if (json.status != 'success') console.error(`resending race ${raceid} failed: ${json.error}`);
+        })
+        .catch(function(err) {
+            console.error(err);
+        })
+        .finally(function() {
+            if (locked) results_cookie_mutex.unlock();
+            race_resync_in_progress = false;
+            refresh_results_table();
+        });
 }
 
 // briefly show that a scan button press was ignored because its row had already changed (#156)

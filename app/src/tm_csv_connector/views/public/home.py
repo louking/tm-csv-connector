@@ -106,6 +106,8 @@ def get_results_filters():
         div(id='tm-alert-banner', _class='client-alert-banner')
         div(id='scanner-alert-banner', _class='client-alert-banner')
         div(id='chipreader-alert-banner', _class='client-alert-banner')
+        # shown if resending the page's race to the server doesn't fix a mismatch (#173)
+        div(id='race-sync-banner', _class='client-alert-banner')
 
         with div(style='float: right;'):
             button('Undo Clear', id='undo-clear-button', _class='filter-item ui-button',
@@ -206,7 +208,46 @@ def get_results_filters():
 
     return prehtml.render()
 
+# response header on the results poll giving the session's race id, or '' if the session has no valid race;
+# results.js resends the page's race if it doesn't match (#173). A header keeps the poll's row-array body
+# in the form loutilities and refresh_results_table() expect
+RESULTS_RACE_HEADER = 'X-Results-Raceid'
+
+# the session race the last results poll found, so the app log shows each change once rather than on every
+# poll (#173); normal mode has one browser and gunicorn runs one worker, so one module-level value is enough
+POLL_RACE_UNSET = 'app start'
+last_poll_race_id = POLL_RACE_UNSET
+
+def log_poll_race(race_id):
+    """log a change in the race the results poll found in the session (#173)
+
+    Args:
+        race_id (int or None): the session's race, or None if it has no valid race
+    """
+    global last_poll_race_id
+    if race_id == last_poll_race_id:
+        return
+    old = 'none' if last_poll_race_id is None else last_poll_race_id
+    last_poll_race_id = race_id
+    if race_id is None:
+        # cookie names only, to show whether the browser's session cookie went missing
+        current_app.logger.warning(f'results poll: no valid race in session (was {old}); '
+                                   f'_results_raceid={session.get("_results_raceid")!r}, '
+                                   f'cookies={sorted(request.cookies)}')
+    else:
+        current_app.logger.info(f'results poll: session race {old} -> {race_id}')
+
 class ResultsViewNormal(ResultsView, TmConnectorView):
+    def get(self):
+        response = super().get()
+        # the poll, not the page
+        if request.path.endswith('/rest'):
+            race = getattr(self, 'race', None)
+            race_id = race.id if race else None
+            log_poll_race(race_id)
+            response.headers[RESULTS_RACE_HEADER] = '' if race_id is None else str(race_id)
+        return response
+
     def permission(self):
         # we don't handle this url in simulation mode
         if current_app.config.get('SIMULATION_MODE', False):

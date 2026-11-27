@@ -470,6 +470,14 @@ class SetParamsApi(MethodView):
         try:
             form = request.form
 
+            # log a change of the session's race, so a results page that loses it can be traced (#173);
+            # repr() so a value from the request can't add lines to the log
+            if 'raceid' in form:
+                old_raceid = session.get('_results_raceid')
+                if old_raceid != form['raceid']:
+                    current_app.logger.info(f'_setparams: session race {old_raceid!r} -> {form["raceid"]!r}'
+                                            f'{" (race changed)" if "race_changed" in form else ""}')
+
             # skip race_changed because it's transient
             for key in form:
                 if key == 'race_changed': continue

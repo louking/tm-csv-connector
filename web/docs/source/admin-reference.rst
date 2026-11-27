@@ -206,7 +206,9 @@ The view has the following controls:
         second or two, there's a problem communicating with the reader service
 
     :Race:
-        choose the race previously defined at :ref:`Races view`
+        choose the race previously defined at :ref:`Races view`. If a banner
+        says the results table is out of step with the server, reload the page
+        and check that the race shown is the right one
 
     :Port:
         the COM port which has been set up to communicate with the Time Machine.
